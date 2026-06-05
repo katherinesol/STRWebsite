@@ -84,7 +84,7 @@ export default function ReviewStrip() {
   const r = reviews[current]
 
   return (
-    <section id="reviews" style={{ background: 'var(--linen)', padding: '72px 40px' }}>
+    <section id="reviews" style={{ background: 'var(--linen)', padding: 'clamp(48px, 8vw, 72px) clamp(20px, 5vw, 40px)' }}>
       <div style={{
         fontSize: '10px', fontWeight: 500, letterSpacing: '.16em',
         textTransform: 'uppercase', color: 'var(--amber)', marginBottom: '20px',

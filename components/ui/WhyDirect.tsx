@@ -7,7 +7,7 @@ const REASONS = [
 
 export default function WhyDirect() {
   return (
-    <section style={{ background: 'var(--noir)', padding: '80px 40px' }}>
+    <section style={{ background: 'var(--noir)', padding: 'clamp(48px, 8vw, 80px) clamp(20px, 5vw, 40px)' }}>
       <div style={{
         fontSize: '10px', fontWeight: 500, letterSpacing: '.16em',
         textTransform: 'uppercase', color: 'var(--amber)', marginBottom: '12px',
@@ -20,7 +20,8 @@ export default function WhyDirect() {
       }}>
         <em>No fees. No surprises.</em>
       </h2>
-      <div style={{
+      <style>{`@media (max-width: 768px) { .why-grid { grid-template-columns: 1fr 1fr !important; } } @media (max-width: 480px) { .why-grid { grid-template-columns: 1fr !important; } }`}</style>
+      <div className="why-grid" style={{
         display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)',
         gap: '1px', background: '#2A2A28',
         borderTop: '0.5px solid #2A2A28',

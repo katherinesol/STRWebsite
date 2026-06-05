@@ -7,7 +7,7 @@ const STEPS = [
 
 export default function HowItWorks() {
   return (
-    <section id="how" style={{ background: 'var(--chalk)', padding: '80px 40px' }}>
+    <section id="how" style={{ background: 'var(--chalk)', padding: 'clamp(48px, 8vw, 80px) clamp(20px, 5vw, 40px)' }}>
       <div style={{
         fontSize: '10px', fontWeight: 500, letterSpacing: '.16em',
         textTransform: 'uppercase', color: 'var(--amber)', marginBottom: '12px',
@@ -20,7 +20,8 @@ export default function HowItWorks() {
       }}>
         Book in <em>four steps.</em>
       </h2>
-      <div style={{
+      <style>{`@media (max-width: 768px) { .how-grid { grid-template-columns: 1fr 1fr !important; } } @media (max-width: 480px) { .how-grid { grid-template-columns: 1fr !important; } }`}</style>
+      <div className="how-grid" style={{
         display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)',
         gap: '1px', background: 'var(--sand)',
         border: '0.5px solid var(--sand)',

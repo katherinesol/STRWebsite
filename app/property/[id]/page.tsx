@@ -27,22 +27,23 @@ export default async function PropertyPage({
       <Nav />
       <div style={{ marginTop: '56px' }}>
         <PropertyHero property={property} />
-        <div style={{
+        <style>{`@media (max-width: 900px) { .prop-detail-grid { grid-template-columns: 1fr !important; } .prop-detail-sidebar { position: static !important; } }`}</style>
+        <div className="prop-detail-grid" style={{
           display: 'grid',
           gridTemplateColumns: '1fr 380px',
           gap: '0',
           maxWidth: '1200px',
           margin: '0 auto',
-          padding: '48px 40px',
+          padding: 'clamp(24px, 5vw, 48px) clamp(20px, 5vw, 40px)',
           alignItems: 'start',
         }}>
-          <div style={{ paddingRight: '60px' }}>
+          <div style={{ paddingRight: 'clamp(0px, 4vw, 60px)' }}>
             <PropertyOverview property={property} />
             <PropertyAmenities property={property} />
             <PropertyFAQ property={property} />
             <NeighbourhoodMap property={property} />
           </div>
-          <div style={{ position: 'sticky', top: '80px' }}>
+          <div className="prop-detail-sidebar" style={{ position: 'sticky', top: '80px' }}>
             <BookingWidget property={property} />
           </div>
         </div>

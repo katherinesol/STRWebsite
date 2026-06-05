@@ -29,7 +29,7 @@ const PROPERTIES = [
 
 export default function Properties() {
   return (
-    <section id="properties" style={{ background: 'var(--chalk)', padding: '80px 40px 0' }}>
+    <section id="properties" style={{ background: 'var(--chalk)', padding: 'clamp(48px, 8vw, 80px) clamp(20px, 5vw, 40px) 0' }}>
       <div style={{
         fontSize: '10px', fontWeight: 500, letterSpacing: '.16em',
         textTransform: 'uppercase', color: 'var(--amber)', marginBottom: '12px',
@@ -50,7 +50,11 @@ export default function Properties() {
       </p>
 
       {/* property grid */}
-      <div style={{
+      <style>{`
+        @media (max-width: 768px) { .prop-grid { grid-template-columns: 1fr !important; } }
+        @media (max-width: 1024px) and (min-width: 769px) { .prop-grid { grid-template-columns: 1fr 1fr !important; } }
+      `}</style>
+      <div className="prop-grid" style={{
         display: 'grid', gridTemplateColumns: '1fr 1fr 1fr',
         gap: '1px', background: 'var(--sand)', marginTop: '1px',
       }}>

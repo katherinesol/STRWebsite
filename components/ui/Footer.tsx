@@ -2,9 +2,9 @@ import Link from 'next/link'
 
 export default function Footer({ brandName = '[Your Brand]' }: { brandName?: string }) {
   return (
-    <footer style={{ background: 'var(--noir)', padding: '56px 40px 32px' }}>
+    <footer style={{ background: 'var(--noir)', padding: 'clamp(40px, 6vw, 56px) clamp(20px, 5vw, 40px) 32px' }}>
       <div style={{
-        display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr 1fr',
+        display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
         gap: '40px', marginBottom: '48px', paddingBottom: '48px',
         borderBottom: '0.5px solid #2A2A28',
       }}>

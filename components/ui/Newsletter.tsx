@@ -13,8 +13,8 @@ export default function Newsletter() {
 
   return (
     <div style={{
-      background: 'var(--sand)', padding: '64px 40px',
-      display: 'grid', gridTemplateColumns: '1fr 1fr',
+      background: 'var(--sand)', padding: 'clamp(40px, 6vw, 64px) clamp(20px, 5vw, 40px)',
+      display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
       gap: '48px', alignItems: 'center',
     }}>
       <div>

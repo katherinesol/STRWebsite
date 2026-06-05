@@ -78,6 +78,9 @@ export default function BookingCheckout({ property }: { property: Property }) {
   const [bagDrop, setBagDrop] = useState<'none' | 'before' | 'after' | 'both'>('none')
   const [instacart, setInstacart] = useState(false)
   const [instacartNotes, setInstacartNotes] = useState('')
+  const [referralCode, setReferralCode] = useState('')
+  const [bookingId, setBookingId] = useState('')
+  const [bookingRef, setBookingRef] = useState('')
   const [agreed, setAgreed] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [step, setStep] = useState<'review' | 'confirmed'>('review')
@@ -164,7 +167,8 @@ export default function BookingCheckout({ property }: { property: Property }) {
         </h1>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 380px', gap: '60px', alignItems: 'start' }}>
+      <style>{`@media (max-width: 900px) { .checkout-grid { grid-template-columns: 1fr !important; } .checkout-sidebar { position: static !important; order: -1; } }`}</style>
+      <div className="checkout-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 380px', gap: '60px', alignItems: 'start' }}>
         <div>
 
           {/* guest details */}
@@ -365,6 +369,30 @@ export default function BookingCheckout({ property }: { property: Property }) {
             )}
           </div>
 
+          {/* referral code */}
+          <div style={{ marginBottom: '40px' }}>
+            <SectionLabel>Referral code (optional)</SectionLabel>
+            <div style={{ maxWidth: '240px' }}>
+              <input
+                type="text"
+                value={referralCode}
+                onChange={e => setReferralCode(e.target.value.toUpperCase())}
+                placeholder="Enter code"
+                style={{
+                  width: '100%', padding: '12px 14px',
+                  border: '0.5px solid var(--sand-mid)',
+                  fontFamily: 'var(--mono, monospace)', fontSize: '14px',
+                  letterSpacing: '.12em', color: 'var(--noir)',
+                  background: 'white', outline: 'none', borderRadius: '2px',
+                  boxSizing: 'border-box' as const,
+                }}
+              />
+              <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '6px' }}>
+                Have a friend who stayed with us? Enter their referral code for a discount.
+              </div>
+            </div>
+          </div>
+
           {/* payment method */}
           <div style={{ marginBottom: '40px' }}>
             <SectionLabel>Payment method</SectionLabel>
@@ -454,7 +482,59 @@ export default function BookingCheckout({ property }: { property: Property }) {
 
           <button
             disabled={!canSubmit || submitting}
-            onClick={() => { setSubmitting(true); setTimeout(() => { setStep('confirmed'); setSubmitting(false) }, 1500) }}
+            onClick={async () => {
+              setSubmitting(true)
+              try {
+                const res = await fetch('/api/bookings', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    property_id: property.id,
+                    check_in: checkIn,
+                    check_out: checkOut,
+                    nights,
+                    guests: guestCount,
+                    payment_method: paymentMethod,
+                    accommodation,
+                    cleaning_fee: property.cleaningFee,
+                    hst: hstAmount,
+                    mat: matAmount,
+                    addon_fee: addOnFee,
+                    total: totalWithAddons,
+                    deposit_amount: depositWithAddons,
+                    second_payment_amount: secondWithAddons,
+                    final_payment_amount: finalWithAddons,
+                    second_due_date: secondDueDate ? format(secondDueDate, 'yyyy-MM-dd') : null,
+                    final_due_date: finalDueDate ? format(finalDueDate, 'yyyy-MM-dd') : null,
+                    early_checkin: earlyCheckin,
+                    early_checkin_time: earlyCheckin ? earlyCheckinTime : null,
+                    late_checkout: lateCheckout,
+                    late_checkout_time: lateCheckout ? lateCheckoutTime : null,
+                    bag_drop: bagDrop,
+                    instacart_requested: instacart,
+                    vehicle_count: vehicleCount,
+                    plate_numbers: vehicleCount > 0 && !platesPending ? plates.slice(0, vehicleCount) : [],
+                    plates_pending: platesPending,
+                    guest_name: name,
+                    guest_email: email,
+                    guest_phone: phone,
+                    referral_code: referralCode || null,
+                  }),
+                })
+                const data = await res.json()
+                if (res.ok) {
+                  setBookingId(data.booking_id)
+                  setBookingRef(data.booking_reference)
+                  setStep('confirmed')
+                } else {
+                  alert(data.error || 'Something went wrong — please try again')
+                }
+              } catch {
+                alert('Something went wrong — please try again')
+              } finally {
+                setSubmitting(false)
+              }
+            }}
             style={{
               width: '100%', padding: '16px',
               background: canSubmit ? 'var(--noir)' : 'var(--sand)',
@@ -469,7 +549,7 @@ export default function BookingCheckout({ property }: { property: Property }) {
         </div>
 
         {/* right — booking summary */}
-        <div style={{ position: 'sticky', top: '80px' }}>
+        <div className="checkout-sidebar" style={{ position: 'sticky', top: '80px' }}>
           <div style={{ border: '0.5px solid var(--sand-mid)', padding: '24px', background: 'var(--chalk)' }}>
             <div style={{ fontSize: '10px', fontWeight: 500, letterSpacing: '.14em', textTransform: 'uppercase', color: 'var(--amber)', marginBottom: '4px' }}>
               {property.neighbourhood} · {property.city}
