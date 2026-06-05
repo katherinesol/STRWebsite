@@ -38,9 +38,17 @@ export type Property = {
   houfyUrl?: string
   parkingSpots: number
   earlyCheckinAvailable: boolean
+  earliestCheckinTime: string
+  latestCheckoutTime: string
+  bagDropAvailable: boolean
+  instacartAvailable: boolean
   instacartCutoffHours: number
   securityDeposit: number
   strRegistration?: string
+  hst: number
+  mat: number
+  cancellationPolicy: 'moderate' | 'strict'
+  paymentSchedule: { depositPercent: number; secondPercent: number; secondDaysBefore: number; finalDaysBefore: number }
   mapOffset?: { lat: number; lng: number }
   pois?: POI[]
 }
@@ -66,8 +74,12 @@ export const PROPERTIES: Record<string, Property> = {
       { q: 'Is the suite suitable for infants?', a: 'Yes. A travel cot and high chair are available on request at no charge.' },
       { q: 'Can I book the East and West suite together?', a: "Absolutely — they're in the same building. Book both for groups up to 8 guests." },
     ],
-    parkingSpots: 1, earlyCheckinAvailable: true, instacartCutoffHours: 24,
+    parkingSpots: 1, earlyCheckinAvailable: true, earliestCheckinTime: '10:00', latestCheckoutTime: '14:00', bagDropAvailable: true, instacartAvailable: true, instacartCutoffHours: 24,
     icalUrls: { airbnb: '', vrbo: '', houfy: '' },
+    cancellationPolicy: 'moderate',
+    paymentSchedule: { depositPercent: 10, secondPercent: 50, secondDaysBefore: 60, finalDaysBefore: 30 },
+    hst: 0.13,
+    mat: 0.06,
     mapOffset: { lat: 43.6213, lng: -79.5025 },
     pois: [
       { id: 'ry-go', name: 'Royal York GO Station', category: 'transit', lat: 43.6191, lng: -79.5027, walkMins: 3, driveMins: 1 },
@@ -98,8 +110,12 @@ export const PROPERTIES: Record<string, Property> = {
       { q: 'Can I check in early?', a: "Early check-in from 1pm is available when the unit is ready. Request at booking and we'll confirm the day before." },
       { q: 'Can I book East and West together?', a: "Yes — they're in the same building. Book both for groups up to 8 guests." },
     ],
-    parkingSpots: 1, earlyCheckinAvailable: true, instacartCutoffHours: 24,
+    parkingSpots: 1, earlyCheckinAvailable: true, earliestCheckinTime: '10:00', latestCheckoutTime: '14:00', bagDropAvailable: true, instacartAvailable: true, instacartCutoffHours: 24,
     icalUrls: { airbnb: '', vrbo: '', houfy: '' },
+    cancellationPolicy: 'moderate',
+    paymentSchedule: { depositPercent: 10, secondPercent: 50, secondDaysBefore: 60, finalDaysBefore: 30 },
+    hst: 0.13,
+    mat: 0.06,
     mapOffset: { lat: 43.6210, lng: -79.5028 },
     pois: [
       { id: 'ry-go-w', name: 'Royal York GO Station', category: 'transit', lat: 43.6191, lng: -79.5027, walkMins: 3, driveMins: 1 },
@@ -132,8 +148,12 @@ export const PROPERTIES: Record<string, Property> = {
       { q: 'Is the property suitable for children?', a: 'Yes. The yard is fenced and the beach is family-friendly. A travel cot and high chair are available on request.' },
       { q: 'Can we have a bonfire?', a: 'Yes — there is a fire pit on the property. Please follow fire safety guidelines provided at check-in.' },
     ],
-    parkingSpots: 4, earlyCheckinAvailable: true, instacartCutoffHours: 48,
+    parkingSpots: 4, earlyCheckinAvailable: true, earliestCheckinTime: '11:00', latestCheckoutTime: '14:00', bagDropAvailable: false, instacartAvailable: true, instacartCutoffHours: 48,
     icalUrls: { airbnb: '', vrbo: '', houfy: '' },
+    cancellationPolicy: 'strict',
+    paymentSchedule: { depositPercent: 10, secondPercent: 50, secondDaysBefore: 60, finalDaysBefore: 30 },
+    hst: 0.13,
+    mat: 0.04,
     mapOffset: { lat: 42.8712, lng: -79.2452 },
     pois: [
       { id: 'nb-beach', name: 'Nickel Beach', category: 'beach', lat: 42.8730, lng: -79.2477, walkMins: 2 },
