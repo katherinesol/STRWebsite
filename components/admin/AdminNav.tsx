@@ -27,20 +27,20 @@ export default function AdminNav() {
   return (
     <div style={{
       position: 'fixed', left: 0, top: 0, bottom: 0,
-      width: '220px', background: '#1A1A18',
-      borderRight: '0.5px solid #2A2A28',
+      width: '220px', background: '#242422',
+      borderRight: '0.5px solid #363634',
       display: 'flex', flexDirection: 'column',
       zIndex: 50,
     }}>
       {/* logo */}
-      <div style={{ padding: '24px 20px 20px', borderBottom: '0.5px solid #2A2A28' }}>
+      <div style={{ padding: '24px 20px 20px', borderBottom: '0.5px solid #363634' }}>
         <div style={{
           fontFamily: 'var(--serif)', fontSize: '20px', fontStyle: 'italic',
-          fontWeight: 300, color: '#F0EDE6',
+          fontWeight: 300, color: '#F5F2EC',
         }}>
           Admin<span style={{ color: 'var(--amber)' }}>.</span>
         </div>
-        <div style={{ fontSize: '9px', letterSpacing: '.14em', textTransform: 'uppercase', color: '#444440', marginTop: '2px' }}>
+        <div style={{ fontSize: '9px', letterSpacing: '.14em', textTransform: 'uppercase', color: '#888880', marginTop: '2px' }}>
           Host dashboard
         </div>
       </div>
@@ -53,8 +53,8 @@ export default function AdminNav() {
             <Link key={href} href={href} style={{
               display: 'flex', alignItems: 'center', gap: '10px',
               padding: '10px 20px',
-              background: active ? '#2A2A28' : 'transparent',
-              color: active ? '#F0EDE6' : '#666660',
+              background: active ? '#363634' : 'transparent',
+              color: active ? '#F5F2EC' : '#AEAEA6',
               fontSize: '13px', textDecoration: 'none',
               borderLeft: active ? '2px solid var(--amber)' : '2px solid transparent',
               transition: 'all .15s',
@@ -67,13 +67,13 @@ export default function AdminNav() {
       </nav>
 
       {/* logout */}
-      <div style={{ padding: '16px 20px', borderTop: '0.5px solid #2A2A28' }}>
+      <div style={{ padding: '16px 20px', borderTop: '0.5px solid #363634' }}>
         <button
           onClick={handleLogout}
           style={{
             width: '100%', padding: '10px',
-            background: 'transparent', border: '0.5px solid #2A2A28',
-            color: '#666660', fontFamily: 'var(--sans)',
+            background: 'transparent', border: '0.5px solid #363634',
+            color: '#AEAEA6', fontFamily: 'var(--sans)',
             fontSize: '11px', letterSpacing: '.1em', textTransform: 'uppercase',
             cursor: 'pointer', borderRadius: '2px',
           }}

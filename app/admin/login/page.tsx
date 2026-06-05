@@ -47,7 +47,7 @@ export default function AdminLogin() {
         </div>
         <div style={{
           fontSize: '10px', letterSpacing: '.16em', textTransform: 'uppercase',
-          color: '#555550', textAlign: 'center', marginBottom: '40px',
+          color: '#9A9A92', textAlign: 'center', marginBottom: '40px',
         }}>
           Host dashboard
         </div>
@@ -59,7 +59,7 @@ export default function AdminLogin() {
             <div key={label}>
               <div style={{
                 fontSize: '10px', fontWeight: 500, letterSpacing: '.14em',
-                textTransform: 'uppercase', color: '#888880', marginBottom: '6px',
+                textTransform: 'uppercase', color: '#AEAEA6', marginBottom: '6px',
               }}>
                 {label}
               </div>
@@ -70,7 +70,7 @@ export default function AdminLogin() {
                 required
                 style={{
                   width: '100%', padding: '12px 14px',
-                  background: '#2A2A28', border: '0.5px solid #3A3A38',
+                  background: '#363634', border: '0.5px solid #4A4A48',
                   color: '#F0EDE6', fontFamily: 'var(--sans)', fontSize: '14px',
                   outline: 'none', borderRadius: '2px', boxSizing: 'border-box',
                 }}
@@ -87,8 +87,8 @@ export default function AdminLogin() {
             disabled={loading}
             style={{
               width: '100%', padding: '14px',
-              background: loading ? '#3A3A38' : 'var(--amber)',
-              color: loading ? '#888880' : '#1A1A18',
+              background: loading ? '#4A4A48' : 'var(--amber)',
+              color: loading ? '#AEAEA6' : '#242422',
               border: 'none', fontFamily: 'var(--sans)',
               fontSize: '11px', letterSpacing: '.12em', textTransform: 'uppercase',
               cursor: loading ? 'not-allowed' : 'pointer',

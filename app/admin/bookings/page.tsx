@@ -12,7 +12,7 @@ const STATUS_STYLES: Record<string, { label: string; color: string; bg: string }
   pending_payment: { label: 'Pending payment', color: '#f39c12', bg: '#2a1f0a' },
   confirmed:       { label: 'Confirmed',        color: '#2ecc71', bg: '#0a1f0f' },
   active:          { label: 'Active',           color: '#3498db', bg: '#0a1520' },
-  completed:       { label: 'Completed',        color: '#666660', bg: '#1a1a18' },
+  completed:       { label: 'Completed',        color: '#AEAEA6', bg: '#1a1a18' },
   cancelled:       { label: 'Cancelled',        color: '#e74c3c', bg: '#1f0a0a' },
 }
 
@@ -40,10 +40,10 @@ export default async function BookingsPage({
     <div>
       <div style={{ marginBottom: '28px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
         <div>
-          <div style={{ fontSize: '10px', fontWeight: 500, letterSpacing: '.16em', textTransform: 'uppercase', color: '#555550', marginBottom: '6px' }}>
+          <div style={{ fontSize: '10px', fontWeight: 500, letterSpacing: '.16em', textTransform: 'uppercase', color: '#9A9A92', marginBottom: '6px' }}>
             Management
           </div>
-          <h1 style={{ fontFamily: 'var(--serif)', fontSize: '32px', fontWeight: 300, color: '#F0EDE6', lineHeight: 1 }}>
+          <h1 style={{ fontFamily: 'var(--serif)', fontSize: '32px', fontWeight: 300, color: '#F5F2EC', lineHeight: 1 }}>
             Bookings.
           </h1>
         </div>
@@ -56,15 +56,15 @@ export default async function BookingsPage({
           <Link href="/admin/bookings" style={{
             padding: '6px 12px', fontSize: '10px', letterSpacing: '.1em',
             textTransform: 'uppercase', textDecoration: 'none',
-            background: !status ? '#F0EDE6' : '#2A2A28',
-            color: !status ? '#1A1A18' : '#666660',
+            background: !status ? '#F5F2EC' : '#363634',
+            color: !status ? '#242422' : '#AEAEA6',
           }}>All</Link>
           {statuses.map(s => (
             <Link key={s} href={`/admin/bookings?status=${s}${property ? `&property=${property}` : ''}`} style={{
               padding: '6px 12px', fontSize: '10px', letterSpacing: '.1em',
               textTransform: 'uppercase', textDecoration: 'none',
-              background: status === s ? '#F0EDE6' : '#2A2A28',
-              color: status === s ? '#1A1A18' : '#666660',
+              background: status === s ? '#F5F2EC' : '#363634',
+              color: status === s ? '#242422' : '#AEAEA6',
             }}>
               {STATUS_STYLES[s].label}
             </Link>
@@ -77,8 +77,8 @@ export default async function BookingsPage({
             <Link key={id} href={`/admin/bookings?${status ? `status=${status}&` : ''}property=${id}`} style={{
               padding: '6px 12px', fontSize: '10px', letterSpacing: '.1em',
               textTransform: 'uppercase', textDecoration: 'none',
-              background: property === id ? 'var(--amber)' : '#2A2A28',
-              color: property === id ? '#1A1A18' : '#666660',
+              background: property === id ? 'var(--amber)' : '#363634',
+              color: property === id ? '#242422' : '#AEAEA6',
             }}>
               {name}
             </Link>
@@ -87,13 +87,13 @@ export default async function BookingsPage({
       </div>
 
       {/* table */}
-      <div style={{ background: '#1A1A18', border: '0.5px solid #2A2A28' }}>
+      <div style={{ background: '#242422', border: '0.5px solid #363634' }}>
         {/* header */}
         <div style={{
           display: 'grid', gridTemplateColumns: '1fr 140px 160px 120px 100px 80px',
-          padding: '10px 20px', borderBottom: '0.5px solid #2A2A28',
+          padding: '10px 20px', borderBottom: '0.5px solid #363634',
           fontSize: '9px', fontWeight: 500, letterSpacing: '.14em',
-          textTransform: 'uppercase', color: '#444440',
+          textTransform: 'uppercase', color: '#888880',
         }}>
           <span>Guest</span>
           <span>Property</span>
@@ -105,7 +105,7 @@ export default async function BookingsPage({
 
         {/* rows */}
         {!bookings?.length ? (
-          <div style={{ padding: '40px 20px', textAlign: 'center', fontSize: '13px', color: '#444440' }}>
+          <div style={{ padding: '40px 20px', textAlign: 'center', fontSize: '13px', color: '#888880' }}>
             No bookings found
           </div>
         ) : bookings.map(b => {
@@ -114,23 +114,23 @@ export default async function BookingsPage({
           return (
             <div key={b.id} style={{
               display: 'grid', gridTemplateColumns: '1fr 140px 160px 120px 100px 80px',
-              padding: '14px 20px', borderBottom: '0.5px solid #2A2A28',
+              padding: '14px 20px', borderBottom: '0.5px solid #363634',
               alignItems: 'center',
             }}>
               <div>
-                <div style={{ fontSize: '13px', color: '#F0EDE6', fontWeight: 500 }}>{guest?.name || '—'}</div>
-                <div style={{ fontSize: '11px', color: '#555550', marginTop: '2px' }}>{guest?.email || '—'}</div>
+                <div style={{ fontSize: '13px', color: '#F5F2EC', fontWeight: 500 }}>{guest?.name || '—'}</div>
+                <div style={{ fontSize: '11px', color: '#9A9A92', marginTop: '2px' }}>{guest?.email || '—'}</div>
               </div>
               <div style={{ fontSize: '12px', color: '#888880' }}>{PROPERTY_NAMES[b.property_id]}</div>
               <div>
-                <div style={{ fontSize: '12px', color: '#F0EDE6' }}>
+                <div style={{ fontSize: '12px', color: '#F5F2EC' }}>
                   {format(new Date(b.check_in), 'MMM d')} → {format(new Date(b.check_out), 'MMM d, yyyy')}
                 </div>
-                <div style={{ fontSize: '11px', color: '#555550', marginTop: '2px' }}>{b.nights} nights · {b.guests} guests</div>
+                <div style={{ fontSize: '11px', color: '#9A9A92', marginTop: '2px' }}>{b.nights} nights · {b.guests} guests</div>
               </div>
               <div>
-                <div style={{ fontSize: '13px', color: '#F0EDE6' }}>${b.total?.toFixed(0)}</div>
-                <div style={{ fontSize: '11px', color: '#555550', marginTop: '2px' }}>
+                <div style={{ fontSize: '13px', color: '#F5F2EC' }}>${b.total?.toFixed(0)}</div>
+                <div style={{ fontSize: '11px', color: '#9A9A92', marginTop: '2px' }}>
                   {b.payment_method === 'etransfer' ? 'E-transfer' : 'Card'}
                 </div>
               </div>
@@ -156,7 +156,7 @@ export default async function BookingsPage({
         })}
       </div>
 
-      <div style={{ fontSize: '12px', color: '#444440', marginTop: '12px' }}>
+      <div style={{ fontSize: '12px', color: '#888880', marginTop: '12px' }}>
         {bookings?.length || 0} booking{bookings?.length !== 1 ? 's' : ''}
       </div>
     </div>

@@ -10,16 +10,16 @@ const PROPERTY_NAMES: Record<string, string> = {
 function StatCard({ label, value, sub, accent }: { label: string; value: string | number; sub?: string; accent?: boolean }) {
   return (
     <div style={{
-      background: '#1A1A18', border: '0.5px solid #2A2A28',
+      background: '#242422', border: '0.5px solid #363634',
       padding: '20px 24px',
     }}>
-      <div style={{ fontSize: '10px', fontWeight: 500, letterSpacing: '.14em', textTransform: 'uppercase', color: '#555550', marginBottom: '8px' }}>
+      <div style={{ fontSize: '10px', fontWeight: 500, letterSpacing: '.14em', textTransform: 'uppercase', color: '#9A9A92', marginBottom: '8px' }}>
         {label}
       </div>
-      <div style={{ fontFamily: 'var(--serif)', fontSize: '32px', fontWeight: 300, color: accent ? 'var(--amber)' : '#F0EDE6', lineHeight: 1 }}>
+      <div style={{ fontFamily: 'var(--serif)', fontSize: '32px', fontWeight: 300, color: accent ? 'var(--amber)' : '#F5F2EC', lineHeight: 1 }}>
         {value}
       </div>
-      {sub && <div style={{ fontSize: '11px', color: '#444440', marginTop: '6px' }}>{sub}</div>}
+      {sub && <div style={{ fontSize: '11px', color: '#888880', marginTop: '6px' }}>{sub}</div>}
     </div>
   )
 }
@@ -53,16 +53,16 @@ export default async function AdminDashboard() {
     <div>
       {/* header */}
       <div style={{ marginBottom: '32px' }}>
-        <div style={{ fontSize: '10px', fontWeight: 500, letterSpacing: '.16em', textTransform: 'uppercase', color: '#555550', marginBottom: '6px' }}>
+        <div style={{ fontSize: '10px', fontWeight: 500, letterSpacing: '.16em', textTransform: 'uppercase', color: '#9A9A92', marginBottom: '6px' }}>
           {format(today, 'EEEE, MMMM d yyyy')}
         </div>
-        <h1 style={{ fontFamily: 'var(--serif)', fontSize: '36px', fontWeight: 300, color: '#F0EDE6', lineHeight: 1 }}>
+        <h1 style={{ fontFamily: 'var(--serif)', fontSize: '36px', fontWeight: 300, color: '#F5F2EC', lineHeight: 1 }}>
           Good {today.getHours() < 12 ? 'morning' : today.getHours() < 17 ? 'afternoon' : 'evening'}.
         </h1>
       </div>
 
       {/* stat cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1px', background: '#2A2A28', marginBottom: '32px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1px', background: '#363634', marginBottom: '32px' }}>
         <StatCard label="Active bookings" value={activeBookings} />
         <StatCard label="Check-ins this week" value={upcomingCheckins?.length || 0} />
         <StatCard label="Pending e-transfers" value={pendingEtransfers?.length || 0} accent={!!pendingEtransfers?.length} />
@@ -72,23 +72,23 @@ export default async function AdminDashboard() {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
 
         {/* upcoming check-ins */}
-        <div style={{ background: '#1A1A18', border: '0.5px solid #2A2A28', padding: '24px' }}>
+        <div style={{ background: '#242422', border: '0.5px solid #363634', padding: '24px' }}>
           <div style={{ fontSize: '10px', fontWeight: 500, letterSpacing: '.14em', textTransform: 'uppercase', color: 'var(--amber)', marginBottom: '16px' }}>
             Check-ins — next 7 days
           </div>
           {!upcomingCheckins?.length ? (
-            <div style={{ fontSize: '13px', color: '#444440' }}>No check-ins this week</div>
+            <div style={{ fontSize: '13px', color: '#888880' }}>No check-ins this week</div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
               {upcomingCheckins.map(b => (
-                <div key={b.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '0.5px solid #2A2A28' }}>
+                <div key={b.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '0.5px solid #363634' }}>
                   <div>
-                    <div style={{ fontSize: '13px', color: '#F0EDE6', fontWeight: 500 }}>{(b.guests as any)?.name || '—'}</div>
-                    <div style={{ fontSize: '11px', color: '#555550', marginTop: '2px' }}>{PROPERTY_NAMES[b.property_id]} · {b.guests} guests</div>
+                    <div style={{ fontSize: '13px', color: '#F5F2EC', fontWeight: 500 }}>{(b.guests as any)?.name || '—'}</div>
+                    <div style={{ fontSize: '11px', color: '#9A9A92', marginTop: '2px' }}>{PROPERTY_NAMES[b.property_id]} · {b.guests} guests</div>
                   </div>
                   <div style={{ textAlign: 'right' }}>
                     <div style={{ fontSize: '13px', color: 'var(--amber)' }}>{format(new Date(b.check_in), 'MMM d')}</div>
-                    <div style={{ fontSize: '11px', color: '#555550' }}>{b.nights} nights</div>
+                    <div style={{ fontSize: '11px', color: '#9A9A92' }}>{b.nights} nights</div>
                   </div>
                 </div>
               ))}
@@ -97,22 +97,22 @@ export default async function AdminDashboard() {
         </div>
 
         {/* upcoming check-outs */}
-        <div style={{ background: '#1A1A18', border: '0.5px solid #2A2A28', padding: '24px' }}>
+        <div style={{ background: '#242422', border: '0.5px solid #363634', padding: '24px' }}>
           <div style={{ fontSize: '10px', fontWeight: 500, letterSpacing: '.14em', textTransform: 'uppercase', color: 'var(--amber)', marginBottom: '16px' }}>
             Check-outs — next 7 days
           </div>
           {!upcomingCheckouts?.length ? (
-            <div style={{ fontSize: '13px', color: '#444440' }}>No check-outs this week</div>
+            <div style={{ fontSize: '13px', color: '#888880' }}>No check-outs this week</div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
               {upcomingCheckouts.map(b => (
-                <div key={b.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '0.5px solid #2A2A28' }}>
+                <div key={b.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '0.5px solid #363634' }}>
                   <div>
-                    <div style={{ fontSize: '13px', color: '#F0EDE6', fontWeight: 500 }}>{(b.guests as any)?.name || '—'}</div>
-                    <div style={{ fontSize: '11px', color: '#555550', marginTop: '2px' }}>{PROPERTY_NAMES[b.property_id]}</div>
+                    <div style={{ fontSize: '13px', color: '#F5F2EC', fontWeight: 500 }}>{(b.guests as any)?.name || '—'}</div>
+                    <div style={{ fontSize: '11px', color: '#9A9A92', marginTop: '2px' }}>{PROPERTY_NAMES[b.property_id]}</div>
                   </div>
                   <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontSize: '13px', color: '#F0EDE6' }}>{format(new Date(b.check_out), 'MMM d')}</div>
+                    <div style={{ fontSize: '13px', color: '#F5F2EC' }}>{format(new Date(b.check_out), 'MMM d')}</div>
                   </div>
                 </div>
               ))}
@@ -121,23 +121,23 @@ export default async function AdminDashboard() {
         </div>
 
         {/* pending e-transfers */}
-        <div style={{ background: '#1A1A18', border: '0.5px solid #2A2A28', padding: '24px' }}>
+        <div style={{ background: '#242422', border: '0.5px solid #363634', padding: '24px' }}>
           <div style={{ fontSize: '10px', fontWeight: 500, letterSpacing: '.14em', textTransform: 'uppercase', color: 'var(--amber)', marginBottom: '16px' }}>
             Pending e-transfers
           </div>
           {!pendingEtransfers?.length ? (
-            <div style={{ fontSize: '13px', color: '#444440' }}>No pending e-transfers</div>
+            <div style={{ fontSize: '13px', color: '#888880' }}>No pending e-transfers</div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
               {pendingEtransfers.map(b => (
-                <div key={b.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '0.5px solid #2A2A28' }}>
+                <div key={b.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '0.5px solid #363634' }}>
                   <div>
-                    <div style={{ fontSize: '13px', color: '#F0EDE6', fontWeight: 500 }}>{(b.guests as any)?.name || '—'}</div>
-                    <div style={{ fontSize: '11px', color: '#555550', marginTop: '2px' }}>{PROPERTY_NAMES[b.property_id]} · {format(new Date(b.check_in), 'MMM d')}</div>
+                    <div style={{ fontSize: '13px', color: '#F5F2EC', fontWeight: 500 }}>{(b.guests as any)?.name || '—'}</div>
+                    <div style={{ fontSize: '11px', color: '#9A9A92', marginTop: '2px' }}>{PROPERTY_NAMES[b.property_id]} · {format(new Date(b.check_in), 'MMM d')}</div>
                   </div>
                   <div style={{ textAlign: 'right' }}>
                     <div style={{ fontSize: '13px', color: 'var(--amber)', fontWeight: 500 }}>${b.deposit_amount}</div>
-                    <div style={{ fontSize: '10px', color: '#555550', letterSpacing: '.06em' }}>AWAITING</div>
+                    <div style={{ fontSize: '10px', color: '#9A9A92', letterSpacing: '.06em' }}>AWAITING</div>
                   </div>
                 </div>
               ))}
@@ -146,19 +146,19 @@ export default async function AdminDashboard() {
         </div>
 
         {/* overdue payments */}
-        <div style={{ background: '#1A1A18', border: '0.5px solid #2A2A28', padding: '24px' }}>
+        <div style={{ background: '#242422', border: '0.5px solid #363634', padding: '24px' }}>
           <div style={{ fontSize: '10px', fontWeight: 500, letterSpacing: '.14em', textTransform: 'uppercase', color: overduePayments?.length ? '#e74c3c' : 'var(--amber)', marginBottom: '16px' }}>
             Overdue payments
           </div>
           {!overduePayments?.length ? (
-            <div style={{ fontSize: '13px', color: '#444440' }}>No overdue payments</div>
+            <div style={{ fontSize: '13px', color: '#888880' }}>No overdue payments</div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
               {overduePayments.map(b => (
-                <div key={b.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '0.5px solid #2A2A28' }}>
+                <div key={b.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '0.5px solid #363634' }}>
                   <div>
-                    <div style={{ fontSize: '13px', color: '#F0EDE6', fontWeight: 500 }}>{(b.guests as any)?.name || '—'}</div>
-                    <div style={{ fontSize: '11px', color: '#555550', marginTop: '2px' }}>{PROPERTY_NAMES[b.property_id]} · {format(new Date(b.check_in), 'MMM d')}</div>
+                    <div style={{ fontSize: '13px', color: '#F5F2EC', fontWeight: 500 }}>{(b.guests as any)?.name || '—'}</div>
+                    <div style={{ fontSize: '11px', color: '#9A9A92', marginTop: '2px' }}>{PROPERTY_NAMES[b.property_id]} · {format(new Date(b.check_in), 'MMM d')}</div>
                   </div>
                   <div style={{ textAlign: 'right' }}>
                     <div style={{ fontSize: '13px', color: '#e74c3c', fontWeight: 500 }}>OVERDUE</div>

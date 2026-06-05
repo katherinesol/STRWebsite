@@ -14,22 +14,22 @@ const STATUS_STYLES: Record<string, { label: string; color: string }> = {
   pending_payment: { label: 'Pending payment', color: '#f39c12' },
   confirmed:       { label: 'Confirmed',        color: '#2ecc71' },
   active:          { label: 'Active',           color: '#3498db' },
-  completed:       { label: 'Completed',        color: '#666660' },
+  completed:       { label: 'Completed',        color: '#AEAEA6' },
   cancelled:       { label: 'Cancelled',        color: '#e74c3c' },
 }
 
 function Row({ label, value, highlight }: { label: string; value: string | number | null; highlight?: boolean }) {
   return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '0.5px solid #2A2A28' }}>
-      <span style={{ fontSize: '12px', color: '#555550', letterSpacing: '.04em' }}>{label}</span>
-      <span style={{ fontSize: '13px', color: highlight ? 'var(--amber)' : '#F0EDE6', fontWeight: highlight ? 500 : 400 }}>{value ?? '—'}</span>
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '0.5px solid #363634' }}>
+      <span style={{ fontSize: '12px', color: '#9A9A92', letterSpacing: '.04em' }}>{label}</span>
+      <span style={{ fontSize: '13px', color: highlight ? 'var(--amber)' : '#F5F2EC', fontWeight: highlight ? 500 : 400 }}>{value ?? '—'}</span>
     </div>
   )
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div style={{ background: '#1A1A18', border: '0.5px solid #2A2A28', padding: '24px', marginBottom: '16px' }}>
+    <div style={{ background: '#242422', border: '0.5px solid #363634', padding: '24px', marginBottom: '16px' }}>
       <div style={{ fontSize: '10px', fontWeight: 500, letterSpacing: '.16em', textTransform: 'uppercase', color: 'var(--amber)', marginBottom: '16px' }}>
         {title}
       </div>
@@ -58,19 +58,19 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
     <div>
       {/* header */}
       <div style={{ marginBottom: '28px' }}>
-        <Link href="/admin/bookings" style={{ fontSize: '11px', color: '#555550', textDecoration: 'none', letterSpacing: '.06em' }}>
+        <Link href="/admin/bookings" style={{ fontSize: '11px', color: '#9A9A92', textDecoration: 'none', letterSpacing: '.06em' }}>
           ← Bookings
         </Link>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: '12px' }}>
           <div>
-            <div style={{ fontFamily: 'var(--serif)', fontSize: '28px', fontWeight: 300, color: '#F0EDE6', lineHeight: 1 }}>
+            <div style={{ fontFamily: 'var(--serif)', fontSize: '28px', fontWeight: 300, color: '#F5F2EC', lineHeight: 1 }}>
               {guest?.name || 'Guest'}
             </div>
-            <div style={{ fontSize: '12px', color: '#555550', marginTop: '4px' }}>
+            <div style={{ fontSize: '12px', color: '#9A9A92', marginTop: '4px' }}>
               {PROPERTY_NAMES[booking.property_id]} · {format(new Date(booking.check_in), 'MMM d')} → {format(new Date(booking.check_out), 'MMM d, yyyy')}
             </div>
           </div>
-          <span style={{ padding: '6px 14px', background: '#2A2A28', color: status.color, fontSize: '10px', letterSpacing: '.12em', textTransform: 'uppercase' }}>
+          <span style={{ padding: '6px 14px', background: '#363634', color: status.color, fontSize: '10px', letterSpacing: '.12em', textTransform: 'uppercase' }}>
             {status.label}
           </span>
         </div>

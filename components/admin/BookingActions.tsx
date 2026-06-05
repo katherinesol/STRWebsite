@@ -26,7 +26,7 @@ function ActionButton({
   disabled?: boolean
 }) {
   const colors = {
-    default:  { bg: '#2A2A28', color: '#F0EDE6' },
+    default:  { bg: '#363634', color: '#F5F2EC' },
     success:  { bg: '#0a1f0f', color: '#2ecc71' },
     danger:   { bg: '#1f0a0a', color: '#e74c3c' },
     warning:  { bg: '#2a1f0a', color: '#f39c12' },
@@ -38,9 +38,9 @@ function ActionButton({
       disabled={disabled}
       style={{
         width: '100%', padding: '12px 16px', textAlign: 'left',
-        background: disabled ? '#1A1A18' : c.bg,
+        background: disabled ? '#242422' : c.bg,
         color: disabled ? '#333330' : c.color,
-        border: '0.5px solid #2A2A28',
+        border: '0.5px solid #363634',
         fontFamily: 'var(--sans)', fontSize: '12px',
         letterSpacing: '.06em', cursor: disabled ? 'not-allowed' : 'pointer',
         marginBottom: '1px',
@@ -78,7 +78,7 @@ export default function BookingActions({ booking }: { booking: Booking }) {
   const isCancelled = booking.status === 'cancelled'
 
   return (
-    <div style={{ background: '#1A1A18', border: '0.5px solid #2A2A28', padding: '24px' }}>
+    <div style={{ background: '#242422', border: '0.5px solid #363634', padding: '24px' }}>
       <div style={{ fontSize: '10px', fontWeight: 500, letterSpacing: '.16em', textTransform: 'uppercase', color: 'var(--amber)', marginBottom: '16px' }}>
         Actions
       </div>
@@ -165,7 +165,7 @@ export default function BookingActions({ booking }: { booking: Booking }) {
             onClick={() => setShowRefund(r => !r)}
           />
           {showRefund && (
-            <div style={{ padding: '12px', background: '#2A2A28', marginBottom: '1px' }}>
+            <div style={{ padding: '12px', background: '#363634', marginBottom: '1px' }}>
               <div style={{ fontSize: '11px', color: '#888880', marginBottom: '8px' }}>Refund amount</div>
               <div style={{ display: 'flex', gap: '8px' }}>
                 <input
@@ -173,12 +173,12 @@ export default function BookingActions({ booking }: { booking: Booking }) {
                   value={refundAmount}
                   onChange={e => setRefundAmount(e.target.value)}
                   placeholder="0.00"
-                  style={{ flex: 1, padding: '8px', background: '#1A1A18', border: '0.5px solid #3A3A38', color: '#F0EDE6', fontFamily: 'var(--sans)', fontSize: '13px', outline: 'none' }}
+                  style={{ flex: 1, padding: '8px', background: '#242422', border: '0.5px solid #4A4A48', color: '#F5F2EC', fontFamily: 'var(--sans)', fontSize: '13px', outline: 'none' }}
                 />
                 <button
                   onClick={() => updateBooking({ _action: 'refund', amount: parseFloat(refundAmount) })}
                   disabled={!refundAmount || loading}
-                  style={{ padding: '8px 16px', background: 'var(--amber)', color: '#1A1A18', border: 'none', fontFamily: 'var(--sans)', fontSize: '11px', cursor: 'pointer', letterSpacing: '.06em' }}
+                  style={{ padding: '8px 16px', background: 'var(--amber)', color: '#242422', border: 'none', fontFamily: 'var(--sans)', fontSize: '11px', cursor: 'pointer', letterSpacing: '.06em' }}
                 >
                   Issue
                 </button>
@@ -207,12 +207,12 @@ export default function BookingActions({ booking }: { booking: Booking }) {
                 onChange={e => setNote(e.target.value)}
                 placeholder="Cancellation reason (sent to guest)"
                 rows={2}
-                style={{ width: '100%', padding: '8px', background: '#1A1A18', border: '0.5px solid #3A3A38', color: '#F0EDE6', fontFamily: 'var(--sans)', fontSize: '12px', outline: 'none', resize: 'none', boxSizing: 'border-box', marginBottom: '8px' }}
+                style={{ width: '100%', padding: '8px', background: '#242422', border: '0.5px solid #4A4A48', color: '#F5F2EC', fontFamily: 'var(--sans)', fontSize: '12px', outline: 'none', resize: 'none', boxSizing: 'border-box', marginBottom: '8px' }}
               />
               <div style={{ display: 'flex', gap: '8px' }}>
                 <button
                   onClick={() => setConfirmCancel(false)}
-                  style={{ flex: 1, padding: '8px', background: '#2A2A28', color: '#888880', border: 'none', fontFamily: 'var(--sans)', fontSize: '11px', cursor: 'pointer' }}
+                  style={{ flex: 1, padding: '8px', background: '#363634', color: '#888880', border: 'none', fontFamily: 'var(--sans)', fontSize: '11px', cursor: 'pointer' }}
                 >
                   Keep booking
                 </button>
