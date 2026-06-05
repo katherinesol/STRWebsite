@@ -28,7 +28,7 @@ type Booking = {
   check_in: string
   check_out: string
   status: string
-  guests: { name: string } | null
+  guests: { name: string } | { name: string }[] | null
 }
 
 type Block = {
