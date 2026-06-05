@@ -1,0 +1,97 @@
+import { createAdminClient } from '@/lib/supabase/server'
+import { notFound } from 'next/navigation'
+import { format } from 'date-fns'
+import Link from 'next/link'
+import GuestForm from '@/components/admin/GuestForm'
+
+const PROPERTY_NAMES: Record<string, string> = {
+  'royal-york-east': 'Royal York East',
+  'royal-york-west': 'Royal York West',
+  'nickel-beach':    'Nickel Beach',
+}
+
+export default async function GuestDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
+  const supabase = createAdminClient()
+
+  const [{ data: guest }, { data: bookings }, { data: referrals }] = await Promise.all([
+    supabase.from('guests').select('*').eq('id', id).single(),
+    supabase.from('bookings').select('*').eq('guest_id', id).order('check_in', { ascending: false }),
+    supabase.from('referrals').select('*, referred:referred_guest_id(name), referrer:referrer_guest_id(name)').or(`referrer_guest_id.eq.${id},referred_guest_id.eq.${id}`),
+  ])
+
+  if (!guest) notFound()
+
+  return (
+    <div>
+      <div style={{ marginBottom: '24px' }}>
+        <Link href="/admin/guests" style={{ fontSize: '11px', color: '#9A9A92', textDecoration: 'none', letterSpacing: '.06em' }}>← Guests</Link>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: '12px' }}>
+          <div>
+            <h1 style={{ fontFamily: 'var(--serif)', fontSize: '28px', fontWeight: 300, color: '#F5F2EC', lineHeight: 1 }}>{guest.name}</h1>
+            <div style={{ fontSize: '12px', color: '#9A9A92', marginTop: '4px' }}>{guest.email} · {guest.phone || 'No phone'}</div>
+          </div>
+          <div style={{ display: 'flex', gap: '6px' }}>
+            {guest.returning_guest && <span style={{ fontSize: '9px', padding: '4px 10px', background: '#0a1520', color: '#3498db', letterSpacing: '.1em', textTransform: 'uppercase' }}>Returning</span>}
+            {guest.locked_rate_enabled && <span style={{ fontSize: '9px', padding: '4px 10px', background: '#2a1f0a', color: '#f39c12', letterSpacing: '.1em', textTransform: 'uppercase' }}>Locked rate</span>}
+            {guest.id_verified && <span style={{ fontSize: '9px', padding: '4px 10px', background: '#0a1f0f', color: '#2ecc71', letterSpacing: '.1em', textTransform: 'uppercase' }}>ID Verified</span>}
+          </div>
+        </div>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: '16px', alignItems: 'start' }}>
+        <div>
+          {/* booking history */}
+          <div style={{ background: '#242422', border: '0.5px solid #363634', padding: '24px', marginBottom: '16px' }}>
+            <div style={{ fontSize: '10px', fontWeight: 500, letterSpacing: '.16em', textTransform: 'uppercase', color: 'var(--amber)', marginBottom: '16px' }}>Booking history</div>
+            {!bookings?.length ? (
+              <div style={{ fontSize: '13px', color: '#666660' }}>No bookings yet</div>
+            ) : bookings.map(b => (
+              <div key={b.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '0.5px solid #363634' }}>
+                <div>
+                  <div style={{ fontSize: '13px', color: '#F5F2EC' }}>{PROPERTY_NAMES[b.property_id]}</div>
+                  <div style={{ fontSize: '11px', color: '#9A9A92', marginTop: '2px' }}>
+                    {format(new Date(b.check_in), 'MMM d')} → {format(new Date(b.check_out), 'MMM d, yyyy')} · {b.nights} nights
+                  </div>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontSize: '13px', color: '#F5F2EC' }}>${b.total}</div>
+                  <Link href={`/admin/bookings/${b.id}`} style={{ fontSize: '11px', color: 'var(--amber)', textDecoration: 'none' }}>View →</Link>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* referrals */}
+          {!!referrals?.length && (
+            <div style={{ background: '#242422', border: '0.5px solid #363634', padding: '24px', marginBottom: '16px' }}>
+              <div style={{ fontSize: '10px', fontWeight: 500, letterSpacing: '.16em', textTransform: 'uppercase', color: 'var(--amber)', marginBottom: '16px' }}>Referrals</div>
+              {referrals.map(r => (
+                <div key={r.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '0.5px solid #363634', fontSize: '13px' }}>
+                  <div style={{ color: '#AEAEA6' }}>
+                    {r.referrer_guest_id === id
+                      ? `Referred ${(r.referred as any)?.name}`
+                      : `Referred by ${(r.referrer as any)?.name}`}
+                  </div>
+                  <span style={{
+                    fontSize: '9px', padding: '2px 8px',
+                    background: r.referrer_reward_status === 'applied' ? '#0a1f0f' : '#2a1f0a',
+                    color: r.referrer_reward_status === 'applied' ? '#2ecc71' : '#f39c12',
+                    letterSpacing: '.08em', textTransform: 'uppercase',
+                  }}>
+                    {r.referrer_guest_id === id ? r.referrer_reward_status : r.referred_reward_status}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* edit panel */}
+        <div style={{ position: 'sticky', top: '32px' }}>
+          <GuestForm guest={guest} />
+        </div>
+      </div>
+    </div>
+  )
+}
