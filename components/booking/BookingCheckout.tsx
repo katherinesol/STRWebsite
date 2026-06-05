@@ -299,26 +299,26 @@ export default function BookingCheckout({ property }: { property: Property }) {
               <SectionLabel>Instacart grocery delivery</SectionLabel>
               <div style={{ background: 'var(--linen)', border: '0.5px solid var(--sand)', padding: '16px', marginBottom: '1px' }}>
                 <div style={{ fontSize: '13px', color: 'var(--muted)', lineHeight: 1.6 }}>
-                  We can arrange grocery delivery before your arrival. Orders must be placed at least{' '}
+                  Place your own Instacart order to the property address — we will receive and store your groceries before you arrive.
+                  Orders must be scheduled to arrive at least{' '}
                   <strong style={{ color: 'var(--noir)' }}>{property.instacartCutoffHours} hours</strong> before check-in.
+                  The property address will be included in your booking confirmation.
                 </div>
               </div>
               <label style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '14px 16px', background: instacart ? '#f0f5ed' : 'var(--linen)', border: `0.5px solid ${instacart ? '#a8c9a0' : 'var(--sand)'}`, cursor: 'pointer' }}>
                 <div style={{ width: '36px', height: '20px', borderRadius: '10px', background: instacart ? '#4a8a42' : 'var(--sand-mid)', position: 'relative', flexShrink: 0, transition: 'background .2s' }}>
                   <div style={{ position: 'absolute', top: '2px', left: instacart ? '18px' : '2px', width: '16px', height: '16px', borderRadius: '50%', background: '#fff', transition: 'left .2s' }} />
                 </div>
-                <span style={{ fontSize: '14px', color: 'var(--noir)', fontWeight: instacart ? 500 : 400 }}>Yes, I'd like to arrange grocery delivery</span>
+                <span style={{ fontSize: '14px', color: 'var(--noir)', fontWeight: instacart ? 500 : 400 }}>Yes, I plan to place an Instacart order before arrival</span>
                 <input type="checkbox" checked={instacart} onChange={e => setInstacart(e.target.checked)} style={{ display: 'none' }} />
               </label>
               {instacart && (
-                <div style={{ marginTop: '1px' }}>
-                  <textarea
-                    value={instacartNotes}
-                    onChange={e => setInstacartNotes(e.target.value)}
-                    placeholder="List the groceries or items you'd like delivered — we'll confirm the order and cost separately before placing it."
-                    rows={4}
-                    style={{ width: '100%', padding: '12px 14px', border: '0.5px solid var(--sand-mid)', fontFamily: 'var(--sans)', fontSize: '13px', color: 'var(--noir)', background: 'white', outline: 'none', borderRadius: '2px', resize: 'vertical', boxSizing: 'border-box' }}
-                  />
+                <div style={{ marginTop: '1px', background: 'var(--linen)', border: '0.5px solid var(--sand)', padding: '14px 16px' }}>
+                  <div style={{ fontSize: '12px', color: 'var(--muted)', lineHeight: 1.6 }}>
+                    Your booking confirmation will include the property address to use for your Instacart delivery.
+                    Please ensure your order is scheduled to arrive at least {property.instacartCutoffHours} hours before{' '}
+                    {checkIn ? format(new Date(checkIn), 'MMMM d') : 'check-in'} at {property.checkIn}.
+                  </div>
                 </div>
               )}
             </div>

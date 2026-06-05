@@ -1,11 +1,30 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Property } from '@/lib/properties'
 
 export default function BookingWidget({ property }: { property: Property }) {
   const [checkIn, setCheckIn] = useState('')
   const [checkOut, setCheckOut] = useState('')
   const [guests, setGuests] = useState(2)
+  const [blockedDates, setBlockedDates] = useState<{ start: string; end: string }[]>([])
+
+  useEffect(() => {
+    fetch(`/api/calendar?property=${property.id}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data?.blocked) setBlockedDates(data.blocked) })
+      .catch(() => {})
+  }, [property.id])
+
+  function isDateBlocked(dateStr: string): boolean {
+    return blockedDates.some(({ start, end }) => dateStr >= start && dateStr < end)
+  }
+
+  function getMinCheckout(): string {
+    if (!checkIn) return new Date().toISOString().split('T')[0]
+    const d = new Date(checkIn)
+    d.setDate(d.getDate() + property.minStay)
+    return d.toISOString().split('T')[0]
+  }
 
   const nights = checkIn && checkOut
     ? Math.max(0, Math.round((new Date(checkOut).getTime() - new Date(checkIn).getTime()) / 86400000))
@@ -52,7 +71,12 @@ export default function BookingWidget({ property }: { property: Property }) {
             type="date"
             value={checkIn}
             min={new Date().toISOString().split('T')[0]}
-            onChange={e => setCheckIn(e.target.value)}
+            onChange={e => {
+              const val = e.target.value
+              if (isDateBlocked(val)) return
+              setCheckIn(val)
+              setCheckOut('')
+            }}
             style={{
               width: '100%', border: 'none', background: 'transparent',
               fontSize: '13px', color: 'var(--noir)', outline: 'none',
@@ -70,7 +94,7 @@ export default function BookingWidget({ property }: { property: Property }) {
           <input
             type="date"
             value={checkOut}
-            min={checkIn || new Date().toISOString().split('T')[0]}
+            min={getMinCheckout()}
             onChange={e => setCheckOut(e.target.value)}
             style={{
               width: '100%', border: 'none', background: 'transparent',
@@ -80,6 +104,16 @@ export default function BookingWidget({ property }: { property: Property }) {
           />
         </div>
       </div>
+
+      {/* blocked dates notice */}
+      {blockedDates.length > 0 && (
+        <div style={{
+          fontSize: '11px', color: 'var(--muted)',
+          padding: '8px 0', letterSpacing: '.04em',
+        }}>
+          Some dates are unavailable — calendar synced from all platforms.
+        </div>
+      )}
 
       {/* guests */}
       <div style={{
