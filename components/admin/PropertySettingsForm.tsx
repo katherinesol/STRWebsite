@@ -2,6 +2,12 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 
+type LockDevice = {
+  id: string
+  name: string
+  device_id: string
+}
+
 type Settings = {
   nightly_rate: number
   cleaning_fee: number
@@ -15,6 +21,9 @@ type Settings = {
   bag_drop_available: boolean
   instacart_available: boolean
   security_deposit_amount: number
+  referral_reward_referrer: number
+  referral_reward_referred: number
+  schlage_devices: LockDevice[]
 }
 
 function FormField({ label, helper, children }: { label: string; helper?: string; children: React.ReactNode }) {
@@ -61,6 +70,9 @@ export default function PropertySettingsForm({ propertyId, settings }: { propert
     bag_drop_available: settings?.bag_drop_available || false,
     instacart_available: settings?.instacart_available || true,
     security_deposit_amount: settings?.security_deposit_amount || 500,
+    referral_reward_referrer: settings?.referral_reward_referrer || 50,
+    referral_reward_referred: settings?.referral_reward_referred || 50,
+    schlage_devices: settings?.schlage_devices || [],
   })
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -138,6 +150,44 @@ export default function PropertySettingsForm({ propertyId, settings }: { propert
         </div>
         <Toggle value={form.bag_drop_available} onChange={v => set('bag_drop_available', v)} label="Bag drop available" />
         <Toggle value={form.instacart_available} onChange={v => set('instacart_available', v)} label="Instacart delivery available" />
+      </Section>
+
+      <Section title="Referrals">
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+          <FormField label="Referrer reward ($)" helper="Amount the referring guest receives">
+            <input type="number" value={form.referral_reward_referrer} onChange={e => set('referral_reward_referrer', parseFloat(e.target.value))} style={inputStyle} />
+          </FormField>
+          <FormField label="New guest reward ($)" helper="Amount the new guest receives off their first booking">
+            <input type="number" value={form.referral_reward_referred} onChange={e => set('referral_reward_referred', parseFloat(e.target.value))} style={inputStyle} />
+          </FormField>
+        </div>
+      </Section>
+
+      <Section title="Schlage locks">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          {form.schlage_devices.map((lock, i) => (
+            <div key={lock.id} style={{ display: 'grid', gridTemplateColumns: '140px 1fr', gap: '10px', alignItems: 'center' }}>
+              <div style={{ fontSize: '13px', color: '#F5F2EC' }}>{lock.name}</div>
+              <div>
+                <div style={{ fontSize: '9px', letterSpacing: '.1em', textTransform: 'uppercase', color: '#9A9A92', marginBottom: '4px' }}>Schlage Device ID</div>
+                <input
+                  type="text"
+                  value={lock.device_id}
+                  onChange={e => {
+                    const updated = [...form.schlage_devices]
+                    updated[i] = { ...updated[i], device_id: e.target.value }
+                    set('schlage_devices', updated)
+                  }}
+                  placeholder="Enter device ID from Schlage app"
+                  style={inputStyle}
+                />
+              </div>
+            </div>
+          ))}
+          {form.schlage_devices.length === 0 && (
+            <div style={{ fontSize: '13px', color: '#666660' }}>No locks configured</div>
+          )}
+        </div>
       </Section>
 
       {/* save */}

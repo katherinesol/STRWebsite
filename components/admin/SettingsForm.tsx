@@ -52,9 +52,11 @@ export default function SettingsForm({ settings }: { settings: { referral_reward
   return (
     <div>
       <Section title="Referrals">
-        <Field label="Referral reward amount ($)" helper="Amount both parties receive — referrer and new guest">
-          <input type="number" value={referralAmount} onChange={e => { setReferralAmount(parseFloat(e.target.value)); setSaved(false) }} style={inputStyle} />
-        </Field>
+        <div style={{ fontSize: '13px', color: '#AEAEA6', lineHeight: 1.6 }}>
+          Referral reward amounts are set per property under{' '}
+          <a href="/admin/properties" style={{ color: 'var(--amber)', textDecoration: 'none' }}>Properties → Edit</a>.
+          Referrer and new guest amounts can differ per property.
+        </div>
       </Section>
 
       <Section title="Payments">
