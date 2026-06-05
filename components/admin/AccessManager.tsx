@@ -6,18 +6,20 @@ type Lock = { id: string; name: string; device_id: string }
 type Code = { id: string; code: string; notes: string | null }
 
 export default function AccessManager({
-  bookingId, propertyId, locks, existingCodes,
+  bookingId, propertyId, locks, existingCodes, bookingRef,
 }: {
   bookingId: string
   propertyId: string
   locks: Lock[]
   existingCodes: Code[]
+  bookingRef: string
 }) {
   const router = useRouter()
   const [codes, setCodes] = useState<Record<string, string>>(
-    Object.fromEntries(locks.map(l => [l.id, '']))
+    Object.fromEntries(locks.map(l => [l.id, bookingRef]))
   )
   const [generating, setGenerating] = useState(false)
+  const [schlagePrompt, setSchlagePrompt] = useState(false)
 
   async function generateCodes() {
     setGenerating(true)
@@ -25,7 +27,7 @@ export default function AccessManager({
       const entries = locks.map(l => ({
         booking_id: bookingId,
         property_id: propertyId,
-        code: codes[l.id] || Math.floor(100000 + Math.random() * 900000).toString(),
+        code: codes[l.id] || bookingRef,
         notes: l.name,
       }))
       await fetch('/api/admin/access/generate', {
@@ -33,6 +35,7 @@ export default function AccessManager({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ codes: entries }),
       })
+      setSchlagePrompt(true)
       router.refresh()
     } catch {}
     finally { setGenerating(false) }
@@ -99,6 +102,22 @@ export default function AccessManager({
             }}
           >
             {generating ? 'Saving...' : 'Save codes'}
+          </button>
+        </div>
+      )}
+      {schlagePrompt && (
+        <div style={{ marginTop: '12px', padding: '14px 16px', background: '#2a1f0a', border: '0.5px solid #4a3a1a' }}>
+          <div style={{ fontSize: '10px', fontWeight: 500, letterSpacing: '.12em', textTransform: 'uppercase', color: '#f39c12', marginBottom: '6px' }}>
+            ⚠ Action required — Schlage app
+          </div>
+          <div style={{ fontSize: '13px', color: '#F5F2EC', lineHeight: 1.6 }}>
+            Enter code <strong style={{ fontFamily: 'monospace', fontSize: '16px', letterSpacing: '.14em', color: '#f39c12' }}>{bookingRef}</strong> in the Schlage Home app for all {locks.length} lock{locks.length !== 1 ? 's' : ''} at this property.
+          </div>
+          <button
+            onClick={() => setSchlagePrompt(false)}
+            style={{ marginTop: '10px', padding: '6px 14px', background: 'transparent', border: '0.5px solid #f39c12', color: '#f39c12', fontFamily: 'var(--sans)', fontSize: '10px', letterSpacing: '.1em', textTransform: 'uppercase', cursor: 'pointer' }}
+          >
+            Done ✓
           </button>
         </div>
       )}

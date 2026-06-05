@@ -113,6 +113,7 @@ export default async function AccessPage() {
                     propertyId={b.property_id}
                     locks={locks}
                     existingCodes={existingCodes.map(c => ({ id: c.id, code: c.code, notes: c.notes }))}
+                    bookingRef={b.booking_reference ? b.booking_reference.slice(-4) : b.id.replace(/-/g, '').slice(-4)}
                   />
                 </div>
               )
