@@ -44,13 +44,13 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
 
   const { data: booking } = await supabase
     .from('bookings')
-    .select('*, guests(name, email, phone, returning_guest, locked_rate_enabled)')
+    .select('*, guest_info:guests(name, email, phone, returning_guest, locked_rate_enabled)')
     .eq('id', id)
     .single()
 
   if (!booking) notFound()
 
-  const guest = booking.guests as any
+  const guest = Array.isArray(booking.guest_info) ? (booking.guest_info as any[])[0] : booking.guest_info as any
   const status = STATUS_STYLES[booking.status]
   const plates = booking.plate_numbers as string[] || []
 
@@ -93,7 +93,7 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
             <Row label="Check-in" value={format(new Date(booking.check_in), 'EEEE, MMMM d yyyy')} />
             <Row label="Check-out" value={format(new Date(booking.check_out), 'EEEE, MMMM d yyyy')} />
             <Row label="Nights" value={booking.nights} />
-            <Row label="Guests" value={booking.guests} />
+            <Row label="Guests" value={typeof booking.guests === 'number' ? booking.guests : (booking.guest_count || '—')} />
             <Row label="Early check-in" value={booking.early_checkin ? `Yes — ${booking.early_checkin_time}` : 'No'} />
             <Row label="Late checkout" value={booking.late_checkout ? `Yes — ${booking.late_checkout_time}` : 'No'} />
             <Row label="Bag drop" value={booking.bag_drop !== 'none' ? booking.bag_drop : 'No'} />
