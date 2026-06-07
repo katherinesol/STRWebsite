@@ -6,7 +6,6 @@ function parseICal(icalText: string): { start: string; end: string }[] {
   let inEvent = false
   let start = ''
   let end = ''
-
   for (const line of lines) {
     const trimmed = line.trim()
     if (trimmed === 'BEGIN:VEVENT') { inEvent = true; start = ''; end = '' }
@@ -15,7 +14,6 @@ function parseICal(icalText: string): { start: string; end: string }[] {
       inEvent = false
     }
     if (inEvent) {
-      // handles both DTSTART:20250527 and DTSTART;VALUE=DATE:20250527
       if (trimmed.startsWith('DTSTART')) {
         const raw = trimmed.split(':').pop() || ''
         const digits = raw.replace(/\D/g, '').slice(0, 8)
@@ -31,7 +29,15 @@ function parseICal(icalText: string): { start: string; end: string }[] {
   return events
 }
 
-async function fetchFeed(url: string): Promise<{ start: string; end: string }[]> {
+function detectPlatform(url: string): string {
+  if (url.includes('airbnb')) return 'airbnb'
+  if (url.includes('vrbo') || url.includes('homeaway')) return 'vrbo'
+  if (url.includes('houfy')) return 'houfy'
+  return 'manual'
+}
+
+async function fetchFeed(url: string): Promise<{ start: string; end: string; platform: string }[]> {
+  const platform = detectPlatform(url)
   try {
     const res = await fetch(url, {
       headers: { 'User-Agent': 'Mozilla/5.0 RentalDirect/1.0' },
@@ -39,7 +45,7 @@ async function fetchFeed(url: string): Promise<{ start: string; end: string }[]>
     })
     if (!res.ok) return []
     const text = await res.text()
-    return parseICal(text)
+    return parseICal(text).map(e => ({ ...e, platform }))
   } catch {
     return []
   }
@@ -72,7 +78,7 @@ export async function GET(request: NextRequest) {
   const results = await Promise.all(urls.map(fetchFeed))
   const blocked = results.flat()
 
-  // deduplicate
+  // deduplicate by date range
   const seen = new Set<string>()
   const unique = blocked.filter(e => {
     const key = `${e.start}|${e.end}`
@@ -81,23 +87,25 @@ export async function GET(request: NextRequest) {
     return true
   })
 
-  // optionally save to calendar_blocks for admin visibility
-  // (only saves if explicitly requested with ?save=1)
-  const save = request.nextUrl.searchParams.get('save')
+  // save to calendar_blocks when requested
+  const save = searchParams.get('save')
   if (save === '1' && unique.length > 0) {
     const { createAdminClient } = await import('@/lib/supabase/server')
     const supabase = createAdminClient()
-    for (const block of unique) {
+    for (const event of unique) {
       await supabase.from('calendar_blocks').upsert({
         property_id: propertyId,
-        start_date: block.start,
-        end_date: block.end,
+        start_date: event.start,
+        end_date: event.end,
         reason: 'manual',
-        notes: 'Synced from iCal',
-        platform: propertyId === 'nickel-beach' ? 'airbnb' : 'airbnb',
-      }, { onConflict: 'property_id,start_date' }).then(() => {})
+        notes: `Synced from ${event.platform}`,
+        platform: event.platform,
+      }, { onConflict: 'property_id,start_date' })
     }
   }
 
-  return NextResponse.json({ blocked: unique, count: unique.length })
+  return NextResponse.json({
+    blocked: unique.map(e => ({ start: e.start, end: e.end })),
+    count: unique.length,
+  })
 }
