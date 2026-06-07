@@ -333,13 +333,21 @@ export default function CalendarView({ bookings, blocks }: { bookings: Booking[]
                   {dayBlocks.map(b => {
                       const isPrep = isOneDayBlock(b.start_date, b.end_date) && !b.is_booking
                       const color = isPrep ? '#555550' : (PLATFORM_COLORS[b.platform || 'manual'] || '#f39c12')
+                      const bCheckIn = b.early_checkin_time ? (() => { const [h,m]=b.early_checkin_time.split(':'); const hr=parseInt(h); return `${hr%12||12}:${parseInt(m)>=30?'30':'00'}${hr>=12?'PM':'AM'}` })() : null
+                      const bCheckOut = b.late_checkout_time ? (() => { const [h,m]=b.late_checkout_time.split(':'); const hr=parseInt(h); return `${hr%12||12}:${parseInt(m)>=30?'30':'00'}${hr>=12?'PM':'AM'}` })() : null
+                      const isCheckInDay = b.start_date === format(day, 'yyyy-MM-dd')
+                      const isCheckOutDay = b.end_date === format(day, 'yyyy-MM-dd')
                       return (
                       <div key={b.id} style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                       <div
                         onClick={() => openEditBlock(b)}
-                        style={{ fontSize: '9px', color, letterSpacing: '.04em', cursor: 'pointer', textDecoration: isPrep ? 'none' : 'underline', fontStyle: isPrep ? 'italic' : 'normal', opacity: isPrep ? 0.6 : 1 }}
+                        style={{ fontSize: '9px', color, letterSpacing: '.04em', cursor: 'pointer', textDecoration: isPrep ? 'none' : 'underline', fontStyle: isPrep ? 'italic' : 'normal', opacity: isPrep ? 0.6 : 1, lineHeight: 1.4 }}
                       >
                         {isPrep ? 'Prep day' : (b.guest_name || b.platform || BLOCK_REASONS[b.reason])}
+                        {!isPrep && isCheckInDay && bCheckIn && <span style={{ color: '#888880' }}> {bCheckIn}★</span>}
+                        {!isPrep && isCheckInDay && !bCheckIn && <span style={{ color: '#888880' }}> 4:00PM</span>}
+                        {!isPrep && isCheckOutDay && bCheckOut && <span style={{ color: '#888880' }}> out {bCheckOut}★</span>}
+                        {!isPrep && isCheckOutDay && !bCheckOut && <span style={{ color: '#888880' }}> out 11AM</span>}
                       </div>
                       <button
                         onClick={() => handleRemoveBlock(b.id)}

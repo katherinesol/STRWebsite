@@ -90,6 +90,10 @@ export default async function BookingsPage({
   const platformRows: Row[] = (platformBlocks || [])
     .filter(b => !property || b.property_id === property)
     .filter(b => showCompleted || getAutoStatus(b.start_date, b.end_date).label !== 'Completed')
+    .filter(b => {
+      const days = Math.round((new Date(b.end_date).getTime() - new Date(b.start_date).getTime()) / 86400000)
+      return days > 1 || (b as any).is_booking
+    })
     .map(b => ({
       id: b.id,
       type: 'platform',
