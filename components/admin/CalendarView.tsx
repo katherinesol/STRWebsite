@@ -9,6 +9,14 @@ const PROPERTIES = [
   { id: 'nickel-beach',    label: 'Nickel', color: '#2ECC71' },
 ]
 
+const PLATFORM_COLORS: Record<string, string> = {
+  airbnb:  '#FF5A5F',
+  vrbo:    '#3D6ECC',
+  houfy:   '#2ECC71',
+  manual:  '#f39c12',
+  direct:  '#B8956B',
+}
+
 const STATUS_COLORS: Record<string, string> = {
   confirmed:       '#2ecc71',
   active:          '#3498db',
@@ -28,7 +36,8 @@ type Booking = {
   check_in: string
   check_out: string
   status: string
-  guests: { name: string } | { name: string }[] | null
+  guests?: number
+  guest_info?: { name: string } | { name: string }[] | null
 }
 
 type Block = {
@@ -140,6 +149,7 @@ export default function CalendarView({ bookings, blocks }: { bookings: Booking[]
   }
 
   async function handleRemoveBlock(blockId: string) {
+    if (!confirm('Remove this block? This cannot be undone.')) return
     await fetch(`/api/admin/calendar/block/${blockId}`, { method: 'DELETE' })
     router.refresh()
   }
@@ -265,7 +275,7 @@ export default function CalendarView({ bookings, blocks }: { bookings: Booking[]
                       letterSpacing: '.04em', lineHeight: 1.3, marginBottom: '1px',
                       overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                     }}>
-                      {(Array.isArray(b.guests) ? (b.guests as any[])[0] : b.guests as any)?.name || 'Guest'}
+                      {(Array.isArray(b.guest_info) ? (b.guest_info as any[])[0] : b.guest_info as any)?.name || 'Guest'}
                     </div>
                   ))}
                   {dayBlocks.map(b => (
@@ -293,7 +303,11 @@ export default function CalendarView({ bookings, blocks }: { bookings: Booking[]
           { color: '#2ecc71', label: 'Confirmed' },
           { color: '#3498db', label: 'Active' },
           { color: '#f39c12', label: 'Pending payment' },
-          { color: '#f39c12', label: 'Blocked', border: true },
+          { color: '#FF5A5F', label: 'Airbnb' },
+          { color: '#3D6ECC', label: 'VRBO' },
+          { color: '#2ECC71', label: 'Houfy' },
+          { color: '#B8956B', label: 'Direct' },
+          { color: '#f39c12', label: 'Manual block', border: true },
         ].map(({ color, label, border }) => (
           <div key={label} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <div style={{ width: '10px', height: '10px', background: border ? 'transparent' : color, border: border ? `1px solid ${color}` : 'none' }} />
