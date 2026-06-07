@@ -21,15 +21,20 @@ export async function POST(request: NextRequest) {
   }
 
   try {
+    console.log('Step 1: find or create guest for', guest_email)
+    console.log('STEP 1, service key present:', !!process.env.SUPABASE_SERVICE_ROLE_KEY, 'url present:', !!process.env.NEXT_PUBLIC_SUPABASE_URL)
     // 1. find or create guest
     let guestId: string
     let isReturning = false
 
-    const { data: existingGuest } = await supabase
+    const { data: existingGuest, error: guestQueryError } = await supabase
       .from('guests')
       .select('id, locked_rate_enabled, locked_rate_royal_york, locked_rate_nickel_beach')
       .eq('email', guest_email)
-      .single()
+      .maybeSingle()
+
+    console.log('STEP 1 query done, error:', guestQueryError?.message, 'found:', !!existingGuest)
+    if (guestQueryError) throw new Error('Guest query failed: ' + guestQueryError.message)
 
     if (existingGuest) {
       guestId = existingGuest.id
@@ -51,6 +56,8 @@ export async function POST(request: NextRequest) {
       guestId = newGuest.id
     }
 
+    console.log('Step 2: guestId', guestId, 'returning', isReturning)
+    console.log('STEP 2 guestId:', guestId)
     // 2. apply locked rate if applicable
     let finalAccommodation = accommodation
     if (isReturning && existingGuest?.locked_rate_enabled) {
@@ -62,12 +69,16 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    console.log('Step 3: generating reference')
+    console.log('STEP 3')
     // 3. generate booking reference RS-XXXX
     const { data: seqResult } = await supabase.rpc('get_next_booking_ref')
     const refNum = seqResult || Date.now().toString().slice(-4)
     const bookingReference = `RS-${String(refNum).padStart(4, '0')}`
     const accessCode = String(refNum).padStart(4, '0').slice(-4)
 
+    console.log('Step 4: creating booking, ref', bookingReference)
+    console.log('STEP 4 ref:', bookingReference)
     // 4. create booking
     const { data: booking, error: bookingError } = await supabase
       .from('bookings')
@@ -93,6 +104,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to create booking' }, { status: 500 })
     }
 
+    console.log('Step 5: creating access code', accessCode)
+    console.log('STEP 5 code:', accessCode)
     // 5. create access code
     await supabase.from('access_codes').insert({
       booking_id: booking.id,
@@ -101,6 +114,7 @@ export async function POST(request: NextRequest) {
       notes: 'Auto-generated from booking reference',
     })
 
+    console.log('STEP 6')
     // 6. handle referral code
     if (referral_code) {
       const { data: referrer } = await supabase
@@ -128,6 +142,8 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    console.log('Step 7: creating auth user')
+    console.log('STEP 7')
     // 7. create Supabase auth user for guest portal
     const { data: authUser } = await supabase.auth.admin.createUser({
       email: guest_email,
@@ -145,8 +161,8 @@ export async function POST(request: NextRequest) {
       access_code: accessCode,
     })
 
-  } catch (err) {
-    console.error('Booking creation error:', err)
-    return NextResponse.json({ error: 'Server error' }, { status: 500 })
+  } catch (err: any) {
+    console.error('Booking creation error:', err?.message || err)
+    return NextResponse.json({ error: err?.message || 'Server error' }, { status: 500 })
   }
 }

@@ -79,6 +79,28 @@ export default function BookingCheckout({ property }: { property: Property }) {
   const [instacart, setInstacart] = useState(false)
   const [instacartNotes, setInstacartNotes] = useState('')
   const [referralCode, setReferralCode] = useState('')
+  const [emailError, setEmailError] = useState('')
+  const [phoneError, setPhoneError] = useState('')
+
+  const [nameError, setNameError] = useState('')
+
+  function validateName(val: string) {
+    if (!val) { setNameError(''); return }
+    const valid = val.trim().split(' ').length >= 2 && val.trim().length >= 4
+    setNameError(valid ? '' : 'Enter your full name (first and last)')
+  }
+
+  function validateEmail(val: string) {
+    if (!val) { setEmailError(''); return }
+    const ok = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val)
+    setEmailError(ok ? '' : 'Enter a valid email address')
+  }
+
+  function validatePhone(val: string) {
+    if (!val) { setPhoneError(''); return }
+    const digits = val.replace(/\D/g, '')
+    setPhoneError(digits.length >= 10 ? '' : 'Enter a valid phone number (min 10 digits)')
+  }
   const [bookingId, setBookingId] = useState('')
   const [bookingRef, setBookingRef] = useState('')
   const [agreed, setAgreed] = useState(false)
@@ -117,7 +139,10 @@ export default function BookingCheckout({ property }: { property: Property }) {
 
   const px = 'clamp(20px, 5vw, 64px)'
 
-  const canSubmit = agreed && name && email && phone &&
+  const nameValid = name.trim().split(' ').length >= 2 && name.trim().length >= 4
+  const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+  const phoneValid = phone.replace(/\D/g, '').length >= 10
+  const canSubmit = agreed && nameValid && emailValid && phoneValid && !nameError && !emailError && !phoneError &&
     (vehicleCount === 0 || platesPending || plates.slice(0, vehicleCount).every(p => p.trim()))
 
   if (step === 'confirmed') {

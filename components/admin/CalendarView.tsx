@@ -38,6 +38,13 @@ type Block = {
   end_date: string
   reason: string
   notes: string | null
+  guest_name: string | null
+  guest_notes: string | null
+  platform: string | null
+  early_checkin_time: string | null
+  late_checkout_time: string | null
+  early_checkin_granted: boolean | null
+  late_checkout_granted: boolean | null
 }
 
 function isDateInRange(date: Date, start: string, end: string): boolean {
@@ -57,6 +64,9 @@ export default function CalendarView({ bookings, blocks }: { bookings: Booking[]
   const [blockNotes, setBlockNotes] = useState('')
   const [saving, setSaving] = useState(false)
   const [icalStatus, setIcalStatus] = useState<Record<string, 'idle' | 'loading' | 'done' | 'error'>>({})
+  const [editingBlock, setEditingBlock] = useState<Block | null>(null)
+  const [editForm, setEditForm] = useState<Partial<Block>>({})
+  const [editSaving, setEditSaving] = useState(false)
 
   const monthStart = startOfMonth(currentMonth)
   const monthEnd = endOfMonth(currentMonth)
@@ -76,6 +86,35 @@ export default function CalendarView({ bookings, blocks }: { bookings: Booking[]
     return blocks.filter(b =>
       b.property_id === propertyId && isDateInRange(date, b.start_date, b.end_date)
     )
+  }
+
+  function openEditBlock(block: Block) {
+    setEditingBlock(block)
+    setEditForm({
+      guest_name: block.guest_name || '',
+      guest_notes: block.guest_notes || '',
+      platform: block.platform || 'manual',
+      early_checkin_time: block.early_checkin_time || '',
+      late_checkout_time: block.late_checkout_time || '',
+      early_checkin_granted: block.early_checkin_granted,
+      late_checkout_granted: block.late_checkout_granted,
+      notes: block.notes || '',
+    })
+  }
+
+  async function handleSaveBlock() {
+    if (!editingBlock) return
+    setEditSaving(true)
+    try {
+      await fetch(`/api/admin/calendar/block/${editingBlock.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editForm),
+      })
+      setEditingBlock(null)
+      router.refresh()
+    } catch {}
+    finally { setEditSaving(false) }
   }
 
   async function handleAddBlock() {
@@ -261,6 +300,90 @@ export default function CalendarView({ bookings, blocks }: { bookings: Booking[]
           </div>
         ))}
       </div>
+
+      {/* edit block modal */}
+      {editingBlock && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}>
+          <div style={{ background: '#242422', border: '0.5px solid #363634', padding: '32px', width: '460px', maxHeight: '90vh', overflowY: 'auto' }}>
+            <div style={{ fontFamily: 'var(--serif)', fontSize: '22px', fontWeight: 300, color: '#F5F2EC', marginBottom: '20px' }}>
+              {editingBlock.guest_name || BLOCK_REASONS[editingBlock.reason]}
+            </div>
+            <div style={{ fontSize: '11px', color: '#9A9A92', marginBottom: '20px' }}>
+              {editingBlock.start_date} → {editingBlock.end_date} · {editingBlock.property_id === 'royal-york-east' ? 'Royal York East' : editingBlock.property_id === 'royal-york-west' ? 'Royal York West' : 'Nickel Beach'}
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              {[
+                { label: 'Guest name', key: 'guest_name', placeholder: 'e.g. Sarah Johnson', type: 'text' },
+                { label: 'Platform', key: 'platform', placeholder: '', type: 'select', options: ['manual', 'airbnb', 'vrbo', 'houfy'] },
+                { label: 'Notes', key: 'notes', placeholder: 'Internal notes', type: 'text' },
+                { label: 'Guest notes', key: 'guest_notes', placeholder: 'Special requests, allergies, etc.', type: 'textarea' },
+              ].map(({ label, key, placeholder, type, options }) => (
+                <div key={key}>
+                  <div style={{ fontSize: '10px', letterSpacing: '.12em', textTransform: 'uppercase', color: '#9A9A92', marginBottom: '6px' }}>{label}</div>
+                  {type === 'select' ? (
+                    <select value={(editForm as any)[key] || ''} onChange={e => setEditForm(f => ({ ...f, [key]: e.target.value }))}
+                      style={{ width: '100%', padding: '10px 12px', background: '#363634', border: '0.5px solid #4A4A48', color: '#F5F2EC', fontFamily: 'var(--sans)', fontSize: '13px', outline: 'none' }}>
+                      {options!.map(o => <option key={o} value={o}>{o.charAt(0).toUpperCase() + o.slice(1)}</option>)}
+                    </select>
+                  ) : type === 'textarea' ? (
+                    <textarea value={(editForm as any)[key] || ''} onChange={e => setEditForm(f => ({ ...f, [key]: e.target.value }))}
+                      rows={3} placeholder={placeholder}
+                      style={{ width: '100%', padding: '10px 12px', background: '#363634', border: '0.5px solid #4A4A48', color: '#F5F2EC', fontFamily: 'var(--sans)', fontSize: '13px', outline: 'none', resize: 'vertical', boxSizing: 'border-box' as const }} />
+                  ) : (
+                    <input type="text" value={(editForm as any)[key] || ''} onChange={e => setEditForm(f => ({ ...f, [key]: e.target.value }))}
+                      placeholder={placeholder}
+                      style={{ width: '100%', padding: '10px 12px', background: '#363634', border: '0.5px solid #4A4A48', color: '#F5F2EC', fontFamily: 'var(--sans)', fontSize: '13px', outline: 'none', boxSizing: 'border-box' as const }} />
+                  )}
+                </div>
+              ))}
+
+              {/* early check-in */}
+              <div style={{ borderTop: '0.5px solid #363634', paddingTop: '14px' }}>
+                <div style={{ fontSize: '10px', letterSpacing: '.12em', textTransform: 'uppercase', color: '#9A9A92', marginBottom: '10px' }}>Early check-in</div>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                  <input type="time" value={editForm.early_checkin_time || ''}
+                    onChange={e => setEditForm(f => ({ ...f, early_checkin_time: e.target.value }))}
+                    style={{ padding: '8px 10px', background: '#363634', border: '0.5px solid #4A4A48', color: '#F5F2EC', fontFamily: 'var(--sans)', fontSize: '13px', outline: 'none' }} />
+                  {[{ val: true, label: 'Granted', color: '#2ecc71' }, { val: false, label: 'Denied', color: '#e74c3c' }].map(({ val, label, color }) => (
+                    <button key={label} onClick={() => setEditForm(f => ({ ...f, early_checkin_granted: f.early_checkin_granted === val ? null : val }))}
+                      style={{ padding: '6px 14px', background: editForm.early_checkin_granted === val ? color : '#363634', color: editForm.early_checkin_granted === val ? '#fff' : '#9A9A92', border: 'none', fontFamily: 'var(--sans)', fontSize: '11px', cursor: 'pointer', letterSpacing: '.08em' }}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* late checkout */}
+              <div>
+                <div style={{ fontSize: '10px', letterSpacing: '.12em', textTransform: 'uppercase', color: '#9A9A92', marginBottom: '10px' }}>Late checkout</div>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                  <input type="time" value={editForm.late_checkout_time || ''}
+                    onChange={e => setEditForm(f => ({ ...f, late_checkout_time: e.target.value }))}
+                    style={{ padding: '8px 10px', background: '#363634', border: '0.5px solid #4A4A48', color: '#F5F2EC', fontFamily: 'var(--sans)', fontSize: '13px', outline: 'none' }} />
+                  {[{ val: true, label: 'Granted', color: '#2ecc71' }, { val: false, label: 'Denied', color: '#e74c3c' }].map(({ val, label, color }) => (
+                    <button key={label} onClick={() => setEditForm(f => ({ ...f, late_checkout_granted: f.late_checkout_granted === val ? null : val }))}
+                      style={{ padding: '6px 14px', background: editForm.late_checkout_granted === val ? color : '#363634', color: editForm.late_checkout_granted === val ? '#fff' : '#9A9A92', border: 'none', fontFamily: 'var(--sans)', fontSize: '11px', cursor: 'pointer', letterSpacing: '.08em' }}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '8px', marginTop: '24px' }}>
+              <button onClick={() => setEditingBlock(null)}
+                style={{ flex: 1, padding: '12px', background: '#363634', color: '#9A9A92', border: 'none', fontFamily: 'var(--sans)', fontSize: '11px', cursor: 'pointer', letterSpacing: '.08em', textTransform: 'uppercase' }}>
+                Cancel
+              </button>
+              <button onClick={handleSaveBlock} disabled={editSaving}
+                style={{ flex: 1, padding: '12px', background: editSaving ? '#363634' : 'var(--amber)', color: editSaving ? '#9A9A92' : '#1A1A18', border: 'none', fontFamily: 'var(--sans)', fontSize: '11px', cursor: 'pointer', letterSpacing: '.08em', textTransform: 'uppercase', fontWeight: 500 }}>
+                {editSaving ? 'Saving...' : 'Save'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* block modal */}
       {showBlockModal && (

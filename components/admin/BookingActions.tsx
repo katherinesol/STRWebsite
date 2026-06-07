@@ -15,6 +15,12 @@ type Booking = {
   second_payment_amount: number
   final_payment_amount: number
   plates_pending: boolean
+  early_checkin: boolean
+  early_checkin_time: string | null
+  early_checkin_granted: boolean | null
+  late_checkout: boolean
+  late_checkout_time: string | null
+  late_checkout_granted: boolean | null
 }
 
 function ActionButton({
@@ -72,6 +78,8 @@ export default function BookingActions({ booking }: { booking: Booking }) {
     finally { setLoading(false) }
   }
 
+  const hasEarlyCheckin = booking.early_checkin
+  const hasLateCheckout = booking.late_checkout
   const isPending = booking.status === 'pending_payment'
   const isConfirmed = booking.status === 'confirmed'
   const isActive = booking.status === 'active'
@@ -107,6 +115,44 @@ export default function BookingActions({ booking }: { booking: Booking }) {
           disabled={loading}
           onClick={() => updateBooking({ final_paid_at: new Date().toISOString() })}
         />
+      )}
+
+      {/* early check-in approval */}
+      {hasEarlyCheckin && (
+        <div style={{ padding: '12px 14px', background: '#1E1E1C', border: '0.5px solid #363634', marginBottom: '1px' }}>
+          <div style={{ fontSize: '10px', letterSpacing: '.1em', textTransform: 'uppercase', color: '#9A9A92', marginBottom: '8px' }}>
+            Early check-in — {booking.early_checkin_time}
+          </div>
+          <div style={{ display: 'flex', gap: '6px' }}>
+            <button onClick={() => updateBooking({ early_checkin_granted: true })} disabled={loading}
+              style={{ flex: 1, padding: '7px', background: booking.early_checkin_granted === true ? '#0a1f0f' : '#363634', color: booking.early_checkin_granted === true ? '#2ecc71' : '#9A9A92', border: 'none', fontFamily: 'var(--sans)', fontSize: '10px', cursor: 'pointer', letterSpacing: '.08em' }}>
+              ✓ Grant
+            </button>
+            <button onClick={() => updateBooking({ early_checkin_granted: false })} disabled={loading}
+              style={{ flex: 1, padding: '7px', background: booking.early_checkin_granted === false ? '#1f0a0a' : '#363634', color: booking.early_checkin_granted === false ? '#e74c3c' : '#9A9A92', border: 'none', fontFamily: 'var(--sans)', fontSize: '10px', cursor: 'pointer', letterSpacing: '.08em' }}>
+              ✗ Deny
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* late checkout approval */}
+      {hasLateCheckout && (
+        <div style={{ padding: '12px 14px', background: '#1E1E1C', border: '0.5px solid #363634', marginBottom: '1px' }}>
+          <div style={{ fontSize: '10px', letterSpacing: '.1em', textTransform: 'uppercase', color: '#9A9A92', marginBottom: '8px' }}>
+            Late checkout — {booking.late_checkout_time}
+          </div>
+          <div style={{ display: 'flex', gap: '6px' }}>
+            <button onClick={() => updateBooking({ late_checkout_granted: true })} disabled={loading}
+              style={{ flex: 1, padding: '7px', background: booking.late_checkout_granted === true ? '#0a1f0f' : '#363634', color: booking.late_checkout_granted === true ? '#2ecc71' : '#9A9A92', border: 'none', fontFamily: 'var(--sans)', fontSize: '10px', cursor: 'pointer', letterSpacing: '.08em' }}>
+              ✓ Grant
+            </button>
+            <button onClick={() => updateBooking({ late_checkout_granted: false })} disabled={loading}
+              style={{ flex: 1, padding: '7px', background: booking.late_checkout_granted === false ? '#1f0a0a' : '#363634', color: booking.late_checkout_granted === false ? '#e74c3c' : '#9A9A92', border: 'none', fontFamily: 'var(--sans)', fontSize: '10px', cursor: 'pointer', letterSpacing: '.08em' }}>
+              ✗ Deny
+            </button>
+          </div>
+        </div>
       )}
 
       {/* status transitions */}
