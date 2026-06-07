@@ -112,7 +112,7 @@ export default async function AdminDashboard() {
                     <div style={{ fontSize: '11px', color: '#9A9A92', marginTop: '2px' }}>{PROPERTY_NAMES[b.property]} {b.type !== 'direct' ? '· ' + b.type : ''}</div>
                   </div>
                   <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontSize: '13px', color: 'var(--amber)' }}>{b.date}</div>
+                    <div style={{ fontSize: '13px', color: 'var(--amber)' }}>{format(new Date(b.date + 'T12:00:00'), 'MMM d')}</div>
                     {b.nights && <div style={{ fontSize: '11px', color: '#9A9A92' }}>{b.nights} nights</div>}
                   </div>
                 </div>
@@ -137,7 +137,7 @@ export default async function AdminDashboard() {
                     <div style={{ fontSize: '11px', color: '#9A9A92', marginTop: '2px' }}>{PROPERTY_NAMES[b.property]} {b.type !== 'direct' ? '· ' + b.type : ''}</div>
                   </div>
                   <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontSize: '13px', color: '#F5F2EC' }}>{b.date}</div>
+                    <div style={{ fontSize: '13px', color: '#F5F2EC' }}>{format(new Date(b.date + 'T12:00:00'), 'MMM d')}</div>
                   </div>
                 </div>
               ))}
