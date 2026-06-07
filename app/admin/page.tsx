@@ -101,19 +101,19 @@ export default async function AdminDashboard() {
           <div style={{ fontSize: '10px', fontWeight: 500, letterSpacing: '.14em', textTransform: 'uppercase', color: 'var(--amber)', marginBottom: '16px' }}>
             Check-ins — next 7 days
           </div>
-          {!upcomingCheckins?.length ? (
+          {!allCheckins.length ? (
             <div style={{ fontSize: '13px', color: '#888880' }}>No check-ins this week</div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
-              {upcomingCheckins.map(b => (
-                <div key={b.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '0.5px solid #363634' }}>
+              {allCheckins.sort((a,b) => a.date > b.date ? 1 : -1).map((b, idx) => (
+                <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '0.5px solid #363634' }}>
                   <div>
-                    <div style={{ fontSize: '13px', color: '#F5F2EC', fontWeight: 500 }}>{(Array.isArray(b.guest_info) ? (b.guest_info as any[])[0] : b.guest_info as any)?.name || '—'}</div>
-                    <div style={{ fontSize: '11px', color: '#9A9A92', marginTop: '2px' }}>{PROPERTY_NAMES[b.property_id]} · {b.guests} guests</div>
+                    <div style={{ fontSize: '13px', color: '#F5F2EC', fontWeight: 500 }}>{b.name || '—'}</div>
+                    <div style={{ fontSize: '11px', color: '#9A9A92', marginTop: '2px' }}>{PROPERTY_NAMES[b.property]} {b.type !== 'direct' ? '· ' + b.type : ''}</div>
                   </div>
                   <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontSize: '13px', color: 'var(--amber)' }}>{format(new Date(b.check_in), 'MMM d')}</div>
-                    <div style={{ fontSize: '11px', color: '#9A9A92' }}>{b.nights} nights</div>
+                    <div style={{ fontSize: '13px', color: 'var(--amber)' }}>{b.date}</div>
+                    {b.nights && <div style={{ fontSize: '11px', color: '#9A9A92' }}>{b.nights} nights</div>}
                   </div>
                 </div>
               ))}
@@ -126,18 +126,18 @@ export default async function AdminDashboard() {
           <div style={{ fontSize: '10px', fontWeight: 500, letterSpacing: '.14em', textTransform: 'uppercase', color: 'var(--amber)', marginBottom: '16px' }}>
             Check-outs — next 7 days
           </div>
-          {!upcomingCheckouts?.length ? (
+          {!allCheckouts.length ? (
             <div style={{ fontSize: '13px', color: '#888880' }}>No check-outs this week</div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
-              {upcomingCheckouts.map(b => (
-                <div key={b.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '0.5px solid #363634' }}>
+              {allCheckouts.sort((a,b) => a.date > b.date ? 1 : -1).map((b, idx) => (
+                <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '0.5px solid #363634' }}>
                   <div>
-                    <div style={{ fontSize: '13px', color: '#F5F2EC', fontWeight: 500 }}>{(Array.isArray(b.guest_info) ? (b.guest_info as any[])[0] : b.guest_info as any)?.name || '—'}</div>
-                    <div style={{ fontSize: '11px', color: '#9A9A92', marginTop: '2px' }}>{PROPERTY_NAMES[b.property_id]}</div>
+                    <div style={{ fontSize: '13px', color: '#F5F2EC', fontWeight: 500 }}>{b.name || '—'}</div>
+                    <div style={{ fontSize: '11px', color: '#9A9A92', marginTop: '2px' }}>{PROPERTY_NAMES[b.property]} {b.type !== 'direct' ? '· ' + b.type : ''}</div>
                   </div>
                   <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontSize: '13px', color: '#F5F2EC' }}>{format(new Date(b.check_out), 'MMM d')}</div>
+                    <div style={{ fontSize: '13px', color: '#F5F2EC' }}>{b.date}</div>
                   </div>
                 </div>
               ))}

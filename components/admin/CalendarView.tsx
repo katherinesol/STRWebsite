@@ -555,7 +555,7 @@ export default function CalendarView({ bookings, blocks }: { bookings: Booking[]
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              {[
+              {(editForm.is_booking || !isOneDayBlock(editingBlock.start_date, editingBlock.end_date)) && [
                 { label: 'Guest name', key: 'guest_name', placeholder: 'e.g. Sarah Johnson', type: 'text' },
                 { label: 'Platform', key: 'platform', placeholder: '', type: 'select', options: ['manual', 'airbnb', 'vrbo', 'houfy'] },
                 { label: 'Notes', key: 'notes', placeholder: 'Internal notes', type: 'text' },
@@ -587,7 +587,8 @@ export default function CalendarView({ bookings, blocks }: { bookings: Booking[]
                 </div>
               ))}
 
-              {/* early check-in */}
+              {(editForm.is_booking || !isOneDayBlock(editingBlock.start_date, editingBlock.end_date)) && <>
+            {/* early check-in */}
               <div style={{ borderTop: '0.5px solid #363634', paddingTop: '14px' }}>
                 <div style={{ fontSize: '10px', letterSpacing: '.12em', textTransform: 'uppercase', color: '#9A9A92', marginBottom: '10px' }}>Early check-in</div>
                 <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
@@ -634,6 +635,7 @@ export default function CalendarView({ bookings, blocks }: { bookings: Booking[]
                   ))}
                 </div>
               </div>
+            </>}
             </div>
 
             <div style={{ display: 'flex', gap: '8px', marginTop: '24px' }}>
