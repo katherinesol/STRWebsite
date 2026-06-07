@@ -39,10 +39,10 @@ export default async function AdminDashboard() {
     { data: pendingEtransfers },
     { data: allBookings },
   ] = await Promise.all([
-    supabase.from('bookings').select('*, guests(name, email)').eq('status', 'confirmed').gte('check_in', todayStr).lte('check_in', sevenDaysStr).order('check_in'),
-    supabase.from('bookings').select('*, guests(name, email)').eq('status', 'active').gte('check_out', todayStr).lte('check_out', sevenDaysStr).order('check_out'),
-    supabase.from('bookings').select('*, guests(name, email)').in('status', ['confirmed', 'pending_payment']).or(`second_due_date.lt.${todayStr},final_due_date.lt.${todayStr}`),
-    supabase.from('bookings').select('*, guests(name, email)').eq('status', 'pending_payment').eq('payment_method', 'etransfer'),
+    supabase.from('bookings').select('*, guest_info:guests(name, email)').eq('status', 'confirmed').gte('check_in', todayStr).lte('check_in', sevenDaysStr).order('check_in'),
+    supabase.from('bookings').select('*, guest_info:guests(name, email)').eq('status', 'active').gte('check_out', todayStr).lte('check_out', sevenDaysStr).order('check_out'),
+    supabase.from('bookings').select('*, guest_info:guests(name, email)').in('status', ['confirmed', 'pending_payment']).or(`second_due_date.lt.${todayStr},final_due_date.lt.${todayStr}`),
+    supabase.from('bookings').select('*, guest_info:guests(name, email)').eq('status', 'pending_payment').eq('payment_method', 'etransfer'),
     supabase.from('bookings').select('id, status, total').neq('status', 'cancelled'),
   ])
 
@@ -83,7 +83,7 @@ export default async function AdminDashboard() {
               {upcomingCheckins.map(b => (
                 <div key={b.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '0.5px solid #363634' }}>
                   <div>
-                    <div style={{ fontSize: '13px', color: '#F5F2EC', fontWeight: 500 }}>{(b.guests as any)?.name || '—'}</div>
+                    <div style={{ fontSize: '13px', color: '#F5F2EC', fontWeight: 500 }}>{(Array.isArray(b.guest_info) ? (b.guest_info as any[])[0] : b.guest_info as any)?.name || '—'}</div>
                     <div style={{ fontSize: '11px', color: '#9A9A92', marginTop: '2px' }}>{PROPERTY_NAMES[b.property_id]} · {b.guests} guests</div>
                   </div>
                   <div style={{ textAlign: 'right' }}>
@@ -108,7 +108,7 @@ export default async function AdminDashboard() {
               {upcomingCheckouts.map(b => (
                 <div key={b.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '0.5px solid #363634' }}>
                   <div>
-                    <div style={{ fontSize: '13px', color: '#F5F2EC', fontWeight: 500 }}>{(b.guests as any)?.name || '—'}</div>
+                    <div style={{ fontSize: '13px', color: '#F5F2EC', fontWeight: 500 }}>{(Array.isArray(b.guest_info) ? (b.guest_info as any[])[0] : b.guest_info as any)?.name || '—'}</div>
                     <div style={{ fontSize: '11px', color: '#9A9A92', marginTop: '2px' }}>{PROPERTY_NAMES[b.property_id]}</div>
                   </div>
                   <div style={{ textAlign: 'right' }}>
@@ -132,7 +132,7 @@ export default async function AdminDashboard() {
               {pendingEtransfers.map(b => (
                 <div key={b.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '0.5px solid #363634' }}>
                   <div>
-                    <div style={{ fontSize: '13px', color: '#F5F2EC', fontWeight: 500 }}>{(b.guests as any)?.name || '—'}</div>
+                    <div style={{ fontSize: '13px', color: '#F5F2EC', fontWeight: 500 }}>{(Array.isArray(b.guest_info) ? (b.guest_info as any[])[0] : b.guest_info as any)?.name || '—'}</div>
                     <div style={{ fontSize: '11px', color: '#9A9A92', marginTop: '2px' }}>{PROPERTY_NAMES[b.property_id]} · {format(new Date(b.check_in), 'MMM d')}</div>
                   </div>
                   <div style={{ textAlign: 'right' }}>
@@ -157,7 +157,7 @@ export default async function AdminDashboard() {
               {overduePayments.map(b => (
                 <div key={b.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '0.5px solid #363634' }}>
                   <div>
-                    <div style={{ fontSize: '13px', color: '#F5F2EC', fontWeight: 500 }}>{(b.guests as any)?.name || '—'}</div>
+                    <div style={{ fontSize: '13px', color: '#F5F2EC', fontWeight: 500 }}>{(Array.isArray(b.guest_info) ? (b.guest_info as any[])[0] : b.guest_info as any)?.name || '—'}</div>
                     <div style={{ fontSize: '11px', color: '#9A9A92', marginTop: '2px' }}>{PROPERTY_NAMES[b.property_id]} · {format(new Date(b.check_in), 'MMM d')}</div>
                   </div>
                   <div style={{ textAlign: 'right' }}>

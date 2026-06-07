@@ -77,7 +77,7 @@ export default function DamageReportForm({ bookings }: { bookings: Booking[] }) 
             <option value="">Select booking...</option>
             {bookings.map(b => (
               <option key={b.id} value={b.id}>
-                {(b.guests as any)?.name} · {PROPERTY_NAMES[b.property_id]} · {format(new Date(b.check_in), 'MMM d, yyyy')}
+                {(Array.isArray(b.guests) ? (b.guests as any[])[0] : b.guests as any)?.name} · {PROPERTY_NAMES[b.property_id]} · {format(new Date(b.check_in), 'MMM d, yyyy')}
               </option>
             ))}
           </select>

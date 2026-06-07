@@ -26,7 +26,7 @@ export default async function BookingsPage({
 
   let query = supabase
     .from('bookings')
-    .select('*, guests(name, email, phone)')
+    .select('*, guest_info:guests(name, email, phone)')
     .order('created_at', { ascending: false })
 
   if (status) query = query.eq('status', status)
@@ -110,7 +110,7 @@ export default async function BookingsPage({
           </div>
         ) : bookings.map(b => {
           const s = STATUS_STYLES[b.status]
-          const guest = b.guests as any
+          const guest = Array.isArray(b.guest_info) ? (b.guest_info as any[])[0] : b.guest_info as any
           return (
             <div key={b.id} style={{
               display: 'grid', gridTemplateColumns: '1fr 140px 160px 120px 100px 80px',

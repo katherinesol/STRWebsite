@@ -147,8 +147,9 @@ export default function CalendarView({ bookings, blocks }: { bookings: Booking[]
   async function refreshICal(propertyId: string) {
     setIcalStatus(s => ({ ...s, [propertyId]: 'loading' }))
     try {
-      await fetch(`/api/calendar?property=${propertyId}&refresh=1`)
+      await fetch(`/api/calendar?property=${propertyId}&save=1`)
       setIcalStatus(s => ({ ...s, [propertyId]: 'done' }))
+      router.refresh()
     } catch {
       setIcalStatus(s => ({ ...s, [propertyId]: 'error' }))
     }
@@ -264,7 +265,7 @@ export default function CalendarView({ bookings, blocks }: { bookings: Booking[]
                       letterSpacing: '.04em', lineHeight: 1.3, marginBottom: '1px',
                       overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                     }}>
-                      {(b.guests as any)?.name || 'Guest'}
+                      {(Array.isArray(b.guests) ? (b.guests as any[])[0] : b.guests as any)?.name || 'Guest'}
                     </div>
                   ))}
                   {dayBlocks.map(b => (

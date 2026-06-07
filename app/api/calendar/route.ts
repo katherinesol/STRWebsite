@@ -81,5 +81,23 @@ export async function GET(request: NextRequest) {
     return true
   })
 
+  // optionally save to calendar_blocks for admin visibility
+  // (only saves if explicitly requested with ?save=1)
+  const save = request.nextUrl.searchParams.get('save')
+  if (save === '1' && unique.length > 0) {
+    const { createAdminClient } = await import('@/lib/supabase/server')
+    const supabase = createAdminClient()
+    for (const block of unique) {
+      await supabase.from('calendar_blocks').upsert({
+        property_id: propertyId,
+        start_date: block.start,
+        end_date: block.end,
+        reason: 'manual',
+        notes: 'Synced from iCal',
+        platform: propertyId === 'nickel-beach' ? 'airbnb' : 'airbnb',
+      }, { onConflict: 'property_id,start_date' }).then(() => {})
+    }
+  }
+
   return NextResponse.json({ blocked: unique, count: unique.length })
 }

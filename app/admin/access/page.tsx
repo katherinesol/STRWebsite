@@ -24,7 +24,7 @@ export default async function AccessPage() {
       .order('generated_at', { ascending: false }),
     supabase
       .from('bookings')
-      .select('*, guests(name)')
+      .select('*, guest_info:guests(name)').order('check_in')
       .in('status', ['confirmed', 'active'])
       .order('check_in'),
     supabase
@@ -92,7 +92,7 @@ export default async function AccessPage() {
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
             {activeBookings.map(b => {
-              const guest = b.guests as any
+              const guest = Array.isArray(b.guest_info) ? (b.guest_info as any[])[0] : b.guest_info as any
               const locks = lockMap[b.property_id] || []
               const existingCodes = codes?.filter(c => (c.bookings as any)?.check_in === b.check_in) || []
               return (
