@@ -324,8 +324,11 @@ export default function CalendarView({ bookings, blocks }: { bookings: Booking[]
                   })}
                   {dayBlocks.map(b => (
                     <div key={b.id} style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <div style={{ fontSize: '9px', color: '#f39c12', letterSpacing: '.04em' }}>
-                        {BLOCK_REASONS[b.reason]}
+                      <div
+                        onClick={() => openEditBlock(b)}
+                        style={{ fontSize: '9px', color: PLATFORM_COLORS[b.platform || 'manual'] || '#f39c12', letterSpacing: '.04em', cursor: 'pointer', textDecoration: 'underline' }}
+                      >
+                        {b.guest_name || b.platform || BLOCK_REASONS[b.reason]}
                       </div>
                       <button
                         onClick={() => handleRemoveBlock(b.id)}
