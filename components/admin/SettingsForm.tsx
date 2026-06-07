@@ -69,6 +69,37 @@ export default function SettingsForm({ settings }: { settings: { referral_reward
         </div>
       </Section>
 
+      <Section title="iCal export — direct bookings">
+        <div style={{ fontSize: '13px', color: '#AEAEA6', lineHeight: 1.6, marginBottom: '8px' }}>
+          Subscribe to these URLs in Airbnb, VRBO and Houfy to automatically block direct booking dates.
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          {[
+            { label: 'Royal York East', id: 'royal-york-east' },
+            { label: 'Royal York West', id: 'royal-york-west' },
+            { label: 'Nickel Beach', id: 'nickel-beach' },
+          ].map(({ label, id }) => (
+            <div key={id}>
+              <div style={{ fontSize: '10px', letterSpacing: '.1em', textTransform: 'uppercase', color: '#9A9A92', marginBottom: '4px' }}>{label}</div>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <code style={{ flex: 1, padding: '8px 12px', background: '#1E1E1C', border: '0.5px solid #363634', color: '#AEAEA6', fontSize: '11px', fontFamily: 'monospace', wordBreak: 'break-all' }}>
+                  {typeof window !== 'undefined' ? window.location.origin : 'https://yourdomain.com'}/api/ical/{id}?token=***
+                </code>
+                <button
+                  onClick={() => {
+                    const url = `${window.location.origin}/api/ical/${id}?token=${process.env.NEXT_PUBLIC_ICAL_SECRET || 'set-ICAL_SECRET-in-env'}`
+                    navigator.clipboard.writeText(url)
+                  }}
+                  style={{ padding: '8px 14px', background: '#363634', color: '#AEAEA6', border: 'none', fontFamily: 'var(--sans)', fontSize: '11px', cursor: 'pointer', whiteSpace: 'nowrap' }}
+                >
+                  Copy URL
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </Section>
+
       <Section title="Integrations">
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
           {[
