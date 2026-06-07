@@ -559,8 +559,6 @@ export default function CalendarView({ bookings, blocks }: { bookings: Booking[]
                 { label: 'Guest name', key: 'guest_name', placeholder: 'e.g. Sarah Johnson', type: 'text' },
                 { label: 'Platform', key: 'platform', placeholder: '', type: 'select', options: ['manual', 'airbnb', 'vrbo', 'houfy'] },
                 { label: 'Notes', key: 'notes', placeholder: 'Internal notes', type: 'text' },
-              { label: 'Mark as booking (not prep day)', key: 'is_booking', placeholder: '', type: 'toggle' },
-              { label: 'Mark as booking (not prep day)', key: 'is_booking', placeholder: '', type: 'toggle' },
                 { label: 'Guest notes', key: 'guest_notes', placeholder: 'Special requests, allergies, etc.', type: 'textarea' },
               ].map(({ label, key, placeholder, type, options }) => (
                 <div key={key}>
