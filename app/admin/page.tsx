@@ -32,6 +32,29 @@ export default async function AdminDashboard() {
   const sevenDaysStr = format(sevenDaysOut, 'yyyy-MM-dd')
 
   // fetch data in parallel
+  // platform blocks for dashboard
+  const { data: platformCheckins } = await supabase
+    .from('calendar_blocks')
+    .select('*')
+    .in('platform', ['airbnb', 'vrbo', 'houfy'])
+    .gte('start_date', todayStr)
+    .lte('start_date', sevenDaysStr)
+    .order('start_date')
+
+  const { data: platformCheckouts } = await supabase
+    .from('calendar_blocks')
+    .select('*')
+    .in('platform', ['airbnb', 'vrbo', 'houfy'])
+    .gte('end_date', todayStr)
+    .lte('end_date', sevenDaysStr)
+    .order('end_date')
+
+  const { data: allPlatformBlocks } = await supabase
+    .from('calendar_blocks')
+    .select('id')
+    .in('platform', ['airbnb', 'vrbo', 'houfy'])
+    .gte('end_date', todayStr)
+
   const [
     { data: upcomingCheckins },
     { data: upcomingCheckouts },
@@ -47,7 +70,9 @@ export default async function AdminDashboard() {
   ])
 
   const totalRevenue = allBookings?.filter(b => b.status === 'completed').reduce((sum, b) => sum + (b.total || 0), 0) || 0
-  const activeBookings = allBookings?.filter(b => ['confirmed', 'active'].includes(b.status)).length || 0
+  const activeBookings = (allBookings?.filter(b => ['confirmed', 'active'].includes(b.status)).length || 0) + (allPlatformBlocks?.length || 0)
+  const allCheckins = [...(upcomingCheckins || []).map(b => ({ name: (Array.isArray(b.guest_info) ? (b.guest_info as any[])[0] : b.guest_info as any)?.name, property: b.property_id, date: b.check_in, nights: b.nights, type: 'direct' })), ...(platformCheckins || []).map(b => ({ name: b.guest_name || b.platform, property: b.property_id, date: b.start_date, nights: null, type: b.platform }))]
+  const allCheckouts = [...(upcomingCheckouts || []).map(b => ({ name: (Array.isArray(b.guest_info) ? (b.guest_info as any[])[0] : b.guest_info as any)?.name, property: b.property_id, date: b.check_out, type: 'direct' })), ...(platformCheckouts || []).map(b => ({ name: b.guest_name || b.platform, property: b.property_id, date: b.end_date, type: b.platform }))]
 
   return (
     <div>
@@ -64,7 +89,7 @@ export default async function AdminDashboard() {
       {/* stat cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1px', background: '#363634', marginBottom: '32px' }}>
         <StatCard label="Active bookings" value={activeBookings} />
-        <StatCard label="Check-ins this week" value={upcomingCheckins?.length || 0} />
+        <StatCard label="Check-ins this week" value={allCheckins.length} />
         <StatCard label="Pending e-transfers" value={pendingEtransfers?.length || 0} accent={!!pendingEtransfers?.length} />
         <StatCard label="Overdue payments" value={overduePayments?.length || 0} accent={!!overduePayments?.length} />
       </div>

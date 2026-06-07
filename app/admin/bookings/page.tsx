@@ -8,6 +8,13 @@ const PROPERTY_NAMES: Record<string, string> = {
   'nickel-beach':    'Nickel Beach',
 }
 
+function getAutoStatus(checkIn: string, checkOut: string): { label: string; color: string; bg: string } {
+  const today = new Date().toISOString().split('T')[0]
+  if (checkOut < today) return { label: 'Completed', color: '#9A9A92', bg: '#242422' }
+  if (checkIn <= today && checkOut >= today) return { label: 'Active', color: '#3498db', bg: '#0a1520' }
+  return { label: 'Upcoming', color: '#2ecc71', bg: '#0a1f0f' }
+}
+
 const STATUS_STYLES: Record<string, { label: string; color: string; bg: string }> = {
   pending_payment: { label: 'Pending',   color: '#f39c12', bg: '#2a1f0a' },
   confirmed:       { label: 'Confirmed', color: '#2ecc71', bg: '#0a1f0f' },
@@ -122,7 +129,7 @@ export default async function BookingsPage({
         ) : allRows.map(row => {
           if (row.type === 'direct') {
             const b = row.data
-            const s = STATUS_STYLES[b.status]
+            const s = getAutoStatus(b.check_in, b.check_out)
             const guest = Array.isArray(b.guest_info) ? b.guest_info[0] : b.guest_info
             const checkInTime = b.early_checkin_granted && b.early_checkin_time
               ? formatTime(b.early_checkin_time, '4:00 PM')
@@ -161,7 +168,7 @@ export default async function BookingsPage({
             return (
               <div key={row.id} style={{ display: 'grid', gridTemplateColumns: '100px 1fr 160px 180px 100px 80px', padding: '14px 20px', borderBottom: '0.5px solid #363634', alignItems: 'center' }}>
                 <div>
-                  <span style={{ fontSize: '9px', padding: '3px 8px', background: '#1E1E1C', color: PLATFORM_COLORS[b.platform] || '#9A9A92', letterSpacing: '.08em', textTransform: 'uppercase' }}>{b.platform}</span>
+                  {(() => { const ps = getAutoStatus(b.start_date, b.end_date); return <span style={{ display: 'inline-block', padding: '3px 8px', background: ps.bg, color: ps.color, fontSize: '9px', letterSpacing: '.08em', textTransform: 'uppercase' }}>{ps.label}</span> })()}
                 </div>
                 <div>
                   <div style={{ fontSize: '13px', color: '#F5F2EC', fontWeight: 500 }}>{b.guest_name || '—'}</div>

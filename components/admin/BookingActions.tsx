@@ -59,6 +59,18 @@ function ActionButton({
 
 export default function BookingActions({ booking }: { booking: Booking }) {
   const router = useRouter()
+  const timeSelect = (label: string, value: string, onChange: (v: string) => void) => (
+  <select value={value} onChange={e => onChange(e.target.value)}
+    style={{ padding: '6px 10px', background: '#2A2A28', border: '0.5px solid #363634', color: '#F5F2EC', fontFamily: 'var(--sans)', fontSize: '12px', outline: 'none' }}>
+    <option value="">Select time</option>
+    {Array.from({ length: 24 }, (_, h) => ['00','30'].map(m => {
+      const val = `${String(h).padStart(2,'0')}:${m}`
+      const ampm = h >= 12 ? 'PM' : 'AM'
+      const h12 = h % 12 || 12
+      return <option key={val} value={val}>{h12}:{m} {ampm}</option>
+    })).flat()}
+  </select>
+)
   const [loading, setLoading] = useState(false)
   const [confirmCancel, setConfirmCancel] = useState(false)
   const [refundAmount, setRefundAmount] = useState('')

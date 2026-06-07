@@ -73,15 +73,25 @@ export async function syncICalToDB(propertyId: string): Promise<number> {
       const events = parseICal(text)
 
       for (const event of events) {
-        await supabase.from('calendar_blocks').upsert({
-          property_id: propertyId,
-          start_date: event.start,
-          end_date: event.end,
-          reason: 'manual',
-          notes: `Synced from ${platform}`,
-          platform,
-        }, { onConflict: 'property_id,start_date' })
-        saved++
+        // only insert if not already exists — never overwrite manually entered data
+        const { data: existing } = await supabase
+          .from('calendar_blocks')
+          .select('id')
+          .eq('property_id', propertyId)
+          .eq('start_date', event.start)
+          .maybeSingle()
+
+        if (!existing) {
+          await supabase.from('calendar_blocks').insert({
+            property_id: propertyId,
+            start_date: event.start,
+            end_date: event.end,
+            reason: 'manual',
+            notes: `Synced from ${platform}`,
+            platform,
+          })
+          saved++
+        }
       }
     } catch {}
   }))
