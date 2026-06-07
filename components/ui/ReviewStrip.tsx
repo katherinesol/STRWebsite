@@ -1,137 +1,106 @@
 'use client'
 import { useState, useEffect } from 'react'
 
-// Reviews pulled from all platforms — rotated randomly on each load.
-// Source field reflects platform origin. In production these will be
-// fetched from the admin-managed review store (imported from Airbnb,
-// VRBO, Houfy, or submitted directly).
-const REVIEWS = [
-  {
-    text: "Felt like staying at a friend's beautifully kept home — except everything was stocked, the location was perfect, and someone actually answered when I had a question.",
-    guest: 'Direct guest',
-    property: 'Royal York East Suite',
-    date: 'March 2025',
-    source: 'Direct',
-    stars: 5,
-  },
-  {
-    text: "Absolutely stunning space. Spotless, well-stocked, and the host was incredibly responsive. Will 100% be back.",
-    guest: 'Airbnb guest',
-    property: 'Royal York West Suite',
-    date: 'January 2025',
-    source: 'Airbnb',
-    stars: 5,
-  },
-  {
-    text: "Nickel Beach was everything we hoped for — the hot tub was perfect after a day at the beach and the house had everything we needed for a group of 8.",
-    guest: 'VRBO guest',
-    property: 'Nickel Beach Retreat',
-    date: 'August 2024',
-    source: 'VRBO',
-    stars: 5,
-  },
-  {
-    text: "Best Airbnb experience I've had in Toronto. The suite was immaculate, location was unbeatable, and check-in was seamless.",
-    guest: 'Airbnb guest',
-    property: 'Royal York East Suite',
-    date: 'November 2024',
-    source: 'Airbnb',
-    stars: 5,
-  },
-  {
-    text: "We booked direct and saved quite a bit. Communication was instant, the unit was pristine, and every detail had been thought of.",
-    guest: 'Direct guest',
-    property: 'Royal York West Suite',
-    date: 'February 2025',
-    source: 'Direct',
-    stars: 5,
-  },
-  {
-    text: "Five stars without hesitation. The Nickel Beach house exceeded every expectation. Perfect for families and groups.",
-    guest: 'Houfy guest',
-    property: 'Nickel Beach Retreat',
-    date: 'July 2024',
-    source: 'Houfy',
-    stars: 5,
-  },
-]
-
-const SOURCE_COLORS: Record<string, string> = {
-  Direct:  '#B8956B',
-  Airbnb:  '#FF5A5F',
-  VRBO:    '#3D6ECC',
-  Houfy:   '#2ECC71',
+type Review = {
+  id: string
+  guest_name: string | null
+  body: string | null
+  platform: string
+  property_id: string
+  created_at: string
 }
 
-export default function ReviewStrip() {
-  const [current, setCurrent] = useState(0)
-  const [reviews, setReviews] = useState(REVIEWS)
+const PROPERTY_NAMES: Record<string, string> = {
+  'royal-york-east': 'Royal York East Suite',
+  'royal-york-west': 'Royal York West Suite',
+  'nickel-beach':    'Nickel Beach Retreat',
+}
 
-  // shuffle on mount for random order
+const PLATFORM_STYLES: Record<string, { label: string; color: string; bg: string }> = {
+  direct:  { label: 'Direct',  color: '#B8956B', bg: 'rgba(184,149,107,0.12)' },
+  airbnb:  { label: 'Airbnb',  color: '#FF5A5F', bg: 'rgba(255,90,95,0.12)' },
+  vrbo:    { label: 'VRBO',    color: '#3D6ECC', bg: 'rgba(61,110,204,0.12)' },
+  houfy:   { label: 'Houfy',   color: '#2ECC71', bg: 'rgba(46,204,113,0.12)' },
+}
+
+// fallback reviews if DB is empty
+const FALLBACK: Review[] = [
+  { id: '1', guest_name: 'Direct guest', body: "Felt like staying at a friend's beautifully kept home — except everything was stocked, the location was perfect, and someone actually answered when I had a question.", platform: 'direct', property_id: 'royal-york-east', created_at: '2025-03-01' },
+  { id: '2', guest_name: 'Airbnb guest', body: "Absolutely stunning space. Spotless, well-stocked, and the host was incredibly responsive. Will 100% be back.", platform: 'airbnb', property_id: 'royal-york-west', created_at: '2025-01-01' },
+  { id: '3', guest_name: 'VRBO guest', body: "Nickel Beach was everything we hoped for — the hot tub was perfect after a day at the beach and the house had everything we needed for a group of 8.", platform: 'vrbo', property_id: 'nickel-beach', created_at: '2024-08-01' },
+  { id: '4', guest_name: 'Airbnb guest', body: "Best Airbnb experience I've had in Toronto. The suite was immaculate, location was unbeatable, and check-in was seamless.", platform: 'airbnb', property_id: 'royal-york-east', created_at: '2024-11-01' },
+  { id: '5', guest_name: 'Direct guest', body: "We booked direct and saved quite a bit. Communication was instant, the unit was pristine, and every detail had been thought of.", platform: 'direct', property_id: 'royal-york-west', created_at: '2025-02-01' },
+  { id: '6', guest_name: 'Houfy guest', body: "Five stars without hesitation. The Nickel Beach house exceeded every expectation. Perfect for families and groups.", platform: 'houfy', property_id: 'nickel-beach', created_at: '2024-07-01' },
+]
+
+export default function ReviewStrip({ reviews = [] }: { reviews?: Review[] }) {
+  const list = reviews.length >= 3 ? reviews : FALLBACK
+  const [current, setCurrent] = useState(0)
+  const [shuffled, setShuffled] = useState(list)
+
   useEffect(() => {
-    const shuffled = [...REVIEWS].sort(() => Math.random() - 0.5)
-    setReviews(shuffled)
+    setShuffled([...list].sort(() => Math.random() - 0.5))
   }, [])
 
-  // auto-advance every 6 seconds
   useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrent(c => (c + 1) % reviews.length)
-    }, 6000)
+    const timer = setInterval(() => setCurrent(c => (c + 1) % shuffled.length), 6000)
     return () => clearInterval(timer)
-  }, [reviews.length])
+  }, [shuffled.length])
 
-  const r = reviews[current]
+  const r = shuffled[current]
+  const platform = PLATFORM_STYLES[r?.platform] || PLATFORM_STYLES.direct
 
   return (
-    <section id="reviews" style={{ background: 'var(--linen)', padding: 'clamp(48px, 8vw, 72px) clamp(20px, 5vw, 40px)' }}>
-      <div style={{
-        fontSize: '10px', fontWeight: 500, letterSpacing: '.16em',
-        textTransform: 'uppercase', color: 'var(--amber)', marginBottom: '20px',
-      }}>
+    <section id="reviews" style={{ background: 'var(--linen)', padding: 'clamp(48px,8vw,72px) clamp(20px,5vw,40px)', position: 'relative' }}>
+      <div style={{ fontSize: '10px', fontWeight: 500, letterSpacing: '.16em', textTransform: 'uppercase', color: 'var(--amber)', marginBottom: '20px' }}>
         Guest reviews · 5 stars across all platforms
       </div>
 
       <p style={{
-        fontFamily: 'var(--serif)', fontSize: 'clamp(22px, 3vw, 32px)',
+        fontFamily: 'var(--serif)', fontSize: 'clamp(18px,3vw,32px)',
         fontWeight: 300, fontStyle: 'italic', color: 'var(--noir)',
         lineHeight: 1.5, maxWidth: '780px', marginBottom: '20px',
-        transition: 'opacity .3s',
       }}>
-        "{r.text}"
+        "{r?.body}"
       </p>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
-        <div style={{
-          fontSize: '11px', fontWeight: 500, letterSpacing: '.1em',
-          textTransform: 'uppercase', color: 'var(--amber)',
-        }}>
-          — {r.guest} · {r.property} · {r.date}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+        <div style={{ fontSize: '11px', fontWeight: 500, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--amber)' }}>
+          — {r?.guest_name} · {PROPERTY_NAMES[r?.property_id] || r?.property_id}
         </div>
+        {/* platform badge — bottom right */}
         <div style={{
           fontSize: '9px', fontWeight: 500, letterSpacing: '.1em',
-          textTransform: 'uppercase', padding: '3px 8px',
-          background: SOURCE_COLORS[r.source] || 'var(--amber)',
-          color: '#fff', borderRadius: '2px',
+          textTransform: 'uppercase', padding: '4px 10px',
+          background: platform.bg,
+          color: platform.color,
+          border: `0.5px solid ${platform.color}`,
+          borderRadius: '2px',
         }}>
-          {r.source}
+          {platform.label}
         </div>
       </div>
 
       {/* dots */}
       <div style={{ display: 'flex', gap: '6px', marginTop: '28px' }}>
-        {reviews.map((_, i) => (
-          <button
-            key={i}
-            onClick={() => setCurrent(i)}
-            style={{
-              width: i === current ? '20px' : '6px',
-              height: '6px', borderRadius: '3px',
-              background: i === current ? 'var(--noir)' : 'var(--sand-mid)',
-              border: 'none', cursor: 'pointer', padding: 0,
-              transition: 'width .3s, background .3s',
-            }}
-          />
+        {shuffled.map((_, i) => (
+          <button key={i} onClick={() => setCurrent(i)} style={{
+            width: i === current ? '20px' : '6px', height: '6px',
+            borderRadius: '3px',
+            background: i === current ? 'var(--noir)' : 'var(--sand-mid)',
+            border: 'none', cursor: 'pointer', padding: 0,
+            transition: 'width .3s, background .3s',
+          }} />
+        ))}
+      </div>
+
+      {/* platform legend — bottom right */}
+      <div style={{ position: 'absolute', bottom: 'clamp(20px,4vw,40px)', right: 'clamp(20px,5vw,40px)', display: 'flex', gap: '8px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+        {Object.entries(PLATFORM_STYLES).map(([key, style]) => (
+          <div key={key} style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+            <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: style.color }} />
+            <span style={{ fontSize: '9px', letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--muted)' }}>{style.label}</span>
+          </div>
         ))}
       </div>
     </section>

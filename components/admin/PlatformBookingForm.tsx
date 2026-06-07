@@ -42,6 +42,8 @@ function ApprovalButtons({ value, onChange }: { value: boolean | null; onChange:
 
 export default function PlatformBookingForm({ block }: { block: any }) {
   const router = useRouter()
+  const [guestEmail, setGuestEmail] = useState(block.guest_email || '')
+  const [guestPhone, setGuestPhone] = useState(block.guest_phone || '')
   const [form, setForm] = useState({
     guest_name: block.guest_name || '',
     guest_notes: block.guest_notes || '',
@@ -65,8 +67,22 @@ export default function PlatformBookingForm({ block }: { block: any }) {
       await fetch(`/api/admin/calendar/block/${block.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...form, guest_email: guestEmail, guest_phone: guestPhone }),
       })
+      // sync to guests table if name provided
+      if (form.guest_name) {
+        await fetch('/api/admin/guests/sync-platform', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: form.guest_name,
+            email: guestEmail,
+            phone: guestPhone,
+            property_id: block.property_id,
+            platform: block.platform,
+          }),
+        })
+      }
       setSaved(true)
       router.refresh()
     } catch {}
@@ -79,6 +95,12 @@ export default function PlatformBookingForm({ block }: { block: any }) {
         <Field label="Guest name">
           <input type="text" value={form.guest_name} onChange={e => set('guest_name', e.target.value)} placeholder="e.g. Sarah Johnson" style={inputStyle} />
         </Field>
+        <Field label="Email">
+          <input type="email" value={guestEmail} onChange={e => setGuestEmail(e.target.value)} placeholder="guest@email.com" style={inputStyle} />
+        </Field>
+        <Field label="Phone">
+          <input type="tel" value={guestPhone} onChange={e => setGuestPhone(e.target.value.replace(/[^\d+\-\s()]/g, ''))} placeholder="+1 416 000 0000" style={inputStyle} />
+        </Field>
         <Field label="Guest notes">
           <textarea value={form.guest_notes} onChange={e => set('guest_notes', e.target.value)} rows={3} placeholder="Special requests, allergies, notes..." style={{ ...inputStyle, resize: 'vertical' }} />
         </Field>
@@ -89,7 +111,16 @@ export default function PlatformBookingForm({ block }: { block: any }) {
 
       <Section title="Check-in time">
         <Field label="Requested check-in time">
-          <input type="time" value={form.early_checkin_time} onChange={e => set('early_checkin_time', e.target.value)} style={{ ...inputStyle, maxWidth: '160px' }} />
+          <select value={form.early_checkin_time} onChange={e => set('early_checkin_time', e.target.value)}
+            style={{ ...inputStyle, maxWidth: '200px', background: '#363634' }}>
+            <option value="">Standard (4:00 PM)</option>
+            {Array.from({ length: 24 }, (_, h) => ['00','30'].map(m => {
+              const val = `${String(h).padStart(2,'0')}:${m}`
+              const ampm = h >= 12 ? 'PM' : 'AM'
+              const h12 = h % 12 || 12
+              return <option key={val} value={val}>{h12}:{m} {ampm}</option>
+            })).flat()}
+          </select>
         </Field>
         <Field label="Status">
           <ApprovalButtons value={form.early_checkin_granted} onChange={v => set('early_checkin_granted', v)} />
@@ -99,7 +130,16 @@ export default function PlatformBookingForm({ block }: { block: any }) {
 
       <Section title="Checkout time">
         <Field label="Requested checkout time">
-          <input type="time" value={form.late_checkout_time} onChange={e => set('late_checkout_time', e.target.value)} style={{ ...inputStyle, maxWidth: '160px' }} />
+          <select value={form.late_checkout_time} onChange={e => set('late_checkout_time', e.target.value)}
+            style={{ ...inputStyle, maxWidth: '200px', background: '#363634' }}>
+            <option value="">Standard (11:00 AM)</option>
+            {Array.from({ length: 24 }, (_, h) => ['00','30'].map(m => {
+              const val = `${String(h).padStart(2,'0')}:${m}`
+              const ampm = h >= 12 ? 'PM' : 'AM'
+              const h12 = h % 12 || 12
+              return <option key={val} value={val}>{h12}:{m} {ampm}</option>
+            })).flat()}
+          </select>
         </Field>
         <Field label="Status">
           <ApprovalButtons value={form.late_checkout_granted} onChange={v => set('late_checkout_granted', v)} />
