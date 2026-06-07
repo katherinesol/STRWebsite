@@ -33,21 +33,29 @@ export default async function AdminDashboard() {
 
   // fetch data in parallel
   // platform blocks for dashboard
-  const { data: platformCheckins } = await supabase
+  const { data: platformCheckinsRaw } = await supabase
     .from('calendar_blocks')
     .select('*')
     .in('platform', ['airbnb', 'vrbo', 'houfy'])
     .gte('start_date', todayStr)
     .lte('start_date', sevenDaysStr)
     .order('start_date')
+  const platformCheckins = (platformCheckinsRaw || []).filter(b => {
+    const days = Math.round((new Date(b.end_date).getTime() - new Date(b.start_date).getTime()) / 86400000)
+    return days > 1 || b.is_booking
+  })
 
-  const { data: platformCheckouts } = await supabase
+  const { data: platformCheckoutsRaw } = await supabase
     .from('calendar_blocks')
     .select('*')
     .in('platform', ['airbnb', 'vrbo', 'houfy'])
     .gte('end_date', todayStr)
     .lte('end_date', sevenDaysStr)
     .order('end_date')
+  const platformCheckouts = (platformCheckoutsRaw || []).filter(b => {
+    const days = Math.round((new Date(b.end_date).getTime() - new Date(b.start_date).getTime()) / 86400000)
+    return days > 1 || b.is_booking
+  })
 
   const { data: allPlatformBlocks } = await supabase
     .from('calendar_blocks')
