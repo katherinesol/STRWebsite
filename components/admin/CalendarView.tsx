@@ -40,6 +40,12 @@ type Booking = {
   guest_info?: { name: string } | { name: string }[] | null
 }
 
+function isOneDayBlock(start: string, end: string): boolean {
+  const s = new Date(start)
+  const e = new Date(end)
+  return Math.round((e.getTime() - s.getTime()) / 86400000) <= 1
+}
+
 type Block = {
   id: string
   property_id: string
@@ -54,6 +60,7 @@ type Block = {
   late_checkout_time: string | null
   early_checkin_granted: boolean | null
   late_checkout_granted: boolean | null
+  is_booking?: boolean
 }
 
 function isDateInRange(date: Date, start: string, end: string): boolean {
@@ -103,6 +110,7 @@ export default function CalendarView({ bookings, blocks }: { bookings: Booking[]
   function openEditBlock(block: Block) {
     setEditingBlock(block)
     setEditForm({
+      is_booking: block.is_booking || false,
       guest_name: block.guest_name || '',
       guest_notes: block.guest_notes || '',
       platform: block.platform || 'manual',
@@ -322,13 +330,16 @@ export default function CalendarView({ bookings, blocks }: { bookings: Booking[]
                       </div>
                     )
                   })}
-                  {dayBlocks.map(b => (
-                    <div key={b.id} style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  {dayBlocks.map(b => {
+                      const isPrep = isOneDayBlock(b.start_date, b.end_date) && !b.is_booking
+                      const color = isPrep ? '#555550' : (PLATFORM_COLORS[b.platform || 'manual'] || '#f39c12')
+                      return (
+                      <div key={b.id} style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                       <div
                         onClick={() => openEditBlock(b)}
-                        style={{ fontSize: '9px', color: PLATFORM_COLORS[b.platform || 'manual'] || '#f39c12', letterSpacing: '.04em', cursor: 'pointer', textDecoration: 'underline' }}
+                        style={{ fontSize: '9px', color, letterSpacing: '.04em', cursor: 'pointer', textDecoration: isPrep ? 'none' : 'underline', fontStyle: isPrep ? 'italic' : 'normal', opacity: isPrep ? 0.6 : 1 }}
                       >
-                        {b.guest_name || b.platform || BLOCK_REASONS[b.reason]}
+                        {isPrep ? 'Prep day' : (b.guest_name || b.platform || BLOCK_REASONS[b.reason])}
                       </div>
                       <button
                         onClick={() => handleRemoveBlock(b.id)}
@@ -336,7 +347,8 @@ export default function CalendarView({ bookings, blocks }: { bookings: Booking[]
                         title="Remove block"
                       >×</button>
                     </div>
-                  ))}
+                      )
+                  })}
                 </div>
               )
             })}
@@ -382,9 +394,17 @@ export default function CalendarView({ bookings, blocks }: { bookings: Booking[]
               {(editingBooking as any).early_checkin && <div style={{ background: '#1E1E1C', padding: '14px', border: '0.5px solid #363634' }}>
                 <div style={{ fontSize: '10px', letterSpacing: '.12em', textTransform: 'uppercase', color: '#9A9A92', marginBottom: '10px' }}>Early check-in</div>
                 <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-                  <input type="time" value={bookingEditForm.early_checkin_time || ''}
+                  <select value={bookingEditForm.early_checkin_time || ''}
                     onChange={e => setBookingEditForm(f => ({ ...f, early_checkin_time: e.target.value }))}
-                    style={{ padding: '8px 10px', background: '#363634', border: '0.5px solid #4A4A48', color: '#F5F2EC', fontFamily: 'var(--sans)', fontSize: '13px', outline: 'none' }} />
+                    style={{ padding: '8px 10px', background: '#363634', border: '0.5px solid #4A4A48', color: '#F5F2EC', fontFamily: 'var(--sans)', fontSize: '13px', outline: 'none' }}>
+                    <option value="">Standard (4:00 PM)</option>
+                    {Array.from({ length: 24 }, (_, h) => ['00','30'].map(m => {
+                      const val = `${String(h).padStart(2,'0')}:${m}`
+                      const ampm = h >= 12 ? 'PM' : 'AM'
+                      const h12 = h % 12 || 12
+                      return <option key={val} value={val}>{h12}:{m} {ampm}</option>
+                    })).flat()}
+                  </select>
                   {[{ val: true, label: 'Granted', color: '#2ecc71' }, { val: false, label: 'Denied', color: '#e74c3c' }, { val: null, label: 'Pending', color: '#888880' }].map(({ val, label, color }) => (
                     <button key={label} onClick={() => setBookingEditForm(f => ({ ...f, early_checkin_granted: val }))}
                       style={{ padding: '5px 10px', background: bookingEditForm.early_checkin_granted === val ? color : '#363634', color: bookingEditForm.early_checkin_granted === val ? '#fff' : '#9A9A92', border: 'none', fontFamily: 'var(--sans)', fontSize: '10px', cursor: 'pointer' }}>
@@ -399,9 +419,17 @@ export default function CalendarView({ bookings, blocks }: { bookings: Booking[]
               {(editingBooking as any).late_checkout && <div style={{ background: '#1E1E1C', padding: '14px', border: '0.5px solid #363634' }}>
                 <div style={{ fontSize: '10px', letterSpacing: '.12em', textTransform: 'uppercase', color: '#9A9A92', marginBottom: '10px' }}>Late checkout</div>
                 <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-                  <input type="time" value={bookingEditForm.late_checkout_time || ''}
+                  <select value={bookingEditForm.late_checkout_time || ''}
                     onChange={e => setBookingEditForm(f => ({ ...f, late_checkout_time: e.target.value }))}
-                    style={{ padding: '8px 10px', background: '#363634', border: '0.5px solid #4A4A48', color: '#F5F2EC', fontFamily: 'var(--sans)', fontSize: '13px', outline: 'none' }} />
+                    style={{ padding: '8px 10px', background: '#363634', border: '0.5px solid #4A4A48', color: '#F5F2EC', fontFamily: 'var(--sans)', fontSize: '13px', outline: 'none' }}>
+                    <option value="">Standard (11:00 AM)</option>
+                    {Array.from({ length: 24 }, (_, h) => ['00','30'].map(m => {
+                      const val = `${String(h).padStart(2,'0')}:${m}`
+                      const ampm = h >= 12 ? 'PM' : 'AM'
+                      const h12 = h % 12 || 12
+                      return <option key={val} value={val}>{h12}:{m} {ampm}</option>
+                    })).flat()}
+                  </select>
                   {[{ val: true, label: 'Granted', color: '#2ecc71' }, { val: false, label: 'Denied', color: '#e74c3c' }, { val: null, label: 'Pending', color: '#888880' }].map(({ val, label, color }) => (
                     <button key={label} onClick={() => setBookingEditForm(f => ({ ...f, late_checkout_granted: val }))}
                       style={{ padding: '5px 10px', background: bookingEditForm.late_checkout_granted === val ? color : '#363634', color: bookingEditForm.late_checkout_granted === val ? '#fff' : '#9A9A92', border: 'none', fontFamily: 'var(--sans)', fontSize: '10px', cursor: 'pointer' }}>
@@ -446,9 +474,17 @@ export default function CalendarView({ bookings, blocks }: { bookings: Booking[]
               {(editingBooking as any).early_checkin && <div style={{ background: '#1E1E1C', padding: '14px', border: '0.5px solid #363634' }}>
                 <div style={{ fontSize: '10px', letterSpacing: '.12em', textTransform: 'uppercase', color: '#9A9A92', marginBottom: '10px' }}>Early check-in</div>
                 <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-                  <input type="time" value={bookingEditForm.early_checkin_time || ''}
+                  <select value={bookingEditForm.early_checkin_time || ''}
                     onChange={e => setBookingEditForm(f => ({ ...f, early_checkin_time: e.target.value }))}
-                    style={{ padding: '8px 10px', background: '#363634', border: '0.5px solid #4A4A48', color: '#F5F2EC', fontFamily: 'var(--sans)', fontSize: '13px', outline: 'none' }} />
+                    style={{ padding: '8px 10px', background: '#363634', border: '0.5px solid #4A4A48', color: '#F5F2EC', fontFamily: 'var(--sans)', fontSize: '13px', outline: 'none' }}>
+                    <option value="">Standard (4:00 PM)</option>
+                    {Array.from({ length: 24 }, (_, h) => ['00','30'].map(m => {
+                      const val = `${String(h).padStart(2,'0')}:${m}`
+                      const ampm = h >= 12 ? 'PM' : 'AM'
+                      const h12 = h % 12 || 12
+                      return <option key={val} value={val}>{h12}:{m} {ampm}</option>
+                    })).flat()}
+                  </select>
                   {[{ val: true, label: 'Granted', color: '#2ecc71' }, { val: false, label: 'Denied', color: '#e74c3c' }, { val: null, label: 'Pending', color: '#888880' }].map(({ val, label, color }) => (
                     <button key={label} onClick={() => setBookingEditForm(f => ({ ...f, early_checkin_granted: val }))}
                       style={{ padding: '5px 10px', background: bookingEditForm.early_checkin_granted === val ? color : '#363634', color: bookingEditForm.early_checkin_granted === val ? '#fff' : '#9A9A92', border: 'none', fontFamily: 'var(--sans)', fontSize: '10px', cursor: 'pointer' }}>
@@ -463,9 +499,17 @@ export default function CalendarView({ bookings, blocks }: { bookings: Booking[]
               {(editingBooking as any).late_checkout && <div style={{ background: '#1E1E1C', padding: '14px', border: '0.5px solid #363634' }}>
                 <div style={{ fontSize: '10px', letterSpacing: '.12em', textTransform: 'uppercase', color: '#9A9A92', marginBottom: '10px' }}>Late checkout</div>
                 <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-                  <input type="time" value={bookingEditForm.late_checkout_time || ''}
+                  <select value={bookingEditForm.late_checkout_time || ''}
                     onChange={e => setBookingEditForm(f => ({ ...f, late_checkout_time: e.target.value }))}
-                    style={{ padding: '8px 10px', background: '#363634', border: '0.5px solid #4A4A48', color: '#F5F2EC', fontFamily: 'var(--sans)', fontSize: '13px', outline: 'none' }} />
+                    style={{ padding: '8px 10px', background: '#363634', border: '0.5px solid #4A4A48', color: '#F5F2EC', fontFamily: 'var(--sans)', fontSize: '13px', outline: 'none' }}>
+                    <option value="">Standard (11:00 AM)</option>
+                    {Array.from({ length: 24 }, (_, h) => ['00','30'].map(m => {
+                      const val = `${String(h).padStart(2,'0')}:${m}`
+                      const ampm = h >= 12 ? 'PM' : 'AM'
+                      const h12 = h % 12 || 12
+                      return <option key={val} value={val}>{h12}:{m} {ampm}</option>
+                    })).flat()}
+                  </select>
                   {[{ val: true, label: 'Granted', color: '#2ecc71' }, { val: false, label: 'Denied', color: '#e74c3c' }, { val: null, label: 'Pending', color: '#888880' }].map(({ val, label, color }) => (
                     <button key={label} onClick={() => setBookingEditForm(f => ({ ...f, late_checkout_granted: val }))}
                       style={{ padding: '5px 10px', background: bookingEditForm.late_checkout_granted === val ? color : '#363634', color: bookingEditForm.late_checkout_granted === val ? '#fff' : '#9A9A92', border: 'none', fontFamily: 'var(--sans)', fontSize: '10px', cursor: 'pointer' }}>
@@ -507,6 +551,8 @@ export default function CalendarView({ bookings, blocks }: { bookings: Booking[]
                 { label: 'Guest name', key: 'guest_name', placeholder: 'e.g. Sarah Johnson', type: 'text' },
                 { label: 'Platform', key: 'platform', placeholder: '', type: 'select', options: ['manual', 'airbnb', 'vrbo', 'houfy'] },
                 { label: 'Notes', key: 'notes', placeholder: 'Internal notes', type: 'text' },
+              { label: 'Mark as booking (not prep day)', key: 'is_booking', placeholder: '', type: 'toggle' },
+              { label: 'Mark as booking (not prep day)', key: 'is_booking', placeholder: '', type: 'toggle' },
                 { label: 'Guest notes', key: 'guest_notes', placeholder: 'Special requests, allergies, etc.', type: 'textarea' },
               ].map(({ label, key, placeholder, type, options }) => (
                 <div key={key}>
@@ -516,6 +562,13 @@ export default function CalendarView({ bookings, blocks }: { bookings: Booking[]
                       style={{ width: '100%', padding: '10px 12px', background: '#363634', border: '0.5px solid #4A4A48', color: '#F5F2EC', fontFamily: 'var(--sans)', fontSize: '13px', outline: 'none' }}>
                       {options!.map(o => <option key={o} value={o}>{o.charAt(0).toUpperCase() + o.slice(1)}</option>)}
                     </select>
+                  ) : type === 'toggle' ? (
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}>
+                      <div style={{ width: '36px', height: '20px', borderRadius: '10px', background: (editForm as any)[key] ? 'var(--amber)' : '#4A4A48', position: 'relative', flexShrink: 0, transition: 'background .2s' }}>
+                        <div style={{ position: 'absolute', top: '2px', left: (editForm as any)[key] ? '18px' : '2px', width: '16px', height: '16px', borderRadius: '50%', background: '#fff', transition: 'left .2s' }} />
+                      </div>
+                      <input type="checkbox" checked={!!(editForm as any)[key]} onChange={e => setEditForm(f => ({ ...f, [key]: e.target.checked }))} style={{ display: 'none' }} />
+                    </label>
                   ) : type === 'textarea' ? (
                     <textarea value={(editForm as any)[key] || ''} onChange={e => setEditForm(f => ({ ...f, [key]: e.target.value }))}
                       rows={3} placeholder={placeholder}
@@ -532,9 +585,17 @@ export default function CalendarView({ bookings, blocks }: { bookings: Booking[]
               <div style={{ borderTop: '0.5px solid #363634', paddingTop: '14px' }}>
                 <div style={{ fontSize: '10px', letterSpacing: '.12em', textTransform: 'uppercase', color: '#9A9A92', marginBottom: '10px' }}>Early check-in</div>
                 <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-                  <input type="time" value={editForm.early_checkin_time || ''}
+                  <select value={editForm.early_checkin_time || ''}
                     onChange={e => setEditForm(f => ({ ...f, early_checkin_time: e.target.value }))}
-                    style={{ padding: '8px 10px', background: '#363634', border: '0.5px solid #4A4A48', color: '#F5F2EC', fontFamily: 'var(--sans)', fontSize: '13px', outline: 'none' }} />
+                    style={{ padding: '8px 10px', background: '#363634', border: '0.5px solid #4A4A48', color: '#F5F2EC', fontFamily: 'var(--sans)', fontSize: '13px', outline: 'none' }}>
+                    <option value="">Standard (4:00 PM)</option>
+                    {Array.from({ length: 24 }, (_, h) => ['00','30'].map(m => {
+                      const val = `${String(h).padStart(2,'0')}:${m}`
+                      const ampm = h >= 12 ? 'PM' : 'AM'
+                      const h12 = h % 12 || 12
+                      return <option key={val} value={val}>{h12}:{m} {ampm}</option>
+                    })).flat()}
+                  </select>
                   {[{ val: true, label: 'Granted', color: '#2ecc71' }, { val: false, label: 'Denied', color: '#e74c3c' }].map(({ val, label, color }) => (
                     <button key={label} onClick={() => setEditForm(f => ({ ...f, early_checkin_granted: f.early_checkin_granted === val ? null : val }))}
                       style={{ padding: '6px 14px', background: editForm.early_checkin_granted === val ? color : '#363634', color: editForm.early_checkin_granted === val ? '#fff' : '#9A9A92', border: 'none', fontFamily: 'var(--sans)', fontSize: '11px', cursor: 'pointer', letterSpacing: '.08em' }}>
@@ -548,9 +609,17 @@ export default function CalendarView({ bookings, blocks }: { bookings: Booking[]
               <div>
                 <div style={{ fontSize: '10px', letterSpacing: '.12em', textTransform: 'uppercase', color: '#9A9A92', marginBottom: '10px' }}>Late checkout</div>
                 <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-                  <input type="time" value={editForm.late_checkout_time || ''}
+                  <select value={editForm.late_checkout_time || ''}
                     onChange={e => setEditForm(f => ({ ...f, late_checkout_time: e.target.value }))}
-                    style={{ padding: '8px 10px', background: '#363634', border: '0.5px solid #4A4A48', color: '#F5F2EC', fontFamily: 'var(--sans)', fontSize: '13px', outline: 'none' }} />
+                    style={{ padding: '8px 10px', background: '#363634', border: '0.5px solid #4A4A48', color: '#F5F2EC', fontFamily: 'var(--sans)', fontSize: '13px', outline: 'none' }}>
+                    <option value="">Standard (11:00 AM)</option>
+                    {Array.from({ length: 24 }, (_, h) => ['00','30'].map(m => {
+                      const val = `${String(h).padStart(2,'0')}:${m}`
+                      const ampm = h >= 12 ? 'PM' : 'AM'
+                      const h12 = h % 12 || 12
+                      return <option key={val} value={val}>{h12}:{m} {ampm}</option>
+                    })).flat()}
+                  </select>
                   {[{ val: true, label: 'Granted', color: '#2ecc71' }, { val: false, label: 'Denied', color: '#e74c3c' }].map(({ val, label, color }) => (
                     <button key={label} onClick={() => setEditForm(f => ({ ...f, late_checkout_granted: f.late_checkout_granted === val ? null : val }))}
                       style={{ padding: '6px 14px', background: editForm.late_checkout_granted === val ? color : '#363634', color: editForm.late_checkout_granted === val ? '#fff' : '#9A9A92', border: 'none', fontFamily: 'var(--sans)', fontSize: '11px', cursor: 'pointer', letterSpacing: '.08em' }}>

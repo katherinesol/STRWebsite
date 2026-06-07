@@ -43,9 +43,10 @@ function formatTime(time: string | null, standard: string): string {
 export default async function BookingsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ property?: string }>
+  searchParams: Promise<{ property?: string; show_completed?: string }>
 }) {
-  const { property } = await searchParams
+  const { property, show_completed } = await searchParams
+  const showCompleted = show_completed === '1'
   const supabase = createAdminClient()
 
   let directQuery = supabase
@@ -74,7 +75,11 @@ export default async function BookingsPage({
     data: any
   }
 
-  const directRows: Row[] = (bookings || []).map(b => ({
+
+
+  const directRows: Row[] = (bookings || [])
+    .filter(b => showCompleted || getAutoStatus(b.check_in, b.check_out).label !== 'Completed')
+    .map(b => ({
     id: b.id,
     type: 'direct',
     property_id: b.property_id,
@@ -84,6 +89,7 @@ export default async function BookingsPage({
 
   const platformRows: Row[] = (platformBlocks || [])
     .filter(b => !property || b.property_id === property)
+    .filter(b => showCompleted || getAutoStatus(b.start_date, b.end_date).label !== 'Completed')
     .map(b => ({
       id: b.id,
       type: 'platform',
@@ -108,14 +114,22 @@ export default async function BookingsPage({
         </Link>
       </div>
 
-      {/* property filter */}
-      <div style={{ display: 'flex', gap: '1px', marginBottom: '20px' }}>
+      {/* completed toggle + property filter */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+      <div style={{ display: 'flex', gap: '1px' }}>
         <Link href="/admin/bookings" style={{ padding: '6px 14px', fontSize: '10px', letterSpacing: '.1em', textTransform: 'uppercase', textDecoration: 'none', background: !property ? '#F5F2EC' : '#363634', color: !property ? '#1A1A18' : '#9A9A92' }}>All</Link>
         {Object.entries(PROPERTY_NAMES).map(([id, name]) => (
-          <Link key={id} href={`/admin/bookings?property=${id}`} style={{ padding: '6px 14px', fontSize: '10px', letterSpacing: '.1em', textTransform: 'uppercase', textDecoration: 'none', background: property === id ? 'var(--amber)' : '#363634', color: property === id ? '#1A1A18' : '#9A9A92' }}>
+          <Link key={id} href={`/admin/bookings?property=${id}${showCompleted ? '&show_completed=1' : ''}`} style={{ padding: '6px 14px', fontSize: '10px', letterSpacing: '.1em', textTransform: 'uppercase', textDecoration: 'none', background: property === id ? 'var(--amber)' : '#363634', color: property === id ? '#1A1A18' : '#9A9A92' }}>
             {name}
           </Link>
         ))}
+      </div>
+      <Link
+        href={`/admin/bookings?${property ? `property=${property}&` : ''}${showCompleted ? '' : 'show_completed=1'}`}
+        style={{ fontSize: '11px', letterSpacing: '.08em', textTransform: 'uppercase', textDecoration: 'none', padding: '6px 14px', background: showCompleted ? '#F5F2EC' : '#363634', color: showCompleted ? '#1A1A18' : '#9A9A92' }}
+      >
+        {showCompleted ? 'Hide completed' : 'Show completed'}
+      </Link>
       </div>
 
       {/* unified table */}
