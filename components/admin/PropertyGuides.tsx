@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation'
 
 const SECTIONS = [
   { id: 'getting-in', label: 'Getting in' },
+  { id: 'wifi',       label: 'WiFi' },
   { id: 'kitchen',    label: 'Kitchen' },
   { id: 'bathroom',   label: 'Bathroom' },
   { id: 'living',     label: 'Living room' },
@@ -17,6 +18,7 @@ type Guide = {
   title: string
   content: string
   display_order: number
+  updated_at?: string
 }
 
 const inputStyle: React.CSSProperties = {
@@ -176,6 +178,11 @@ function GuideEntry({ guide, saving, onSave, onDelete, onChange }: {
           style={{ width: '100%', padding: '8px 12px', background: '#363634', border: '0.5px solid #4A4A48', color: '#F5F2EC', fontFamily: 'var(--sans)', fontSize: '13px', outline: 'none', borderRadius: '2px', resize: 'vertical', boxSizing: 'border-box' as const }}
         />
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          {guide.updated_at && (
+            <span style={{ fontSize: '10px', color: '#555550', letterSpacing: '.06em' }}>
+              Updated {new Date(guide.updated_at).toLocaleDateString('en-CA', { month: 'short', day: 'numeric', year: 'numeric' })}
+            </span>
+          )}
           <button
             onClick={async () => { await onSave(guide); setSaved(true); setTimeout(() => setSaved(false), 2000) }}
             disabled={saving}

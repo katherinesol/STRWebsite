@@ -12,7 +12,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const { id } = await params
   const body = await request.json()
   const supabase = createAdminClient()
-  const { error } = await supabase.from('property_guides').update(body).eq('id', id)
+  const { error } = await supabase.from('property_guides').update({ ...body, updated_at: new Date().toISOString() }).eq('id', id)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ ok: true })
 }

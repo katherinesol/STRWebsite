@@ -73,12 +73,14 @@ export async function syncICalToDB(propertyId: string): Promise<number> {
       const events = parseICal(text)
 
       for (const event of events) {
-        // only insert if not already exists — never overwrite manually entered data
+        // only insert if this exact date range doesn't exist yet
+        // NEVER update existing records — guest data may have been manually added
         const { data: existing } = await supabase
           .from('calendar_blocks')
-          .select('id')
+          .select('id, guest_name')
           .eq('property_id', propertyId)
           .eq('start_date', event.start)
+          .eq('end_date', event.end)
           .maybeSingle()
 
         if (!existing) {
@@ -89,8 +91,9 @@ export async function syncICalToDB(propertyId: string): Promise<number> {
             reason: 'manual',
             notes: `Synced from ${platform}`,
             platform,
+          }).then(({ error }) => {
+            if (!error) saved++
           })
-          saved++
         }
       }
     } catch {}

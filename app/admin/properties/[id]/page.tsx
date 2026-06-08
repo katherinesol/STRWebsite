@@ -32,9 +32,6 @@ export default async function PropertyEditPage({ params }: { params: Promise<{ i
       <div style={{ marginTop: '32px', background: '#242422', border: '0.5px solid #363634', padding: '24px' }}>
         <PropertyGuides propertyId={id} guides={guides || []} />
       </div>
-      <div style={{ marginTop: '32px', background: '#242422', border: '0.5px solid #363634', padding: '24px' }}>
-        <PropertyGuides propertyId={id} guides={guides || []} />
-      </div>
     </div>
   )
 }
