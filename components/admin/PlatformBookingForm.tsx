@@ -114,9 +114,9 @@ export default function PlatformBookingForm({ block }: { block: any }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...form, guest_email: guestEmail, guest_phone: guestPhone }),
       })
-      // sync to guests table if name provided
+      // sync to guests table and link back to block
       if (form.guest_name) {
-        await fetch('/api/admin/guests/sync-platform', {
+        const gRes = await fetch('/api/admin/guests/sync-platform', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -127,6 +127,14 @@ export default function PlatformBookingForm({ block }: { block: any }) {
             platform: block.platform,
           }),
         })
+        const gData = await gRes.json()
+        if (gData.guest_id) {
+          await fetch(`/api/admin/calendar/block/${block.id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ guest_id: gData.guest_id }),
+          })
+        }
       }
       setSaved(true)
       router.refresh()

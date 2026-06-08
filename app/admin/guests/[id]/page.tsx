@@ -14,10 +14,14 @@ export default async function GuestDetailPage({ params }: { params: Promise<{ id
   const { id } = await params
   const supabase = createAdminClient()
 
-  const [{ data: guest }, { data: bookings }, { data: referrals }] = await Promise.all([
-    supabase.from('guests').select('*').eq('id', id).single(),
+  const guestData = await supabase.from('guests').select('*').eq('id', id).single()
+  const guest = guestData.data
+  if (!guest) notFound()
+
+  const [{ data: bookings }, { data: referrals }, { data: platformBlocks }] = await Promise.all([
     supabase.from('bookings').select('*').eq('guest_id', id).order('check_in', { ascending: false }),
     supabase.from('referrals').select('*, referred:referred_guest_id(name), referrer:referrer_guest_id(name)').or(`referrer_guest_id.eq.${id},referred_guest_id.eq.${id}`),
+    supabase.from('calendar_blocks').select('*').eq('guest_id', id).order('start_date', { ascending: false }),
   ])
 
   if (!guest) notFound()

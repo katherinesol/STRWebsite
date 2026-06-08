@@ -54,5 +54,7 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  return NextResponse.json({ ok: true })
+  // return the guest id so caller can link the calendar block
+  const { data: g } = await supabase.from('guests').select('id').eq('email', email || `${name.toLowerCase().replace(/\s+/g, '.')}@platform.noemail`).maybeSingle()
+  return NextResponse.json({ ok: true, guest_id: g?.id })
 }
