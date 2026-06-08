@@ -12,7 +12,7 @@ export default async function GuestsPage({
 
   let query = supabase
     .from('guests')
-    .select('*, bookings(id, property_id, check_in, status)')
+    .select('*, bookings(id, property_id, check_in, status), calendar_blocks(id)')
     .order('created_at', { ascending: false })
 
   if (q) {
@@ -66,6 +66,8 @@ export default async function GuestsPage({
           </div>
         ) : guests.map(g => {
           const bookings = (g.bookings as any[]) || []
+          const platformStays = (g.calendar_blocks as any[]) || []
+          const totalStays = bookings.length + platformStays.length
           const lastBooking = bookings.sort((a, b) => b.check_in > a.check_in ? 1 : -1)[0]
           return (
             <div key={g.id} style={{
@@ -80,7 +82,7 @@ export default async function GuestsPage({
               <div style={{ fontSize: '12px', color: '#AEAEA6' }}>
                 {lastBooking ? format(new Date(lastBooking.check_in), 'MMM d, yyyy') : '—'}
               </div>
-              <div style={{ fontSize: '13px', color: '#AEAEA6' }}>{bookings.length}</div>
+              <div style={{ fontSize: '13px', color: '#AEAEA6' }}>{totalStays}</div>
               <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
                 {g.returning_guest && (
                   <span style={{ fontSize: '9px', padding: '2px 6px', background: '#0a1520', color: '#3498db', letterSpacing: '.08em', textTransform: 'uppercase' }}>Return</span>
