@@ -12,8 +12,36 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const { id } = await params
   const body = await request.json()
   const supabase = createAdminClient()
-  const { error } = await supabase.from('guests').update(body).eq('id', id)
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  // clean empty strings for numeric fields
+  const cleaned = { ...body }
+  for (const key of ['locked_rate_royal_york', 'locked_rate_nickel_beach']) {
+    if (cleaned[key] === '' || cleaned[key] === null) cleaned[key] = null
+    else if (cleaned[key] !== undefined) cleaned[key] = parseFloat(cleaned[key])
+  }
+  if (cleaned.phone === '') cleaned.phone = null
+
+  const { data: existingGuest } = await supabase.from('guests').select('name').eq('id', id).single()
+  const { error } = await supabase.from('guests').update(cleaned).eq('id', id)
+  if (error) { console.error('Guest PATCH error:', error.message); return NextResponse.json({ error: error.message }, { status: 500 }) }
+
+  // cascade name change to calendar blocks + link by guest_id
+  if (cleaned.name && cleaned.name !== existingGuest?.name) {
+    await supabase.from('calendar_blocks')
+      .update({ guest_name: cleaned.name, guest_id: id })
+      .eq('guest_id', id)
+    // also update unlinked blocks that match old name
+    if (existingGuest?.name) {
+      await supabase.from('calendar_blocks')
+        .update({ guest_name: cleaned.name, guest_id: id })
+        .ilike('guest_name', `%${existingGuest.name}%`)
+        .is('guest_id', null)
+    }
+  }
+  // always link blocks by guest_id if missing
+  await supabase.from('calendar_blocks')
+    .update({ guest_id: id })
+    .ilike('guest_name', `%${(cleaned.name || existingGuest?.name || '')}%`)
+    .is('guest_id', null)
   return NextResponse.json({ ok: true })
 }
 
