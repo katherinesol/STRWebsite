@@ -61,6 +61,8 @@ type Block = {
   early_checkin_granted: boolean | null
   late_checkout_granted: boolean | null
   is_booking?: boolean
+  guest_email?: string | null
+  guest_phone?: string | null
 }
 
 function isDateInRange(date: Date, start: string, end: string): boolean {
@@ -86,6 +88,28 @@ export default function CalendarView({ bookings, blocks }: { bookings: Booking[]
   const [bookingEditSaving, setBookingEditSaving] = useState(false)
   const [editForm, setEditForm] = useState<Partial<Block>>({})
   const [editSaving, setEditSaving] = useState(false)
+  const [guestSuggestions, setGuestSuggestions] = useState<any[]>([])
+  const [guestSuggestionsOpen, setGuestSuggestionsOpen] = useState(false)
+
+  async function searchGuests(q: string) {
+    setEditForm(f => ({ ...f, guest_name: q }))
+    if (q.length < 2) { setGuestSuggestions([]); setGuestSuggestionsOpen(false); return }
+    const res = await fetch(`/api/admin/guests/search?q=${encodeURIComponent(q)}`)
+    const data = await res.json()
+    setGuestSuggestions(data.guests || [])
+    setGuestSuggestionsOpen(true)
+  }
+
+  function selectGuest(g: any) {
+    setEditForm(f => ({
+      ...f,
+      guest_name: g.name,
+      guest_email: g.email?.includes('@platform.noemail') ? '' : (g.email || ''),
+      guest_phone: g.phone || '',
+    }))
+    setGuestSuggestions([])
+    setGuestSuggestionsOpen(false)
+  }
 
   const monthStart = startOfMonth(currentMonth)
   const monthEnd = endOfMonth(currentMonth)
@@ -112,6 +136,8 @@ export default function CalendarView({ bookings, blocks }: { bookings: Booking[]
     setEditForm({
       is_booking: block.is_booking || false,
       guest_name: block.guest_name || '',
+      guest_email: block.guest_email || '',
+      guest_phone: block.guest_phone || '',
       guest_notes: block.guest_notes || '',
       platform: block.platform || 'manual',
       early_checkin_time: block.early_checkin_time || '',
@@ -579,6 +605,28 @@ export default function CalendarView({ bookings, blocks }: { bookings: Booking[]
                     <textarea value={(editForm as any)[key] || ''} onChange={e => setEditForm(f => ({ ...f, [key]: e.target.value }))}
                       rows={3} placeholder={placeholder}
                       style={{ width: '100%', padding: '10px 12px', background: '#363634', border: '0.5px solid #4A4A48', color: '#F5F2EC', fontFamily: 'var(--sans)', fontSize: '13px', outline: 'none', resize: 'vertical', boxSizing: 'border-box' as const }} />
+                  ) : key === 'guest_name' ? (
+                    <div style={{ position: 'relative' }}>
+                      <input type="text" value={(editForm as any).guest_name || ''}
+                        onChange={e => searchGuests(e.target.value)}
+                        onBlur={() => setTimeout(() => setGuestSuggestionsOpen(false), 150)}
+                        placeholder={placeholder}
+                        style={{ width: '100%', padding: '10px 12px', background: '#363634', border: '0.5px solid #4A4A48', color: '#F5F2EC', fontFamily: 'var(--sans)', fontSize: '13px', outline: 'none', boxSizing: 'border-box' as const }} />
+                      {guestSuggestionsOpen && guestSuggestions.length > 0 && (
+                        <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#2A2A28', border: '0.5px solid #4A4A48', zIndex: 100, maxHeight: '180px', overflowY: 'auto' }}>
+                          {guestSuggestions.map((g: any) => (
+                            <div key={g.id} onMouseDown={() => selectGuest(g)}
+                              style={{ padding: '10px 14px', cursor: 'pointer', borderBottom: '0.5px solid #363634' }}>
+                              <div style={{ fontSize: '13px', color: '#F5F2EC', fontWeight: 500 }}>{g.name}</div>
+                              <div style={{ fontSize: '11px', color: '#9A9A92', marginTop: '2px' }}>
+                                {g.email?.includes('@platform.noemail') ? 'No email on file' : g.email}
+                                {g.bookingCount > 0 ? ` · ${g.bookingCount} stay${g.bookingCount !== 1 ? 's' : ''}` : ''}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   ) : (
                     <input type="text" value={(editForm as any)[key] || ''} onChange={e => setEditForm(f => ({ ...f, [key]: e.target.value }))}
                       placeholder={placeholder}
