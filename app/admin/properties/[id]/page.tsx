@@ -2,6 +2,7 @@ import { createAdminClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import PropertySettingsForm from '@/components/admin/PropertySettingsForm'
+import PropertyGuides from '@/components/admin/PropertyGuides'
 
 const PROPERTY_NAMES: Record<string, string> = {
   'royal-york-east': 'Royal York East Suite',
@@ -14,11 +15,10 @@ export default async function PropertyEditPage({ params }: { params: Promise<{ i
   if (!PROPERTY_NAMES[id]) notFound()
 
   const supabase = createAdminClient()
-  const { data: settings } = await supabase
-    .from('property_settings')
-    .select('*')
-    .eq('property_id', id)
-    .single()
+  const [{ data: settings }, { data: guides }] = await Promise.all([
+    supabase.from('property_settings').select('*').eq('property_id', id).single(),
+    supabase.from('property_guides').select('*').eq('property_id', id).order('display_order'),
+  ])
 
   return (
     <div>
@@ -29,6 +29,12 @@ export default async function PropertyEditPage({ params }: { params: Promise<{ i
         </h1>
       </div>
       <PropertySettingsForm propertyId={id} settings={settings} />
+      <div style={{ marginTop: '32px', background: '#242422', border: '0.5px solid #363634', padding: '24px' }}>
+        <PropertyGuides propertyId={id} guides={guides || []} />
+      </div>
+      <div style={{ marginTop: '32px', background: '#242422', border: '0.5px solid #363634', padding: '24px' }}>
+        <PropertyGuides propertyId={id} guides={guides || []} />
+      </div>
     </div>
   )
 }
