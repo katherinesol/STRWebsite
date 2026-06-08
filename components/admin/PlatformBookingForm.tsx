@@ -40,6 +40,51 @@ function ApprovalButtons({ value, onChange }: { value: boolean | null; onChange:
   )
 }
 
+function GuestAutocomplete({ value, onChange, onSelect }: {
+  value: string
+  onChange: (v: string) => void
+  onSelect: (guest: { name: string; email: string; phone: string }) => void
+}) {
+  const [suggestions, setSuggestions] = useState<any[]>([])
+  const [open, setOpen] = useState(false)
+
+  async function search(q: string) {
+    onChange(q)
+    if (q.length < 2) { setSuggestions([]); setOpen(false); return }
+    const res = await fetch(`/api/admin/guests/search?q=${encodeURIComponent(q)}`)
+    const data = await res.json()
+    setSuggestions(data.guests || [])
+    setOpen(true)
+  }
+
+  return (
+    <div style={{ position: 'relative' }}>
+      <input
+        type="text" value={value}
+        onChange={e => search(e.target.value)}
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
+        placeholder="e.g. Marc Losier"
+        style={{ width: '100%', padding: '10px 12px', background: '#363634', border: '0.5px solid #4A4A48', color: '#F5F2EC', fontFamily: 'var(--sans)', fontSize: '13px', outline: 'none', borderRadius: '2px', boxSizing: 'border-box' as const }}
+      />
+      {open && suggestions.length > 0 && (
+        <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#2A2A28', border: '0.5px solid #4A4A48', zIndex: 50, maxHeight: '200px', overflowY: 'auto' }}>
+          {suggestions.map((g: any) => (
+            <div key={g.id}
+              onMouseDown={() => { onSelect(g); setOpen(false) }}
+              style={{ padding: '10px 14px', cursor: 'pointer', borderBottom: '0.5px solid #363634' }}>
+              <div style={{ fontSize: '13px', color: '#F5F2EC', fontWeight: 500 }}>{g.name}</div>
+              <div style={{ fontSize: '11px', color: '#9A9A92', marginTop: '2px' }}>
+                {g.email?.includes('@platform.noemail') ? 'No email on file' : g.email}
+                {g.bookingCount > 0 ? ` · ${g.bookingCount} stay${g.bookingCount !== 1 ? 's' : ''}` : ''}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function PlatformBookingForm({ block }: { block: any }) {
   const router = useRouter()
   const [guestEmail, setGuestEmail] = useState(block.guest_email || '')
@@ -93,7 +138,15 @@ export default function PlatformBookingForm({ block }: { block: any }) {
     <div style={{ maxWidth: '600px' }}>
       <Section title="Guest info">
         <Field label="Guest name">
-          <input type="text" value={form.guest_name} onChange={e => set('guest_name', e.target.value)} placeholder="e.g. Sarah Johnson" style={inputStyle} />
+          <GuestAutocomplete
+            value={form.guest_name}
+            onChange={v => set('guest_name', v)}
+            onSelect={g => {
+              set('guest_name', g.name)
+              setGuestEmail(g.email?.includes('@platform.noemail') ? '' : (g.email || ''))
+              setGuestPhone(g.phone || '')
+            }}
+          />
         </Field>
         <Field label="Email">
           <input type="email" value={guestEmail} onChange={e => setGuestEmail(e.target.value)} placeholder="guest@email.com" style={inputStyle} />
