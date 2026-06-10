@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
-import { createAdminClient } from '@/lib/supabase/server'
 import Anthropic from '@anthropic-ai/sdk'
 
 async function checkAuth() {
@@ -21,27 +20,12 @@ export async function POST(request: NextRequest) {
   const file = formData.get('receipt') as File
   if (!file) return NextResponse.json({ error: 'No file' }, { status: 400 })
 
-  // upload to storage first
-  const supabase = createAdminClient()
-  const ext = file.name.split('.').pop()
-  const path = `receipts/${Date.now()}.${ext}`
   const bytes = await file.arrayBuffer()
-  const { data: uploadData } = await supabase.storage
-    .from('property-management')
-    .upload(path, bytes, { contentType: file.type })
-
-  let receipt_url = null
-  if (uploadData) {
-    const { data: urlData } = supabase.storage.from('property-management').getPublicUrl(path)
-    receipt_url = urlData.publicUrl
-  }
-
-  // convert to base64 for Claude
   const base64 = Buffer.from(bytes).toString('base64')
-  const mediaType = file.type as 'image/jpeg' | 'image/png' | 'image/webp'
+  const mediaType = (file.type || 'image/jpeg') as 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif'
 
   try {
-    const client = new Anthropic()
+    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
     const response = await client.messages.create({
       model: 'claude-opus-4-5',
       max_tokens: 500,
@@ -54,28 +38,27 @@ export async function POST(request: NextRequest) {
           },
           {
             type: 'text',
-            text: `Extract the following from this receipt and return ONLY valid JSON, no other text:
+            text: `Extract receipt data. Return ONLY valid JSON, no markdown, no explanation:
 {
-  "vendor": "store/business name",
+  "vendor": "store name",
   "amount": 0.00,
   "hst": 0.00,
   "date": "YYYY-MM-DD",
-  "description": "brief description of what was purchased",
-  "category": "best matching category from this list: ${CATEGORIES.join(', ')}"
+  "description": "brief description of items",
+  "category": "one of: ${CATEGORIES.join(' | ')}"
 }
-If you cannot determine a value, use null. For date, use today's date if not visible.`,
+Use null for any field you cannot determine. For date use today if not visible.`,
           },
         ],
       }],
     })
 
-    const text = response.content[0].type === 'text' ? response.content[0].text : ''
+    const text = response.content[0].type === 'text' ? response.content[0].text : '{}'
     const clean = text.replace(/```json|```/g, '').trim()
     const extracted = JSON.parse(clean)
-
-    return NextResponse.json({ extracted: true, ...extracted, receipt_url })
-  } catch (err) {
-    console.error('AI extraction error:', err)
-    return NextResponse.json({ extracted: false, receipt_url })
+    return NextResponse.json({ extracted: true, ...extracted })
+  } catch (err: any) {
+    console.error('AI extraction error:', err?.message)
+    return NextResponse.json({ extracted: false, error: err?.message })
   }
 }

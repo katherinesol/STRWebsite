@@ -188,7 +188,7 @@ export default function SuppliesManager({ supplies, logs, teamMembers }: {
                         {low && <span style={{ fontSize: '9px', padding: '2px 8px', background: '#1f0a0a', color: '#e74c3c', border: '0.5px solid #3a1a1a', letterSpacing: '.08em', textTransform: 'uppercase' }}>Low stock</span>}
                       </div>
                       <div style={{ fontSize: '12px', color: '#9A9A92' }}>
-                        {item.quantity_on_hand} {item.unit} on hand · reorder at {item.reorder_point}
+                        {item.quantity_on_hand} {item.unit} on hand · order {item.reorder_point} {item.unit || 'units'} when low
                         {lastLog && <span style={{ marginLeft: '12px', color: '#555550' }}>
                           Last {lastLog.action} by {lastLog.logged_by} on {format(new Date(lastLog.created_at), 'MMM d')}
                         </span>}
@@ -234,7 +234,7 @@ export default function SuppliesManager({ supplies, logs, teamMembers }: {
               { label: 'Item name', key: 'name', type: 'text' },
               { label: 'Unit', key: 'unit', type: 'select', options: UNITS },
               { label: 'Quantity on hand', key: 'quantity_on_hand', type: 'number' },
-              { label: 'Reorder point', key: 'reorder_point', type: 'number' },
+              { label: 'Amount to order', key: 'reorder_point', type: 'number' },
             ].map(({ label, key, type, options }) => (
               <div key={key}>
                 <div style={{ fontSize: '10px', letterSpacing: '.1em', textTransform: 'uppercase', color: '#9A9A92', marginBottom: '5px' }}>{label}</div>
@@ -273,7 +273,7 @@ export default function SuppliesManager({ supplies, logs, teamMembers }: {
               {[
                 { label: 'Name', key: 'name', type: 'text' },
                 { label: 'Quantity on hand', key: 'quantity_on_hand', type: 'number' },
-                { label: 'Reorder point', key: 'reorder_point', type: 'number' },
+                { label: 'Amount to order', key: 'reorder_point', type: 'number' },
               ].map(({ label, key, type }) => (
                 <div key={key}>
                   <div style={{ fontSize: '10px', letterSpacing: '.1em', textTransform: 'uppercase', color: '#9A9A92', marginBottom: '5px' }}>{label}</div>
