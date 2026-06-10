@@ -153,7 +153,17 @@ export async function POST(request: NextRequest) {
     })
 
     // send magic link for portal setup (when Resend is connected)
-    // TODO: send confirmation + portal setup email via Resend
+    // send confirmation email
+    try {
+      const { sendBookingConfirmation } = await import('@/lib/email')
+      await sendBookingConfirmation(
+        { ...booking, booking_reference: bookingReference, property_id, check_in, check_out, guests: (guests_adults || 0) + (guests_children || 0) || guests, guests_adults, guests_children, total, deposit_amount, payment_method, early_checkin_granted: false, late_checkout_granted: false },
+        { name: guest_name, email: guest_email }
+      )
+    } catch (emailErr) {
+      console.error('Email send failed:', emailErr)
+      // don't fail the booking if email fails
+    }
 
     return NextResponse.json({
       ok: true,

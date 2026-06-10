@@ -96,6 +96,18 @@ export default function BookingActions({ booking }: { booking: Booking }) {
   const isConfirmed = booking.status === 'confirmed'
   const isActive = booking.status === 'active'
   const isCancelled = booking.status === 'cancelled'
+  const [emailSending, setEmailSending] = useState<string | null>(null)
+  const [emailSent, setEmailSent] = useState<string | null>(null)
+
+  async function sendEmail(type: string) {
+    setEmailSending(type)
+    try {
+      await fetch(`/api/admin/bookings/${booking.id}/send-${type}`, { method: 'POST' })
+      setEmailSent(type)
+      setTimeout(() => setEmailSent(null), 3000)
+    } catch {}
+    finally { setEmailSending(null) }
+  }
 
   return (
     <div style={{ background: '#242422', border: '0.5px solid #363634', padding: '24px' }}>
@@ -166,6 +178,22 @@ export default function BookingActions({ booking }: { booking: Booking }) {
           </div>
         </div>
       )}
+
+      {/* email actions */}
+      <div style={{ padding: '14px', background: '#1E1E1C', border: '0.5px solid #363634', marginBottom: '1px' }}>
+        <div style={{ fontSize: '10px', letterSpacing: '.1em', textTransform: 'uppercase', color: '#9A9A92', marginBottom: '10px' }}>Emails</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+          {[
+            { key: 'access-code', label: 'Send access code' },
+            { key: 'portal-link', label: 'Send portal link' },
+          ].map(({ key, label }) => (
+            <button key={key} onClick={() => sendEmail(key)} disabled={emailSending === key}
+              style={{ padding: '8px 14px', background: '#363634', color: emailSent === key ? '#2ecc71' : '#AEAEA6', border: 'none', fontFamily: 'var(--sans)', fontSize: '11px', cursor: 'pointer', letterSpacing: '.08em', textAlign: 'left' }}>
+              {emailSending === key ? 'Sending...' : emailSent === key ? '✓ Sent' : label}
+            </button>
+          ))}
+        </div>
+      </div>
 
       {/* status transitions */}
       {isConfirmed && (

@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import { format } from 'date-fns'
 import Link from 'next/link'
 import BookingActions from '@/components/admin/BookingActions'
+import PaymentReminderForm from '@/components/admin/PaymentReminderForm'
 
 const PROPERTY_NAMES: Record<string, string> = {
   'royal-york-east': 'Royal York East Suite',
@@ -131,6 +132,7 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
         {/* actions panel */}
         <div style={{ position: 'sticky', top: '32px' }}>
           <BookingActions booking={booking} />
+      <PaymentReminderForm booking={booking} guest={guest} />
         </div>
       </div>
     </div>
