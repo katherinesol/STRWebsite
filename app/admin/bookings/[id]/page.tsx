@@ -89,45 +89,7 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
             <Row label="Locked rate" value={guest?.locked_rate_enabled ? 'Yes' : 'No'} />
           </Section>
 
-          {/* stay details */}
-          <Section title="Stay">
-            <Row label="Property" value={PROPERTY_NAMES[booking.property_id]} />
-            <Row label="Check-in" value={format(new Date(booking.check_in), 'EEEE, MMMM d yyyy')} />
-            <Row label="Check-out" value={format(new Date(booking.check_out), 'EEEE, MMMM d yyyy')} />
-            <Row label="Nights" value={booking.nights} />
-            <Row label="Guests" value={typeof booking.guests === 'number' ? booking.guests : (booking.guest_count || '—')} />
-            <Row label="Early check-in" value={booking.early_checkin ? `Yes — ${booking.early_checkin_time}` : 'No'} />
-            <Row label="Late checkout" value={booking.late_checkout ? `Yes — ${booking.late_checkout_time}` : 'No'} />
-            <Row label="Bag drop" value={booking.bag_drop !== 'none' ? booking.bag_drop : 'No'} />
-            <Row label="Instacart" value={booking.instacart_requested ? 'Requested' : 'No'} />
-          </Section>
-
-          {/* vehicles */}
-          <Section title="Parking & vehicles">
-            <Row label="Vehicles" value={booking.vehicle_count} />
-            <Row label="Plates pending" value={booking.plates_pending ? 'Yes — reminder to be sent' : 'No'} highlight={booking.plates_pending} />
-            {plates.filter(Boolean).map((plate, i) => (
-              <Row key={i} label={`Plate ${i + 1}`} value={plate} />
-            ))}
-          </Section>
-
-          {/* payment */}
-          <Section title="Payment">
-            <Row label="Method" value={booking.payment_method === 'etransfer' ? 'E-transfer' : 'Card'} />
-            <Row label="Accommodation" value={`$${booking.accommodation}`} />
-            <Row label="Cleaning fee" value={`$${booking.cleaning_fee}`} />
-            <Row label="HST" value={`$${booking.hst}`} />
-            <Row label="MAT" value={`$${booking.mat}`} />
-            {booking.addon_fee > 0 && <Row label="Add-ons" value={`$${booking.addon_fee}`} />}
-            <Row label="Total" value={`$${booking.total}`} highlight />
-            <Row label="Deposit" value={`$${booking.deposit_amount}`} />
-            <Row label="Deposit paid" value={booking.deposit_paid_at ? format(new Date(booking.deposit_paid_at), 'MMM d, yyyy') : 'Not yet'} highlight={!booking.deposit_paid_at} />
-            <Row label="2nd payment" value={`$${booking.second_payment_amount} due ${booking.second_due_date ? format(new Date(booking.second_due_date), 'MMM d, yyyy') : '—'}`} />
-            <Row label="2nd paid" value={booking.second_paid_at ? format(new Date(booking.second_paid_at), 'MMM d, yyyy') : 'Not yet'} highlight={!booking.second_paid_at} />
-            <Row label="Final payment" value={`$${booking.final_payment_amount} due ${booking.final_due_date ? format(new Date(booking.final_due_date), 'MMM d, yyyy') : '—'}`} />
-            <Row label="Final paid" value={booking.final_paid_at ? format(new Date(booking.final_paid_at), 'MMM d, yyyy') : 'Not yet'} highlight={!booking.final_paid_at} />
-            <Row label="Security deposit" value={booking.security_deposit_status} />
-          </Section>
+          <BookingEditForm booking={booking} />
         </div>
 
         {/* actions panel */}
