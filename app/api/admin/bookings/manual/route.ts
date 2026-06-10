@@ -28,6 +28,16 @@ export async function POST(request: NextRequest) {
   }
 
   const nights = differenceInDays(new Date(check_out), new Date(check_in))
+  const checkInDate = new Date(check_in)
+  const secondDueDate = new Date(checkInDate); secondDueDate.setDate(secondDueDate.getDate() - 60)
+  const finalDueDate = new Date(checkInDate); finalDueDate.setDate(finalDueDate.getDate() - 30)
+  const secondDueDateStr = secondDueDate.toISOString().split('T')[0]
+  const finalDueDateStr = finalDueDate.toISOString().split('T')[0]
+  const totalNum = total ? parseFloat(total) : null
+  const depositNum = totalNum ? totalNum * 0.1 : null
+  const remainingAfterDeposit = totalNum && depositNum ? totalNum - depositNum : null
+  const secondPayment = remainingAfterDeposit ? remainingAfterDeposit * 0.5 : null
+  const finalPayment = remainingAfterDeposit ? remainingAfterDeposit * 0.5 : null
 
   // generate booking reference
   const { data: refNum } = await supabase.rpc('get_next_booking_ref')
@@ -38,9 +48,13 @@ export async function POST(request: NextRequest) {
     check_in, check_out, nights, guests,
     status: 'confirmed',
     payment_method,
-    total: total ? parseFloat(total) : null,
-    deposit_amount: deposit_amount ? parseFloat(deposit_amount) : null,
+    total: totalNum,
+    deposit_amount: deposit_amount ? parseFloat(deposit_amount) : depositNum,
     deposit_paid_at: deposit_amount ? new Date().toISOString() : null,
+    second_payment_amount: secondPayment,
+    final_payment_amount: finalPayment,
+    second_due_date: secondDueDateStr,
+    final_due_date: finalDueDateStr,
     booking_reference: bookingReference,
     accommodation: total ? parseFloat(total) : null,
   }).select('id').single()

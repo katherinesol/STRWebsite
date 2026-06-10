@@ -4,6 +4,7 @@ import { format } from 'date-fns'
 import Link from 'next/link'
 import BookingActions from '@/components/admin/BookingActions'
 import PaymentReminderForm from '@/components/admin/PaymentReminderForm'
+import BookingEditForm from '@/components/admin/BookingEditForm'
 
 const PROPERTY_NAMES: Record<string, string> = {
   'royal-york-east': 'Royal York East Suite',
