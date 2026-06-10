@@ -173,7 +173,7 @@ export default function GuestPortal() {
               {[
                 { label: 'Check-in', value: `${format(checkIn, 'EEEE, MMMM d yyyy')} at ${booking.early_checkin_granted && booking.early_checkin_time ? booking.early_checkin_time : '4:00 PM'}${booking.early_checkin_granted ? ' ★ Early check-in approved' : ''}` },
                 { label: 'Check-out', value: `${format(checkOut, 'EEEE, MMMM d yyyy')} at ${booking.late_checkout_granted && booking.late_checkout_time ? booking.late_checkout_time : '11:00 AM'}${booking.late_checkout_granted ? ' ★ Late checkout approved' : ''}` },
-                { label: 'Guests', value: typeof booking.guests === 'number' ? `${booking.guests} guests` : '—' },
+                { label: 'Guests', value: [booking.guests_adults && `${booking.guests_adults} adult${booking.guests_adults !== 1 ? 's' : ''}`, booking.guests_children && `${booking.guests_children} child${booking.guests_children !== 1 ? 'ren' : ''}`].filter(Boolean).join(', ') || (typeof booking.guests === 'number' ? `${booking.guests} guests` : '—') },
                 { label: 'Instacart', value: booking.instacart_requested ? 'Requested — deliver to property address before check-in' : 'Not requested' },
                 { label: 'Bag drop', value: booking.bag_drop && booking.bag_drop !== 'none' ? booking.bag_drop : 'Not requested' },
               ].map(({ label, value }) => (

@@ -13,6 +13,7 @@ export async function POST(request: NextRequest) {
     early_checkin, early_checkin_time, late_checkout, late_checkout_time,
     bag_drop, instacart_requested, vehicle_count, plate_numbers, plates_pending,
     guest_name, guest_email, guest_phone, referral_code,
+    guests_adults, guests_children,
   } = body
 
   // validate required fields
@@ -94,7 +95,7 @@ export async function POST(request: NextRequest) {
         early_checkin, early_checkin_time,
         late_checkout, late_checkout_time,
         bag_drop, instacart_requested,
-        vehicle_count, plate_numbers, plates_pending,
+        vehicle_count, plate_numbers, plates_pending, guests_adults, guests_children,
         booking_reference: bookingReference,
       })
       .select('id')

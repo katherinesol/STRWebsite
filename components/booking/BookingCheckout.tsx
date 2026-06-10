@@ -64,6 +64,8 @@ export default function BookingCheckout({ property }: { property: Property }) {
   const checkOut = searchParams.get('checkOut') || ''
 
   const [guestCount, setGuestCount] = useState(parseInt(searchParams.get('guests') || '2'))
+  const [adultsCount, setAdultsCount] = useState(parseInt(searchParams.get('guests') || '2'))
+  const [childrenCount, setChildrenCount] = useState(0)
   const [paymentMethod, setPaymentMethod] = useState<'card' | 'etransfer'>('card')
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
@@ -518,7 +520,9 @@ export default function BookingCheckout({ property }: { property: Property }) {
                     check_in: checkIn,
                     check_out: checkOut,
                     nights,
-                    guests: guestCount,
+                    guests: adultsCount + childrenCount,
+                    guests_adults: adultsCount,
+                    guests_children: childrenCount,
                     payment_method: paymentMethod,
                     accommodation,
                     cleaning_fee: property.cleaningFee,
