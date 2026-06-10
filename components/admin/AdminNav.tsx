@@ -12,6 +12,7 @@ const NAV = [
   { href: '/admin/reviews', label: 'Reviews', icon: '◎' },
   { href: '/admin/damage', label: 'Damage', icon: '⚠' },
   { href: '/admin/newsletter', label: 'Newsletter', icon: '◻' },
+  { href: '/admin/property-management', label: 'Prop mgmt', icon: '⚙' },
   { href: '/admin/settings', label: 'Settings', icon: '◈' },
 ]
 
