@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 type Guest = {
   id: string
   name: string
-  email: string
+  email: string | null
   phone: string | null
   id_verified: boolean
   returning_guest: boolean
@@ -56,9 +56,9 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 export default function GuestForm({ guest }: { guest: Guest }) {
   const router = useRouter()
   const [form, setForm] = useState({
-    name: guest.name || '',
-    email: guest.email || '',
-    phone: guest.phone || '',
+    name: guest.name ?? '',
+    email: guest.email ?? '',
+    phone: guest.phone ?? '',
     id_verified: guest.id_verified,
     returning_guest: guest.returning_guest,
     locked_rate_enabled: guest.locked_rate_enabled,
