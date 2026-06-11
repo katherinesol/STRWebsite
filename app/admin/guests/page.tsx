@@ -1,4 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/server'
+export const dynamic = 'force-dynamic'
 import { format } from 'date-fns'
 import Link from 'next/link'
 
@@ -28,6 +29,9 @@ export default async function GuestsPage({
           <div style={{ fontSize: '10px', fontWeight: 500, letterSpacing: '.16em', textTransform: 'uppercase', color: '#9A9A92', marginBottom: '6px' }}>Management</div>
           <h1 style={{ fontFamily: 'var(--serif)', fontSize: '32px', fontWeight: 300, color: '#F5F2EC', lineHeight: 1 }}>Guests.</h1>
         </div>
+        <Link href="/admin/guests/new" style={{ padding: '10px 20px', background: 'var(--amber)', color: '#1A1A18', fontSize: '11px', letterSpacing: '.1em', textTransform: 'uppercase', textDecoration: 'none', fontWeight: 500 }}>
+          + Add guest
+        </Link>
       </div>
 
       {/* search */}

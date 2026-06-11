@@ -22,7 +22,7 @@ export default async function GuestDetailPage({ params }: { params: Promise<{ id
   const [{ data: bookings }, { data: referrals }, { data: platformBlocks }] = await Promise.all([
     supabase.from('bookings').select('*').eq('guest_id', id).order('check_in', { ascending: false }),
     supabase.from('referrals').select('*, referred:referred_guest_id(name), referrer:referrer_guest_id(name)').or(`referrer_guest_id.eq.${id},referred_guest_id.eq.${id}`),
-    supabase.from('calendar_blocks').select('*').or(`guest_id.eq.${id},guest_name.ilike.%${guest.name}%`).eq('is_booking', true).order('start_date', { ascending: false }),
+    supabase.from('calendar_blocks').select('*').eq('guest_id', id).eq('is_booking', true).order('start_date', { ascending: false }),
   ])
 
   if (!guest) notFound()

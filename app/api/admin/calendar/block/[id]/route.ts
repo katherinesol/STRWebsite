@@ -25,7 +25,7 @@ export async function PATCH(
     const { data: existing } = await supabase
       .from('guests')
       .select('id')
-      .ilike('name', name)
+      .eq('name', name)
       .maybeSingle()
 
     if (existing) {

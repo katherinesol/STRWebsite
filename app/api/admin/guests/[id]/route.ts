@@ -24,24 +24,12 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const { error } = await supabase.from('guests').update(cleaned).eq('id', id)
   if (error) { console.error('Guest PATCH error:', error.message); return NextResponse.json({ error: error.message }, { status: 500 }) }
 
-  // cascade name change to calendar blocks + link by guest_id
+  // cascade name change ONLY to blocks already linked by guest_id
   if (cleaned.name && cleaned.name !== existingGuest?.name) {
     await supabase.from('calendar_blocks')
-      .update({ guest_name: cleaned.name, guest_id: id })
+      .update({ guest_name: cleaned.name })
       .eq('guest_id', id)
-    // also update unlinked blocks that match old name
-    if (existingGuest?.name) {
-      await supabase.from('calendar_blocks')
-        .update({ guest_name: cleaned.name, guest_id: id })
-        .ilike('guest_name', `%${existingGuest.name}%`)
-        .is('guest_id', null)
-    }
   }
-  // always link blocks by guest_id if missing
-  await supabase.from('calendar_blocks')
-    .update({ guest_id: id })
-    .ilike('guest_name', `%${(cleaned.name || existingGuest?.name || '')}%`)
-    .is('guest_id', null)
   return NextResponse.json({ ok: true })
 }
 
