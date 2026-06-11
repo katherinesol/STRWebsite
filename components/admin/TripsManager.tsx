@@ -61,7 +61,7 @@ export default function TripsManager({ trips, teamMembers, bookings, yearTotals 
     const prop = PROPERTIES.find(p => p.id === propertyId)
     const kmKey = prop?.kmKey as 'km_to_royal_york' | 'km_to_nickel_beach'
     const autoKm = kmKey && currentUser?.[kmKey] ? String(currentUser[kmKey]) : ''
-    setForm(f => ({ ...f, property_id: propertyId, km: autoKm }))
+    setForm(f => ({ ...f, property_id: propertyId, km: autoKm, booking_id: '' }))
   }
 
   const priorKm = yearTotals[currentUser?.name]?.km || 0
@@ -70,8 +70,10 @@ export default function TripsManager({ trips, teamMembers, bookings, yearTotals 
     ? calcReimbursement(kmNum, priorKm)
     : { amount: 0, rate: CRA_RATE_1, note: '' }
 
-  // all bookings (direct + platform) for this property
-  const propertyBookings = bookings.filter((b: any) => b.property_id === form.property_id)
+  // normalize and filter bookings for this property, sorted by check-in
+  const propertyBookings = (bookings || [])
+    .filter((b: any) => (b.property_id || '') === form.property_id)
+    .sort((a: any, b: any) => (a.check_in || '').localeCompare(b.check_in || ''))
 
   async function handleAdd() {
     if (!form.km || !form.date) return
@@ -161,9 +163,14 @@ export default function TripsManager({ trips, teamMembers, bookings, yearTotals 
             <div style={{ fontSize: '10px', letterSpacing: '.1em', textTransform: 'uppercase', color: '#9A9A92', marginBottom: '5px' }}>Link to booking (optional)</div>
             <select value={form.booking_id} onChange={e => set('booking_id', e.target.value)} style={{ ...inputStyle, background: '#363634' }}>
               <option value="">None</option>
-              {propertyBookings.map((b: any) => (
-                <option key={b.id} value={b.id}>{b.booking_reference} — {b.guest_name || '?'} ({format(new Date(b.check_in + 'T12:00:00'), 'MMM d')})</option>
-              ))}
+              {propertyBookings.map((b: any) => {
+                const label = [
+                  b.booking_reference && b.booking_reference !== 'AIRBNB' && b.booking_reference !== 'VRBO' && b.booking_reference !== 'HOUFY' ? b.booking_reference : null,
+                  b.guest_name && b.guest_name !== 'AIRBNB booking' && b.guest_name !== 'VRBO booking' ? b.guest_name : b.source?.toUpperCase(),
+                  b.check_in ? format(new Date(b.check_in + 'T12:00:00'), 'MMM d, yyyy') : null,
+                ].filter(Boolean).join(' — ')
+                return <option key={b.id} value={b.id}>{label}</option>
+              })}
             </select>
           </div>
         </div>
