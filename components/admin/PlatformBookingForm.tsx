@@ -126,11 +126,11 @@ export default function PlatformBookingForm({ block }: { block: any }) {
   const accomNum = parseFloat(String(payment.accommodation)) || (nightlyNum * nights)
   const cleaningNum = parseFloat(String(payment.cleaning_fee)) || 0
   const discountNum = parseFloat(String(payment.discount)) || 0
-  const feeBase = accomNum - discountNum + cleaningNum
+  const extrasNum = parseFloat(String(payment.extras)) || 0
+  const feeBase = accomNum - discountNum + cleaningNum + extrasNum
   const hostFeeAmt = Math.round(feeBase * (payment.host_service_fee_pct / 100) * 100) / 100
   const taxesNum = parseFloat(String(payment.taxes_collected)) || 0
-  const extrasNum = parseFloat(String(payment.extras)) || 0
-  const payout = Math.round((feeBase - hostFeeAmt + extrasNum) * 100) / 100
+  const payout = Math.round((feeBase - hostFeeAmt) * 100) / 100
   const guestTotal = Math.round((feeBase + taxesNum) * 100) / 100
 
   function setP(key: string, value: unknown) {

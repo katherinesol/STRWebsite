@@ -8,7 +8,7 @@ export default async function FinancePage() {
   const [{ data: expenses }, { data: directBookings }, { data: platformBookings }] = await Promise.all([
     supabase.from('expenses').select('*').order('date', { ascending: false }).limit(200),
     supabase.from('bookings').select('total, property_id, check_in, status').in('status', ['confirmed', 'active', 'completed']),
-    supabase.from('calendar_blocks').select('payout_amount, amount_paid, property_id, start_date, is_booking').eq('is_booking', true).not('payout_amount', 'is', null),
+    supabase.from('calendar_blocks').select('payout_amount, amount_paid, taxes_collected, property_id, start_date, is_booking').eq('is_booking', true).not('payout_amount', 'is', null),
   ])
 
   const vendors = [...new Set((expenses || []).map(e => e.vendor).filter(Boolean))]
@@ -23,6 +23,9 @@ export default async function FinancePage() {
   const totalHstPaid = (expenses || []).reduce((s, e) => s + (e.hst_paid || 0), 0)
   const netProfit = totalIncome - totalExpenses
 
+  // taxes collected by platforms (HST remitted on your behalf or owed)
+  const taxesCollected = (platformBookings || []).reduce((s, b) => s + (b.taxes_collected || 0), 0)
+
   return (
     <div>
       <div style={{ marginBottom: '24px' }}>
@@ -36,7 +39,7 @@ export default async function FinancePage() {
           { label: 'Total income', value: `$${totalIncome.toFixed(2)}`, color: '#2ecc71', sub: `Direct $${directIncome.toFixed(0)} · Platform $${platformIncome.toFixed(0)}` },
           { label: 'Total expenses', value: `$${totalExpenses.toFixed(2)}`, color: '#e74c3c', sub: `HST paid $${totalHstPaid.toFixed(2)}` },
           { label: 'Net profit', value: `$${netProfit.toFixed(2)}`, color: netProfit >= 0 ? '#2ecc71' : '#e74c3c', sub: `${totalIncome > 0 ? ((netProfit/totalIncome)*100).toFixed(0) : 0}% margin` },
-          { label: 'HST / ITC', value: `$${totalHstPaid.toFixed(2)}`, color: '#9A9A92', sub: 'Input tax credits' },
+          { label: 'HST collected', value: `$${taxesCollected.toFixed(2)}`, color: '#9A9A92', sub: `ITC available: $${totalHstPaid.toFixed(2)} · Net: $${(taxesCollected - totalHstPaid).toFixed(2)}` },
         ].map(({ label, value, color, sub }) => (
           <div key={label} style={{ background: '#242422', padding: '20px 24px' }}>
             <div style={{ fontSize: '10px', letterSpacing: '.12em', textTransform: 'uppercase', color: '#9A9A92', marginBottom: '6px' }}>{label}</div>
