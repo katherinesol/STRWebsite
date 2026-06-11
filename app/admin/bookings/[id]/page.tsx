@@ -83,7 +83,7 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
         <div>
           {/* guest info */}
           <Section title="Guest">
-            <GuestEditCard guestId={booking.guest_id} guest={guest} />
+            <GuestEditCard guestId={booking.guest_id} guest={guest} bookingId={booking.id} />
           </Section>
 
           <BookingEditForm booking={booking} />

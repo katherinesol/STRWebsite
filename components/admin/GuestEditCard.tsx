@@ -1,6 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import GuestLinkSearch from './GuestLinkSearch'
 
 const inputStyle: React.CSSProperties = {
   width: '60%', padding: '6px 10px',
@@ -10,9 +11,11 @@ const inputStyle: React.CSSProperties = {
   textAlign: 'right',
 }
 
-export default function GuestEditCard({ guestId, guest }: {
+export default function GuestEditCard({ guestId, guest, bookingId, blockId }: {
   guestId: string | null
   guest: { name?: string; email?: string; phone?: string; returning_guest?: boolean; locked_rate_enabled?: boolean } | null
+  bookingId?: string
+  blockId?: string
 }) {
   const router = useRouter()
   const [editing, setEditing] = useState(false)
@@ -59,7 +62,7 @@ export default function GuestEditCard({ guestId, guest }: {
   const valueStyle: React.CSSProperties = { fontSize: '13px', color: '#F5F2EC' }
 
   if (!guestId) {
-    return <div style={{ fontSize: '13px', color: '#666660', padding: '10px 0' }}>No guest linked to this booking.</div>
+    return <GuestLinkSearch bookingId={bookingId} blockId={blockId} />
   }
 
   return (
