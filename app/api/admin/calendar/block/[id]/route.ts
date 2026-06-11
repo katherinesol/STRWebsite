@@ -15,6 +15,31 @@ export async function PATCH(
   const { id } = await params
   const body = await request.json()
   const supabase = createAdminClient()
+
+  // auto-flip is_booking when guest name is added
+  if (body.guest_name && body.guest_name.trim()) {
+    body.is_booking = true
+
+    // find or create guest record
+    const name = body.guest_name.trim()
+    const { data: existing } = await supabase
+      .from('guests')
+      .select('id')
+      .ilike('name', name)
+      .maybeSingle()
+
+    if (existing) {
+      body.guest_id = existing.id
+    } else {
+      const { data: newGuest } = await supabase
+        .from('guests')
+        .insert({ name, email: null, phone: null })
+        .select('id')
+        .single()
+      if (newGuest) body.guest_id = newGuest.id
+    }
+  }
+
   const { error } = await supabase.from('calendar_blocks').update(body).eq('id', id)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ ok: true })

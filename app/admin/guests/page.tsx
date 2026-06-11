@@ -12,7 +12,7 @@ export default async function GuestsPage({
 
   let query = supabase
     .from('guests')
-    .select('*, bookings(id, property_id, check_in, status), calendar_blocks(id)')
+    .select('*, bookings(id, property_id, check_in, status), calendar_blocks!calendar_blocks_guest_id_fkey(id, is_booking)')
     .order('created_at', { ascending: false })
 
   if (q) {
@@ -66,7 +66,7 @@ export default async function GuestsPage({
           </div>
         ) : guests.map(g => {
           const bookings = (g.bookings as any[]) || []
-          const platformStays = (g.calendar_blocks as any[]) || []
+          const platformStays = ((g.calendar_blocks as any[]) || []).filter((b: any) => b.is_booking === true)
           const totalStays = bookings.length + platformStays.length
           const lastBooking = bookings.sort((a, b) => b.check_in > a.check_in ? 1 : -1)[0]
           return (

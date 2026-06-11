@@ -78,14 +78,19 @@ export default function GuestForm({ guest }: { guest: Guest }) {
   async function handleSave() {
     setSaving(true)
     try {
-      await fetch(`/api/admin/guests/${guest.id}`, {
+      const res = await fetch(`/api/admin/guests/${guest.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form),
       })
+      if (!res.ok) {
+        const err = await res.json()
+        alert('Save failed: ' + err.error)
+        return
+      }
       setSaved(true)
       router.refresh()
-    } catch {}
+    } catch (e) { console.error('Guest save error:', e) }
     finally { setSaving(false) }
   }
 

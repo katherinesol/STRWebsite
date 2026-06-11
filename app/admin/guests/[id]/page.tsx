@@ -1,4 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/server'
+export const dynamic = 'force-dynamic'
 import { notFound } from 'next/navigation'
 import { format } from 'date-fns'
 import Link from 'next/link'
@@ -21,7 +22,7 @@ export default async function GuestDetailPage({ params }: { params: Promise<{ id
   const [{ data: bookings }, { data: referrals }, { data: platformBlocks }] = await Promise.all([
     supabase.from('bookings').select('*').eq('guest_id', id).order('check_in', { ascending: false }),
     supabase.from('referrals').select('*, referred:referred_guest_id(name), referrer:referrer_guest_id(name)').or(`referrer_guest_id.eq.${id},referred_guest_id.eq.${id}`),
-    supabase.from('calendar_blocks').select('*').eq('guest_name', guest.name).order('start_date', { ascending: false }),
+    supabase.from('calendar_blocks').select('*').or(`guest_id.eq.${id},guest_name.ilike.%${guest.name}%`).eq('is_booking', true).order('start_date', { ascending: false }),
   ])
 
   if (!guest) notFound()
@@ -48,22 +49,47 @@ export default async function GuestDetailPage({ params }: { params: Promise<{ id
           {/* booking history */}
           <div style={{ background: '#242422', border: '0.5px solid #363634', padding: '24px', marginBottom: '16px' }}>
             <div style={{ fontSize: '10px', fontWeight: 500, letterSpacing: '.16em', textTransform: 'uppercase', color: 'var(--amber)', marginBottom: '16px' }}>Booking history</div>
-            {!bookings?.length ? (
-              <div style={{ fontSize: '13px', color: '#666660' }}>No bookings yet</div>
-            ) : bookings.map(b => (
-              <div key={b.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '0.5px solid #363634' }}>
-                <div>
-                  <div style={{ fontSize: '13px', color: '#F5F2EC' }}>{PROPERTY_NAMES[b.property_id]}</div>
-                  <div style={{ fontSize: '11px', color: '#9A9A92', marginTop: '2px' }}>
-                    {format(new Date(b.check_in), 'MMM d')} → {format(new Date(b.check_out), 'MMM d, yyyy')} · {b.nights} nights
+            {(() => {
+              const directStays = (bookings || []).map((b: any) => ({
+                id: b.id,
+                property_id: b.property_id,
+                check_in: b.check_in,
+                check_out: b.check_out,
+                nights: b.nights,
+                total: b.total,
+                source: 'direct',
+                booking_id: b.id,
+              }))
+              const platformStays = (platformBlocks || []).map((b: any) => ({
+                id: b.id,
+                property_id: b.property_id,
+                check_in: b.start_date,
+                check_out: b.end_date,
+                nights: Math.round((new Date(b.end_date).getTime() - new Date(b.start_date).getTime()) / 86400000),
+                total: b.payout_amount || b.amount_paid || null,
+                source: b.platform,
+                booking_id: null,
+              }))
+              const allStays = [...directStays, ...platformStays].sort((a, b) => b.check_in > a.check_in ? 1 : -1)
+              if (!allStays.length) return <div style={{ fontSize: '13px', color: '#666660' }}>No bookings yet</div>
+              return allStays.map(b => (
+                <div key={b.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '0.5px solid #363634' }}>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <div style={{ fontSize: '13px', color: '#F5F2EC' }}>{PROPERTY_NAMES[b.property_id]}</div>
+                      {b.source !== 'direct' && <span style={{ fontSize: '9px', padding: '2px 8px', background: '#1a1a18', color: '#9A9A92', border: '0.5px solid #363634', letterSpacing: '.08em', textTransform: 'uppercase' }}>{b.source}</span>}
+                    </div>
+                    <div style={{ fontSize: '11px', color: '#9A9A92', marginTop: '2px' }}>
+                      {format(new Date(b.check_in + 'T12:00:00'), 'MMM d')} → {format(new Date(b.check_out + 'T12:00:00'), 'MMM d, yyyy')} · {b.nights} nights
+                    </div>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontSize: '13px', color: '#F5F2EC' }}>{b.total ? `$${b.total}` : '—'}</div>
+                    {b.booking_id && <Link href={`/admin/bookings/${b.booking_id}`} style={{ fontSize: '11px', color: 'var(--amber)', textDecoration: 'none' }}>View →</Link>}
                   </div>
                 </div>
-                <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontSize: '13px', color: '#F5F2EC' }}>${b.total}</div>
-                  <Link href={`/admin/bookings/${b.id}`} style={{ fontSize: '11px', color: 'var(--amber)', textDecoration: 'none' }}>View →</Link>
-                </div>
-              </div>
-            ))}
+              ))
+            })()}
           </div>
 
           {/* referrals */}
