@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { cookies } from 'next/headers'
+import { revalidatePath } from 'next/cache'
 
 async function checkAuth() {
   const cookieStore = await cookies()
@@ -15,5 +16,6 @@ export async function POST(request: NextRequest) {
   const supabase = createAdminClient()
   const { data, error } = await supabase.from('supplies').insert(body).select().single()
   if (error) { console.error('Supplies POST error:', JSON.stringify(error), 'body:', JSON.stringify(body)); return NextResponse.json({ error: error.message }, { status: 500 }) }
+  revalidatePath('/admin/property-management/supplies')
   return NextResponse.json({ supply: data })
 }

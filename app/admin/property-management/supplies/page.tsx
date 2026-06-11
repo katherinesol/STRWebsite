@@ -2,6 +2,8 @@ import { createAdminClient } from '@/lib/supabase/server'
 import Link from 'next/link'
 import SuppliesManager from '@/components/admin/SuppliesManager'
 
+export const dynamic = 'force-dynamic'
+
 export default async function SuppliesPage() {
   const supabase = createAdminClient()
 

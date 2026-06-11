@@ -45,7 +45,7 @@ export default function TripsManager({ trips, teamMembers, bookings, yearTotals 
   const [showNote, setShowNote] = useState(false)
   const [form, setForm] = useState({
     date: today,
-    property_id: 'royal-york-east',
+    property_id: 'nickel-beach',
     purpose: 'Cleaning',
     km: '',
     notes: '',

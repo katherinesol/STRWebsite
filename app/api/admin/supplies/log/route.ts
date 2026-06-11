@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/server'
 import { cookies } from 'next/headers'
 
@@ -34,5 +35,6 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  revalidatePath('/admin/property-management/supplies')
   return NextResponse.json({ ok: true })
 }
