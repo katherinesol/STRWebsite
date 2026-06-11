@@ -118,21 +118,28 @@ export default function SuppliesManager({ supplies, logs, teamMembers }: {
   async function handleAction() {
     if (!actionItem || !actionType) return
     setSaving(true)
-    const formData = new FormData()
-    formData.append('supply_id', actionItem.id)
-    formData.append('property_id', actionItem.property_id)
-    formData.append('action', actionType === 'restock' ? 'restocked' : 'flagged')
-    formData.append('quantity_change', String(actionType === 'restock' ? actionForm.quantity : 0))
-    formData.append('note', actionForm.note)
-    formData.append('logged_by', actionForm.logged_by)
-    if (actionForm.photo) formData.append('photo', actionForm.photo)
     try {
-      await fetch('/api/admin/supplies/log', { method: 'POST', body: formData })
+      const res = await fetch('/api/admin/supplies/log', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          supply_id: actionItem.id,
+          property_id: actionItem.property_id,
+          action: actionType === 'restock' ? 'restocked' : 'flagged',
+          quantity_change: actionType === 'restock' ? actionForm.quantity : 0,
+          note: actionForm.note,
+          logged_by: actionForm.logged_by,
+        }),
+      })
+      if (!res.ok) {
+        const err = await res.json()
+        console.error('Supply log error:', err)
+      }
       setActionItem(null)
       setActionType(null)
       setActionForm({ quantity: 0, note: '', photo: null, logged_by: actionForm.logged_by })
       router.refresh()
-    } catch {}
+    } catch (e) { console.error(e) }
     finally { setSaving(false) }
   }
 

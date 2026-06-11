@@ -5,12 +5,18 @@ import TripsManager from '@/components/admin/TripsManager'
 export default async function TripsPage() {
   const supabase = createAdminClient()
 
-  const [{ data: trips }, { data: teamMembers }, { data: bookings }] = await Promise.all([
+  const [{ data: trips }, { data: teamMembers }, { data: bookings }, { data: platformBlocks }] = await Promise.all([
     supabase.from('trips').select('*').order('date', { ascending: false }).limit(100),
     supabase.from('team_members').select('*').order('name'),
     supabase.from('bookings').select('id, property_id, check_in, check_out, booking_reference, guest_info:guests(name)')
       .in('status', ['confirmed', 'active'])
       .order('check_in', { ascending: false })
+      .limit(20),
+    supabase.from('calendar_blocks')
+      .select('id, property_id, start_date, end_date, guest_name, platform')
+      .in('platform', ['airbnb', 'vrbo', 'houfy'])
+      .gte('end_date', new Date().toISOString().split('T')[0])
+      .order('start_date', { ascending: false })
       .limit(20),
   ])
 
@@ -28,13 +34,33 @@ export default async function TripsPage() {
     return acc
   }, {} as Record<string, { km: number; reimbursement: number }>)
 
+  // merge direct bookings and platform blocks for trip linking
+  const allBookings = [
+    ...(bookings || []).map(b => ({
+      id: b.id,
+      property_id: b.property_id,
+      check_in: b.check_in,
+      booking_reference: b.booking_reference,
+      guest_name: Array.isArray(b.guest_info) ? b.guest_info[0]?.name : (b.guest_info as any)?.name,
+      source: 'direct',
+    })),
+    ...(platformBlocks || []).map(b => ({
+      id: b.id,
+      property_id: b.property_id,
+      check_in: b.start_date,
+      booking_reference: b.platform?.toUpperCase(),
+      guest_name: b.guest_name || b.platform,
+      source: b.platform,
+    })),
+  ].sort((a, b) => b.check_in > a.check_in ? 1 : -1)
+
   return (
     <div>
       <div style={{ marginBottom: '24px' }}>
         <Link href="/admin/property-management" style={{ fontSize: '11px', color: '#9A9A92', textDecoration: 'none' }}>← Property mgmt</Link>
         <h1 style={{ fontFamily: 'var(--serif)', fontSize: '28px', fontWeight: 300, color: '#F5F2EC', marginTop: '8px' }}>Trips.</h1>
       </div>
-      <TripsManager trips={trips || []} teamMembers={teamMembers || []} bookings={bookings || []} yearTotals={yearTotals} />
+      <TripsManager trips={trips || []} teamMembers={teamMembers || []} bookings={allBookings} yearTotals={yearTotals} />
     </div>
   )
 }

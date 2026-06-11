@@ -71,7 +71,7 @@ export default function TripsManager({ trips, teamMembers, bookings, yearTotals 
     : { amount: 0, rate: CRA_RATE_1, note: '' }
 
   // all bookings (direct + platform) for this property
-  const propertyBookings = bookings.filter(b => b.property_id === form.property_id)
+  const propertyBookings = bookings.filter((b: any) => b.property_id === form.property_id)
 
   async function handleAdd() {
     if (!form.km || !form.date) return
@@ -161,10 +161,9 @@ export default function TripsManager({ trips, teamMembers, bookings, yearTotals 
             <div style={{ fontSize: '10px', letterSpacing: '.1em', textTransform: 'uppercase', color: '#9A9A92', marginBottom: '5px' }}>Link to booking (optional)</div>
             <select value={form.booking_id} onChange={e => set('booking_id', e.target.value)} style={{ ...inputStyle, background: '#363634' }}>
               <option value="">None</option>
-              {propertyBookings.map(b => {
-                const g = Array.isArray(b.guest_info) ? b.guest_info[0] : b.guest_info
-                return <option key={b.id} value={b.id}>{b.booking_reference} — {g?.name || '?'} ({format(new Date(b.check_in + 'T12:00:00'), 'MMM d')})</option>
-              })}
+              {propertyBookings.map((b: any) => (
+                <option key={b.id} value={b.id}>{b.booking_reference} — {b.guest_name || '?'} ({format(new Date(b.check_in + 'T12:00:00'), 'MMM d')})</option>
+              ))}
             </select>
           </div>
         </div>

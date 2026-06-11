@@ -8,10 +8,12 @@ async function checkAuth() {
 }
 
 export async function POST(request: NextRequest) {
-  if (!await checkAuth()) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const authed = await checkAuth()
+  console.log('Supplies auth check:', authed, 'secret present:', !!process.env.ADMIN_SECRET)
+  if (!authed) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const body = await request.json()
   const supabase = createAdminClient()
   const { data, error } = await supabase.from('supplies').insert(body).select().single()
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) { console.error('Supplies POST error:', JSON.stringify(error), 'body:', JSON.stringify(body)); return NextResponse.json({ error: error.message }, { status: 500 }) }
   return NextResponse.json({ supply: data })
 }
