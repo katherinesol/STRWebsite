@@ -49,10 +49,10 @@ export default async function TripsPage() {
       property_id: b.property_id,
       check_in: b.start_date,
       booking_reference: b.platform?.toUpperCase(),
-      guest_name: b.guest_name || b.platform,
+      guest_name: b.guest_name || `${b.platform?.toUpperCase()} booking`,
       source: b.platform,
     })),
-  ].sort((a, b) => b.check_in > a.check_in ? 1 : -1)
+  ].sort((a, b) => a.check_in > b.check_in ? 1 : -1)
 
   return (
     <div>

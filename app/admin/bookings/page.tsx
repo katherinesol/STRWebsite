@@ -92,7 +92,11 @@ export default async function BookingsPage({
     .filter(b => showCompleted || getAutoStatus(b.start_date, b.end_date).label !== 'Completed')
     .filter(b => {
       const days = Math.round((new Date(b.end_date).getTime() - new Date(b.start_date).getTime()) / 86400000)
-      return days > 1 || (b as any).is_booking
+      // exclude prep days: 1-day blocks explicitly marked as not a booking
+      if (days <= 1 && (b as any).is_booking === false) return false
+      // exclude multi-day blocks explicitly marked as not a booking
+      if ((b as any).is_booking === false) return false
+      return true
     })
     .map(b => ({
       id: b.id,
@@ -113,9 +117,14 @@ export default async function BookingsPage({
           <div style={{ fontSize: '10px', fontWeight: 500, letterSpacing: '.16em', textTransform: 'uppercase', color: '#9A9A92', marginBottom: '6px' }}>Management</div>
           <h1 style={{ fontFamily: 'var(--serif)', fontSize: '32px', fontWeight: 300, color: '#F5F2EC', lineHeight: 1 }}>Bookings.</h1>
         </div>
-        <Link href="/admin/bookings/new" style={{ padding: '10px 20px', background: 'var(--amber)', color: '#1A1A18', fontSize: '11px', letterSpacing: '.1em', textTransform: 'uppercase', textDecoration: 'none', fontWeight: 500 }}>
-          + Manual booking
-        </Link>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <Link href="/admin/bookings/import" style={{ padding: '10px 20px', background: '#363634', color: '#9A9A92', fontSize: '11px', letterSpacing: '.1em', textTransform: 'uppercase', textDecoration: 'none' }}>
+            Import historical
+          </Link>
+          <Link href="/admin/bookings/new" style={{ padding: '10px 20px', background: 'var(--amber)', color: '#1A1A18', fontSize: '11px', letterSpacing: '.1em', textTransform: 'uppercase', textDecoration: 'none', fontWeight: 500 }}>
+            + Manual booking
+          </Link>
+        </div>
       </div>
 
       {/* completed toggle + property filter */}
