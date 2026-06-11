@@ -25,15 +25,15 @@ export default async function PropertyManagementPage() {
     .gte('created_at', new Date(Date.now() - 7 * 86400000).toISOString())
     .order('created_at', { ascending: false })
 
-  // this month expenses
+  // this month finance
   const startOfMonth = new Date(); startOfMonth.setDate(1); startOfMonth.setHours(0,0,0,0)
-  const { data: monthExpenses } = await supabase
-    .from('expenses')
+  const { data: monthFinance } = await supabase
+    .from('finance')
     .select('amount, hst_paid')
     .gte('date', startOfMonth.toISOString().split('T')[0])
 
-  const monthTotal = (monthExpenses || []).reduce((s, e) => s + (e.amount || 0), 0)
-  const monthHst = (monthExpenses || []).reduce((s, e) => s + (e.hst_paid || 0), 0)
+  const monthTotal = (monthFinance || []).reduce((s, e) => s + (e.amount || 0), 0)
+  const monthHst = (monthFinance || []).reduce((s, e) => s + (e.hst_paid || 0), 0)
 
   // this year km
   const startOfYear = new Date(); startOfYear.setMonth(0); startOfYear.setDate(1)
@@ -48,7 +48,7 @@ export default async function PropertyManagementPage() {
   const modules = [
     { href: '/admin/property-management/supplies', label: 'Supplies', icon: '📦', desc: 'Track inventory, flag low stock, log restocks', alert: (lowStock?.length || 0) + (flagged?.length || 0) },
     { href: '/admin/property-management/trips', label: 'Trips', icon: '🚗', desc: `${yearKm.toFixed(0)} km this year · $${yearReimbursement.toFixed(2)} CRA`, alert: 0 },
-    { href: '/admin/property-management/expenses', label: 'Expenses', icon: '💳', desc: `$${monthTotal.toFixed(2)} this month · $${monthHst.toFixed(2)} HST`, alert: 0 },
+    { href: '/admin/property-management/finance', label: 'Finance', icon: '💳', desc: `$${monthTotal.toFixed(2)} expenses this month`, alert: 0 },
   ]
 
   return (
