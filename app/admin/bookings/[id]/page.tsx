@@ -87,6 +87,11 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
             <Row label="Phone" value={guest?.phone} />
             <Row label="Returning guest" value={guest?.returning_guest ? 'Yes' : 'No'} />
             <Row label="Locked rate" value={guest?.locked_rate_enabled ? 'Yes' : 'No'} />
+            {booking.guest_id && (
+              <div style={{ marginTop: '12px' }}>
+                <a href={`/admin/guests/${booking.guest_id}`} style={{ fontSize: '11px', color: 'var(--amber)', textDecoration: 'none', letterSpacing: '.08em', textTransform: 'uppercase' }}>Edit guest profile →</a>
+              </div>
+            )}
           </Section>
 
           <BookingEditForm booking={booking} />
