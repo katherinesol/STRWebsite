@@ -9,15 +9,16 @@ export default async function TripsPage() {
     supabase.from('trips').select('*').order('date', { ascending: false }).limit(100),
     supabase.from('team_members').select('*').order('name'),
     supabase.from('bookings').select('id, property_id, check_in, check_out, booking_reference, guest_info:guests(name)')
-      .in('status', ['confirmed', 'active'])
-      .order('check_in', { ascending: false })
-      .limit(20),
+      .gte('check_in', new Date().getFullYear() + '-01-01')
+      .order('check_in', { ascending: true })
+      .limit(50),
     supabase.from('calendar_blocks')
       .select('id, property_id, start_date, end_date, guest_name, platform')
       .in('platform', ['airbnb', 'vrbo', 'houfy'])
-      .gte('end_date', new Date().toISOString().split('T')[0])
-      .order('start_date', { ascending: false })
-      .limit(20),
+      .eq('is_booking', true)
+      .gte('start_date', new Date().getFullYear() + '-01-01')
+      .order('start_date', { ascending: true })
+      .limit(50),
   ])
 
   // calculate year totals per person
