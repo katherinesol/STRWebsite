@@ -69,6 +69,7 @@ export default async function GuestDetailPage({ params }: { params: Promise<{ id
                 total: b.payout_amount || b.amount_paid || null,
                 source: b.platform,
                 booking_id: null,
+                block_id: b.id,
               }))
               const allStays = [...directStays, ...platformStays].sort((a, b) => b.check_in > a.check_in ? 1 : -1)
               if (!allStays.length) return <div style={{ fontSize: '13px', color: '#666660' }}>No bookings yet</div>
@@ -85,7 +86,11 @@ export default async function GuestDetailPage({ params }: { params: Promise<{ id
                   </div>
                   <div style={{ textAlign: 'right' }}>
                     <div style={{ fontSize: '13px', color: '#F5F2EC' }}>{b.total ? `$${b.total}` : '—'}</div>
-                    {b.booking_id && <Link href={`/admin/bookings/${b.booking_id}`} style={{ fontSize: '11px', color: 'var(--amber)', textDecoration: 'none' }}>View →</Link>}
+                    {b.booking_id ? (
+                      <Link href={`/admin/bookings/${b.booking_id}`} style={{ fontSize: '11px', color: 'var(--amber)', textDecoration: 'none' }}>View →</Link>
+                    ) : b.block_id ? (
+                      <Link href={`/admin/bookings/block/${b.block_id}`} style={{ fontSize: '11px', color: 'var(--amber)', textDecoration: 'none' }}>View →</Link>
+                    ) : null}
                   </div>
                 </div>
               ))
