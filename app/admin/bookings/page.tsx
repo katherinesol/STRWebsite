@@ -175,7 +175,7 @@ export default async function BookingsPage({
                 </div>
                 <div style={{ fontSize: '12px', color: '#AEAEA6' }}>{PROPERTY_NAMES[b.property_id]}</div>
                 <div>
-                  <div style={{ fontSize: '12px', color: '#F5F2EC' }}>{format(new Date(b.check_in), 'MMM d')} → {format(new Date(b.check_out), 'MMM d')}</div>
+                  <div style={{ fontSize: '12px', color: '#F5F2EC' }}>{format(new Date(b.check_in + 'T12:00:00'), 'MMM d, yyyy')} → {format(new Date(b.check_out + 'T12:00:00'), 'MMM d, yyyy')}</div>
                   <div style={{ fontSize: '11px', color: '#9A9A92', marginTop: '2px' }}>
                     In {checkInTime}{b.early_checkin_granted ? ' ★' : ''} · Out {checkOutTime}{b.late_checkout_granted ? ' ★' : ''}
                   </div>
@@ -203,7 +203,7 @@ export default async function BookingsPage({
                 </div>
                 <div style={{ fontSize: '12px', color: '#AEAEA6' }}>{PROPERTY_NAMES[b.property_id]}</div>
                 <div>
-                  <div style={{ fontSize: '12px', color: '#F5F2EC' }}>{format(new Date(b.start_date), 'MMM d')} → {format(new Date(b.end_date), 'MMM d')}</div>
+                  <div style={{ fontSize: '12px', color: '#F5F2EC' }}>{format(new Date(b.start_date + 'T12:00:00'), 'MMM d, yyyy')} → {format(new Date(b.end_date + 'T12:00:00'), 'MMM d, yyyy')}</div>
                   <div style={{ fontSize: '11px', color: '#9A9A92', marginTop: '2px' }}>
                     In {checkInTime}{b.early_checkin_granted ? ' ★' : ''} · Out {checkOutTime}{b.late_checkout_granted ? ' ★' : ''}
                   </div>
