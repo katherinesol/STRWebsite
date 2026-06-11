@@ -59,6 +59,7 @@ export default async function GuestDetailPage({ params }: { params: Promise<{ id
                 total: b.total,
                 source: 'direct',
                 booking_id: b.id,
+                block_id: null,
               }))
               const platformStays = (platformBlocks || []).map((b: any) => ({
                 id: b.id,
