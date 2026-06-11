@@ -13,7 +13,7 @@ export default async function GuestsPage({
 
   let query = supabase
     .from('guests')
-    .select('*, bookings(id, property_id, check_in, status), calendar_blocks!calendar_blocks_guest_id_fkey(id, is_booking)')
+    .select('*, bookings(id, property_id, check_in, status), calendar_blocks!calendar_blocks_guest_id_fkey(id, is_booking, start_date)')
     .order('created_at', { ascending: false })
 
   if (q) {
@@ -72,7 +72,11 @@ export default async function GuestsPage({
           const bookings = (g.bookings as any[]) || []
           const platformStays = ((g.calendar_blocks as any[]) || []).filter((b: any) => b.is_booking === true)
           const totalStays = bookings.length + platformStays.length
-          const lastBooking = bookings.sort((a, b) => b.check_in > a.check_in ? 1 : -1)[0]
+          const allStayDates = [
+            ...bookings.map((b: any) => b.check_in),
+            ...platformStays.map((b: any) => b.start_date),
+          ].filter(Boolean).sort().reverse()
+          const lastStayDate = allStayDates[0]
           return (
             <div key={g.id} style={{
               display: 'grid', gridTemplateColumns: '1fr 180px 100px 80px 80px',
@@ -84,7 +88,7 @@ export default async function GuestsPage({
                 <div style={{ fontSize: '11px', color: '#9A9A92', marginTop: '2px' }}>{g.email}</div>
               </div>
               <div style={{ fontSize: '12px', color: '#AEAEA6' }}>
-                {lastBooking ? format(new Date(lastBooking.check_in), 'MMM d, yyyy') : '—'}
+                {lastStayDate ? format(new Date(lastStayDate + 'T12:00:00'), 'MMM d, yyyy') : '—'}
               </div>
               <div style={{ fontSize: '13px', color: '#AEAEA6' }}>{totalStays}</div>
               <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
