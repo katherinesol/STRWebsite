@@ -1,6 +1,6 @@
 import { Resend } from 'resend'
 
-export const resend = new Resend(process.env.RESEND_API_KEY)
+export const getResend = () => new Resend(process.env.RESEND_API_KEY || 're_placeholder')
 
 export const FROM = `${process.env.RESEND_FROM_NAME || 'Direct Stays'} <${process.env.RESEND_FROM || 'onboarding@resend.dev'}>`
 
@@ -88,7 +88,7 @@ export async function sendBookingConfirmation(booking: any, guest: any) {
     <a href="${process.env.NEXT_PUBLIC_SITE_URL || 'https://yourdomain.com'}/portal" class="btn">Access guest portal</a>
   `
 
-  return resend.emails.send({
+  return getResend().emails.send({
     from: FROM,
     to: guest.email,
     subject: `Booking confirmed — ${propertyName} · ${booking.booking_reference}`,
@@ -125,7 +125,7 @@ export async function sendPaymentReminder(booking: any, guest: any, options: {
     <a href="${process.env.NEXT_PUBLIC_SITE_URL || 'https://yourdomain.com'}/portal" class="btn">View your booking</a>
   `
 
-  return resend.emails.send({
+  return getResend().emails.send({
     from: FROM,
     to: guest.email,
     subject: `Payment due — ${propertyName} · ${booking.booking_reference}`,
@@ -152,7 +152,7 @@ export async function sendAccessCode(booking: any, guest: any, code: string) {
     <p class="body" style="margin-top:16px; font-size:12px;">Your guest portal has everything you need — WiFi, local guide, house instructions, and your full payment summary.</p>
   `
 
-  return resend.emails.send({
+  return getResend().emails.send({
     from: FROM,
     to: guest.email,
     subject: `Your access code — ${propertyName}`,
@@ -171,7 +171,7 @@ export async function sendPortalSetup(guest: any, magicLink: string) {
     <p class="body" style="margin-top:16px; font-size:12px; color:#888880;">This link expires in 24 hours. If you didn't request this, you can ignore this email.</p>
   `
 
-  return resend.emails.send({
+  return getResend().emails.send({
     from: FROM,
     to: guest.email,
     subject: 'Access your guest portal',

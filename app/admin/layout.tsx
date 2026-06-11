@@ -6,7 +6,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const cookieStore = await cookies()
   const session = cookieStore.get('admin_session')?.value
   if (!session || session !== process.env.ADMIN_SECRET) {
-    redirect('/admin/login')
+    redirect('/login')
   }
 
   return (
