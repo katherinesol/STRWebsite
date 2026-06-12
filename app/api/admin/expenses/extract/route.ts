@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import Anthropic from '@anthropic-ai/sdk'
+import { createAdminClient } from '@/lib/supabase/server'
 
 async function checkAuth() {
   const cookieStore = await cookies()
@@ -23,6 +24,27 @@ export async function POST(request: NextRequest) {
   if (!file && !pastedText) return NextResponse.json({ error: 'No file or text' }, { status: 400 })
 
   let contentBlock: any
+  let receipt_path: string | null = null
+
+  // save receipt to private storage (non-blocking for extraction)
+  if (file) {
+    try {
+      const supabase = createAdminClient()
+      const ext = file.name.split('.').pop() || 'jpg'
+      receipt_path = `receipts/${Date.now()}.${ext}`
+      const bytes = await file.arrayBuffer()
+      const { error: uploadError } = await supabase.storage
+        .from('property-management')
+        .upload(receipt_path, bytes, { contentType: file.type })
+      if (uploadError) {
+        console.error('Receipt upload failed:', uploadError.message)
+        receipt_path = null
+      }
+    } catch (e) {
+      console.error('Receipt storage error (continuing):', e)
+      receipt_path = null
+    }
+  }
 
   if (pastedText) {
     contentBlock = { type: 'text', text: `Receipt text:\n${pastedText}` }
@@ -72,9 +94,9 @@ Use null for any field you cannot determine. For date use today if not visible.`
     const text = response.content[0].type === 'text' ? response.content[0].text : '{}'
     const clean = text.replace(/```json|```/g, '').trim()
     const extracted = JSON.parse(clean)
-    return NextResponse.json({ extracted: true, ...extracted })
+    return NextResponse.json({ extracted: true, ...extracted, receipt_path })
   } catch (err: any) {
     console.error('AI extraction error:', err?.message)
-    return NextResponse.json({ extracted: false, error: err?.message })
+    return NextResponse.json({ extracted: false, error: err?.message, receipt_path })
   }
 }

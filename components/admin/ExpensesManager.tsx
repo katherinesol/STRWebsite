@@ -45,6 +45,8 @@ type Expense = {
   category: string
   property_id: string | null
   receipt_url: string | null
+  receipt_path: string | null
+  signed_receipt_url?: string | null
   ai_extracted: boolean
   confirmed: boolean
 }
@@ -72,6 +74,7 @@ export default function ExpensesManager({ expenses, vendors }: { expenses: Expen
     property_id: '',
     notes: '',
     receipt_url: '',
+    receipt_path: null as string | null,
     ai_extracted: false,
     confirmed: false,
   })
@@ -121,6 +124,7 @@ export default function ExpensesManager({ expenses, vendors }: { expenses: Expen
           date: data.date || f.date,
           category: data.category || f.category,
           description: data.description || f.description,
+          receipt_path: data.receipt_path || (f as any).receipt_path || null,
           ai_extracted: true,
         }))
       }
@@ -153,7 +157,7 @@ export default function ExpensesManager({ expenses, vendors }: { expenses: Expen
         setSaving(false)
         return
       }
-      setForm({ date: today, vendor: '', description: '', amount: '', hst_paid: '', category: CATEGORIES[0], property_id: '', notes: '', receipt_url: '', ai_extracted: false, confirmed: false })
+      setForm({ date: today, vendor: '', description: '', amount: '', hst_paid: '', category: CATEGORIES[0], property_id: '', notes: '', receipt_url: '', receipt_path: null, ai_extracted: false, confirmed: false })
       setShowForm(false)
       router.refresh()
     } catch {}
@@ -333,6 +337,7 @@ export default function ExpensesManager({ expenses, vendors }: { expenses: Expen
                 <div style={{ fontSize: '13px', color: '#F5F2EC' }}>{e.description}</div>
                 {e.vendor && <div style={{ fontSize: '11px', color: '#9A9A92' }}>{e.vendor}</div>}
                 {e.ai_extracted && <span style={{ fontSize: '9px', color: '#9A9A92', letterSpacing: '.08em' }}>AI</span>}
+                {e.signed_receipt_url && <a href={e.signed_receipt_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: '10px', color: 'var(--amber)', textDecoration: 'none', marginLeft: '8px' }}>📎 Receipt</a>}
               </div>
               <div style={{ fontSize: '11px', color: '#9A9A92' }}>{e.category}</div>
               <div style={{ fontSize: '13px', color: '#F5F2EC' }}>${e.amount?.toFixed(2)}</div>

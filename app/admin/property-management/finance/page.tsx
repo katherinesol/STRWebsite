@@ -13,6 +13,15 @@ export default async function FinancePage() {
 
   const vendors = [...new Set((expenses || []).map(e => e.vendor).filter(Boolean))]
 
+  // generate signed URLs for receipts (private bucket, 1hr expiry)
+  const expensesWithReceipts = await Promise.all((expenses || []).map(async (e) => {
+    if (!e.receipt_path) return { ...e, signed_receipt_url: null }
+    const { data: signed } = await supabase.storage
+      .from('property-management')
+      .createSignedUrl(e.receipt_path, 3600)
+    return { ...e, signed_receipt_url: signed?.signedUrl || null }
+  }))
+
   // income totals
   const directIncome = (directBookings || []).reduce((s, b) => s + (b.total || 0), 0)
   const platformIncome = (platformBookings || []).reduce((s, b) => s + (b.payout_amount || b.amount_paid || 0), 0)
@@ -49,7 +58,7 @@ export default async function FinancePage() {
         ))}
       </div>
 
-      <ExpensesManager expenses={expenses || []} vendors={vendors} />
+      <ExpensesManager expenses={expensesWithReceipts} vendors={vendors} />
     </div>
   )
 }
