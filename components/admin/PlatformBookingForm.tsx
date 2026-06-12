@@ -98,6 +98,7 @@ export default function PlatformBookingForm({ block }: { block: any }) {
     extras: block.extras || '',
     discount: block.discount || '',
     discount_type: block.discount_type || 'Length of stay discount',
+    payment_processing_fee: block.payment_processing_fee || '',
   })
 
   const [form, setForm] = useState({
@@ -130,7 +131,8 @@ export default function PlatformBookingForm({ block }: { block: any }) {
   const feeBase = accomNum - discountNum + cleaningNum + extrasNum
   const hostFeeAmt = Math.round(feeBase * (payment.host_service_fee_pct / 100) * 100) / 100
   const taxesNum = parseFloat(String(payment.taxes_collected)) || 0
-  const payout = Math.round((feeBase - hostFeeAmt) * 100) / 100
+  const processingFeeNum = parseFloat(String(payment.payment_processing_fee)) || 0
+  const payout = Math.round((feeBase - hostFeeAmt - processingFeeNum) * 100) / 100
   const guestTotal = Math.round((feeBase + taxesNum) * 100) / 100
 
   function setP(key: string, value: unknown) {
@@ -157,6 +159,7 @@ export default function PlatformBookingForm({ block }: { block: any }) {
           extras: extrasNum || null,
           discount: discountNum || null,
           discount_type: discountNum ? payment.discount_type : null,
+          payment_processing_fee: processingFeeNum || null,
           payout_amount: payout || null,
           guest_total: guestTotal || null,
           amount_paid: payout || null,
@@ -291,6 +294,7 @@ export default function PlatformBookingForm({ block }: { block: any }) {
               <select value={payment.discount_type} onChange={e => setP('discount_type', e.target.value)}
                 style={{ padding: '4px 8px', background: '#363634', border: '0.5px solid #4A4A48', color: '#9A9A92', fontFamily: 'var(--sans)', fontSize: '11px', outline: 'none' }}>
                 <option>Length of stay discount</option>
+                <option>Early booking discount</option>
                 <option>Special offer</option>
                 <option>Other</option>
               </select>
@@ -310,6 +314,13 @@ export default function PlatformBookingForm({ block }: { block: any }) {
               </div>
             </div>
             <div style={{ fontSize: '13px', color: '#e74c3c' }}>−${hostFeeAmt.toFixed(2)}</div>
+          </div>
+
+          {/* payment processing fee */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '0.5px solid #2A2A28' }}>
+            <div style={{ fontSize: '13px', color: '#9A9A92' }}>Payment processing fee</div>
+            <input type="number" value={payment.payment_processing_fee} onChange={e => setP('payment_processing_fee', e.target.value)} placeholder="0.00"
+              style={{ width: '120px', padding: '6px 10px', background: '#363634', border: '0.5px solid #4A4A48', color: '#e74c3c', fontFamily: 'var(--sans)', fontSize: '13px', outline: 'none', textAlign: 'right' }} />
           </div>
 
           {/* extras */}

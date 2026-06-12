@@ -104,6 +104,30 @@ export default function ExpensesManager({ expenses, vendors }: { expenses: Expen
     finally { setExtracting(false) }
   }
 
+  async function handlePastedText(text: string) {
+    if (!text.trim()) return
+    setExtracting(true)
+    try {
+      const formData = new FormData()
+      formData.append('text', text)
+      const res = await fetch('/api/admin/expenses/extract', { method: 'POST', body: formData })
+      const data = await res.json()
+      if (data.extracted) {
+        setForm(f => ({
+          ...f,
+          vendor: data.vendor || f.vendor,
+          amount: data.amount || f.amount,
+          hst_paid: data.hst || f.hst_paid,
+          date: data.date || f.date,
+          category: data.category || f.category,
+          description: data.description || f.description,
+          ai_extracted: true,
+        }))
+      }
+    } catch {}
+    finally { setExtracting(false) }
+  }
+
   async function handleSave() {
     if (!form.description || !form.amount) return
     setSaving(true)
@@ -200,17 +224,22 @@ export default function ExpensesManager({ expenses, vendors }: { expenses: Expen
           <div style={{ background: '#242422', border: '0.5px solid #363634', padding: '24px' }}>
             <div style={{ fontSize: '10px', fontWeight: 500, letterSpacing: '.14em', textTransform: 'uppercase', color: 'var(--amber)', marginBottom: '16px' }}>New expense</div>
 
-            {/* receipt upload */}
-            <div style={{ background: '#1E1E1C', border: '0.5px dashed #4A4A48', padding: '16px', textAlign: 'center', marginBottom: '16px', cursor: 'pointer' }}
-              onClick={() => fileRef.current?.click()}>
-              <input ref={fileRef} type="file" accept="image/*" capture="environment" style={{ display: 'none' }}
+            {/* receipt upload + paste */}
+            <div style={{ background: '#1E1E1C', border: '0.5px dashed #4A4A48', padding: '16px', textAlign: 'center', marginBottom: '8px', cursor: 'pointer' }}
+              onClick={() => fileRef.current?.click()}
+              onPaste={e => {
+                const text = e.clipboardData.getData('text')
+                if (text) { e.preventDefault(); handlePastedText(text) }
+              }}
+              tabIndex={0}>
+              <input ref={fileRef} type="file" accept="image/*,application/pdf" style={{ display: 'none' }}
                 onChange={e => e.target.files?.[0] && handleReceiptUpload(e.target.files[0])} />
               {extracting ? (
                 <div style={{ fontSize: '13px', color: 'var(--amber)' }}>AI reading receipt...</div>
               ) : form.ai_extracted ? (
                 <div style={{ fontSize: '12px', color: '#2ecc71' }}>✓ Receipt scanned — review fields below</div>
               ) : (
-                <div style={{ fontSize: '13px', color: '#9A9A92' }}>📷 Upload receipt for AI extraction</div>
+                <div style={{ fontSize: '13px', color: '#9A9A92' }}>📷 Upload image/PDF or click here and paste (Cmd+V) receipt text</div>
               )}
             </div>
 

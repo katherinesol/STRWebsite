@@ -17,12 +17,31 @@ export async function POST(request: NextRequest) {
   if (!await checkAuth()) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const formData = await request.formData()
-  const file = formData.get('receipt') as File
-  if (!file) return NextResponse.json({ error: 'No file' }, { status: 400 })
+  const file = formData.get('receipt') as File | null
+  const pastedText = formData.get('text') as string | null
 
-  const bytes = await file.arrayBuffer()
-  const base64 = Buffer.from(bytes).toString('base64')
-  const mediaType = (file.type || 'image/jpeg') as 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif'
+  if (!file && !pastedText) return NextResponse.json({ error: 'No file or text' }, { status: 400 })
+
+  let contentBlock: any
+
+  if (pastedText) {
+    contentBlock = { type: 'text', text: `Receipt text:\n${pastedText}` }
+  } else if (file!.type === 'application/pdf') {
+    const bytes = await file!.arrayBuffer()
+    const base64 = Buffer.from(bytes).toString('base64')
+    contentBlock = {
+      type: 'document',
+      source: { type: 'base64', media_type: 'application/pdf', data: base64 },
+    }
+  } else {
+    const bytes = await file!.arrayBuffer()
+    const base64 = Buffer.from(bytes).toString('base64')
+    const mediaType = (file!.type || 'image/jpeg') as 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif'
+    contentBlock = {
+      type: 'image',
+      source: { type: 'base64', media_type: mediaType, data: base64 },
+    }
+  }
 
   try {
     const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
@@ -32,10 +51,7 @@ export async function POST(request: NextRequest) {
       messages: [{
         role: 'user',
         content: [
-          {
-            type: 'image',
-            source: { type: 'base64', media_type: mediaType, data: base64 },
-          },
+          contentBlock,
           {
             type: 'text',
             text: `Extract receipt data. Return ONLY valid JSON, no markdown, no explanation:
