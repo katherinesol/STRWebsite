@@ -116,7 +116,7 @@ export default async function BookingsPage({
 
   return (
     <div>
-      <div style={{ marginBottom: '28px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+      <div className="page-head" style={{ marginBottom: '28px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
         <div>
           <div style={{ fontSize: '10px', fontWeight: 500, letterSpacing: '.16em', textTransform: 'uppercase', color: '#9A9A92', marginBottom: '6px' }}>Management</div>
           <h1 style={{ fontFamily: 'var(--serif)', fontSize: '32px', fontWeight: 300, color: '#F5F2EC', lineHeight: 1 }}>Bookings.</h1>
@@ -132,7 +132,7 @@ export default async function BookingsPage({
       </div>
 
       {/* completed toggle + property filter */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+      <div className="filter-chips" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
       <div style={{ display: 'flex', gap: '1px' }}>
         <Link href="/admin/bookings" style={{ padding: '6px 14px', fontSize: '10px', letterSpacing: '.1em', textTransform: 'uppercase', textDecoration: 'none', background: !property ? '#F5F2EC' : '#363634', color: !property ? '#1A1A18' : '#9A9A92' }}>All</Link>
         {Object.entries(PROPERTY_NAMES).map(([id, name]) => (
