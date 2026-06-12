@@ -3,7 +3,7 @@ export default function Hero() {
     <>
       <div style={{
         marginTop: '56px',
-        minHeight: 'calc(100vh - 56px)',
+        minHeight: 'calc(var(--hero-min-h) - 56px)',
         display: 'grid',
         gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
         background: 'var(--linen)',

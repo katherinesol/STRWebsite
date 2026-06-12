@@ -8,6 +8,7 @@ import PropertyAmenities from '@/components/property/PropertyAmenities'
 import PropertyFAQ from '@/components/property/PropertyFAQ'
 import NeighbourhoodMap from '@/components/property/NeighbourhoodMapWrapper'
 import BookingWidget from '@/components/booking/BookingWidget'
+import StickyBookingCTA from '@/components/property/StickyBookingCTA'
 
 export async function generateStaticParams() {
   return getAllProperties().map(p => ({ id: p.id }))
@@ -43,11 +44,12 @@ export default async function PropertyPage({
             <PropertyFAQ property={property} />
             <NeighbourhoodMap property={property} />
           </div>
-          <div className="prop-detail-sidebar" style={{ position: 'sticky', top: '80px' }}>
+          <div id="booking" className="prop-detail-sidebar" style={{ position: 'sticky', top: '80px', scrollMarginTop: '70px' }}>
             <BookingWidget property={property} />
           </div>
         </div>
       </div>
+      <StickyBookingCTA propertyName={property.name} fromPrice={(property as any).base_rate || null} />
       <Footer />
     </>
   )

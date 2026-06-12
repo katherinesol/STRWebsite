@@ -29,3 +29,48 @@ button { font-family: var(--sans); cursor: pointer; }
   from { opacity: 0; transform: translateY(20px); }
   to   { opacity: 1; transform: translateY(0); }
 }
+
+/* ── mobile-first spacing tokens ───────────────────── */
+:root {
+  --section-pad: 48px;
+  --container-pad: 20px;
+  --hero-min-h: 70svh;
+  --h1-size: 32px;
+  --h2-size: 24px;
+  --body-size: 15px;
+  --card-gap: 16px;
+  --tap-target: 48px;
+}
+
+@media (min-width: 768px) {
+  :root {
+    --section-pad: 96px;
+    --container-pad: 48px;
+    --hero-min-h: 88svh;
+    --h1-size: 52px;
+    --h2-size: 34px;
+    --body-size: 16px;
+    --card-gap: 24px;
+  }
+}
+
+/* sticky mobile booking CTA */
+.sticky-cta {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+  background: rgba(26, 26, 24, .96);
+  backdrop-filter: blur(8px);
+  border-top: 0.5px solid #363634;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+@media (min-width: 768px) {
+  .sticky-cta { display: none; }
+}
