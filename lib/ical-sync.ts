@@ -1,19 +1,23 @@
 import { createAdminClient } from '@/lib/supabase/server'
 
-function parseICal(icalText: string): { start: string; end: string }[] {
-  const events: { start: string; end: string }[] = []
+function parseICal(icalText: string): { start: string; end: string; summary: string }[] {
+  const events: { start: string; end: string; summary: string }[] = []
   const lines = icalText.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n')
   let inEvent = false
   let start = ''
   let end = ''
+  let summary = ''
   for (const line of lines) {
     const trimmed = line.trim()
-    if (trimmed === 'BEGIN:VEVENT') { inEvent = true; start = ''; end = '' }
+    if (trimmed === 'BEGIN:VEVENT') { inEvent = true; start = ''; end = ''; summary = '' }
     if (trimmed === 'END:VEVENT') {
-      if (start && end) events.push({ start, end })
+      if (start && end) events.push({ start, end, summary })
       inEvent = false
     }
     if (inEvent) {
+      if (trimmed.startsWith('SUMMARY')) {
+        summary = trimmed.split(':').slice(1).join(':').trim()
+      }
       if (trimmed.startsWith('DTSTART')) {
         const raw = trimmed.split(':').pop() || ''
         const digits = raw.replace(/\D/g, '').slice(0, 8)

@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
+import DateRangePicker from './DateRangePicker'
 import { useRouter } from 'next/navigation'
 
 const PROPERTIES = [
@@ -122,6 +123,8 @@ export default function ManualBookingForm({ guests }: { guests: { id: string; na
                 ⚠ Dates unavailable — conflicts with existing booking/block ({conflict.start} → {conflict.end})
               </div>
             )}
+            <DateRangePicker busy={busy} checkIn={form.check_in} checkOut={form.check_out}
+              onChange={(ci, co) => setForm(f => ({ ...f, check_in: ci, check_out: co }))} />
           </Field>
         </div>
       </div>
