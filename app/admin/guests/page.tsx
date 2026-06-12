@@ -51,7 +51,7 @@ export default async function GuestsPage({
 
       {/* table */}
       <div style={{ background: '#242422', border: '0.5px solid #363634' }}>
-        <div style={{
+        <div className="row-head" style={{
           display: 'grid', gridTemplateColumns: '1fr 180px 100px 80px 80px',
           padding: '10px 20px', borderBottom: '0.5px solid #363634',
           fontSize: '9px', fontWeight: 500, letterSpacing: '.14em',
@@ -78,7 +78,7 @@ export default async function GuestsPage({
           ].filter(Boolean).sort().reverse()
           const lastStayDate = allStayDates[0]
           return (
-            <div key={g.id} style={{
+            <div key={g.id} className="row-grid" style={{
               display: 'grid', gridTemplateColumns: '1fr 180px 100px 80px 80px',
               padding: '14px 20px', borderBottom: '0.5px solid #363634',
               alignItems: 'center',

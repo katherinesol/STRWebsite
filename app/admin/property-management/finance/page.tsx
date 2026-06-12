@@ -43,7 +43,7 @@ export default async function FinancePage() {
       </div>
 
       {/* P&L summary */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1px', background: '#363634', marginBottom: '24px' }}>
+      <div className="kpi-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1px', background: '#363634', marginBottom: '24px' }}>
         {[
           { label: 'Total income', value: `$${totalIncome.toFixed(2)}`, color: '#2ecc71', sub: `Direct $${directIncome.toFixed(0)} · Platform $${platformIncome.toFixed(0)}` },
           { label: 'Total expenses', value: `$${totalExpenses.toFixed(2)}`, color: '#e74c3c', sub: `HST paid $${totalHstPaid.toFixed(2)}` },

@@ -191,7 +191,7 @@ export default function ExpensesManager({ expenses, vendors }: { expenses: Expen
   return (
     <div>
       {/* summary bar */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1px', background: '#363634', marginBottom: '24px' }}>
+      <div className="kpi-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1px', background: '#363634', marginBottom: '24px' }}>
         {[
           { label: 'Total expenses', value: `$${totalAmount.toFixed(2)}` },
           { label: 'HST / ITC', value: `$${totalHst.toFixed(2)}` },
@@ -205,7 +205,7 @@ export default function ExpensesManager({ expenses, vendors }: { expenses: Expen
       </div>
 
       {/* filters */}
-      <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: '20px', alignItems: 'center' }}>
+      <div className="filter-row" style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: '20px', alignItems: 'center' }}>
         <input type="month" value={filterMonth} onChange={e => setFilterMonth(e.target.value)}
           style={{ ...inputStyle, width: 'auto', background: '#363634' }} />
         <select value={filterCategory} onChange={e => setFilterCategory(e.target.value)}

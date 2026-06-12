@@ -151,7 +151,7 @@ export default async function BookingsPage({
 
       {/* unified table */}
       <div style={{ background: '#242422', border: '0.5px solid #363634' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '100px 1fr 160px 180px 100px 80px', padding: '10px 20px', borderBottom: '0.5px solid #363634', fontSize: '9px', fontWeight: 500, letterSpacing: '.14em', textTransform: 'uppercase', color: '#666660' }}>
+        <div className="row-head" style={{ display: 'grid', gridTemplateColumns: '100px 1fr 160px 180px 100px 80px', padding: '10px 20px', borderBottom: '0.5px solid #363634', fontSize: '9px', fontWeight: 500, letterSpacing: '.14em', textTransform: 'uppercase', color: '#666660' }}>
           <span>Source</span><span>Guest</span><span>Property</span><span>Dates & times</span><span>Status</span><span></span>
         </div>
 
@@ -169,7 +169,7 @@ export default async function BookingsPage({
               ? formatTime(b.late_checkout_time, '11:00 AM')
               : '11:00 AM'
             return (
-              <div key={row.id} style={{ display: 'grid', gridTemplateColumns: '100px 1fr 160px 180px 100px 80px', padding: '14px 20px', borderBottom: '0.5px solid #363634', alignItems: 'center' }}>
+              <div key={row.id} className="row-grid" style={{ display: 'grid', gridTemplateColumns: '100px 1fr 160px 180px 100px 80px', padding: '14px 20px', borderBottom: '0.5px solid #363634', alignItems: 'center' }}>
                 <div>
                   <span style={{ fontSize: '9px', padding: '3px 8px', background: '#1E1E1C', color: PLATFORM_COLORS.direct, letterSpacing: '.08em', textTransform: 'uppercase' }}>Direct</span>
                 </div>
@@ -197,7 +197,7 @@ export default async function BookingsPage({
             const checkInTime = b.early_checkin_time ? formatTime(b.early_checkin_time, '4:00 PM') : '4:00 PM'
             const checkOutTime = b.late_checkout_time ? formatTime(b.late_checkout_time, '11:00 AM') : '11:00 AM'
             return (
-              <div key={row.id} style={{ display: 'grid', gridTemplateColumns: '100px 1fr 160px 180px 100px 80px', padding: '14px 20px', borderBottom: '0.5px solid #363634', alignItems: 'center' }}>
+              <div key={row.id} className="row-grid" style={{ display: 'grid', gridTemplateColumns: '100px 1fr 160px 180px 100px 80px', padding: '14px 20px', borderBottom: '0.5px solid #363634', alignItems: 'center' }}>
                 <div>
                   <span style={{ fontSize: '9px', padding: '3px 8px', background: '#1E1E1C', color: PLATFORM_COLORS[b.platform] || '#9A9A92', letterSpacing: '.08em', textTransform: 'uppercase' }}>{b.platform}</span>
                 </div>
