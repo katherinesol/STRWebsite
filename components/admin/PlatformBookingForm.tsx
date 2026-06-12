@@ -102,6 +102,7 @@ export default function PlatformBookingForm({ block }: { block: any }) {
     taxes_you_remit: block.taxes_you_remit || '',
     taxes_platform_remits: block.taxes_platform_remits || '',
     auto_tax_split: false,
+    host_fee_override: block.host_service_fee || '',
   })
 
   const [form, setForm] = useState({
@@ -132,7 +133,8 @@ export default function PlatformBookingForm({ block }: { block: any }) {
   const discountNum = parseFloat(String(payment.discount)) || 0
   const extrasNum = parseFloat(String(payment.extras)) || 0
   const feeBase = accomNum - discountNum + cleaningNum + extrasNum
-  const hostFeeAmt = Math.round(feeBase * (payment.host_service_fee_pct / 100) * 100) / 100
+  const hostFeeCalc = Math.round(feeBase * (payment.host_service_fee_pct / 100) * 100) / 100
+  const hostFeeAmt = payment.host_fee_override !== '' && payment.host_fee_override !== null ? (parseFloat(String(payment.host_fee_override)) || 0) : hostFeeCalc
   const taxesNum = parseFloat(String(payment.taxes_collected)) || 0
   const taxRate = block.property_id === 'nickel-beach' ? 0.17 : 0.19 // HST 13% + MAT 4% or 6%
   const autoTaxAmount = payment.auto_tax_split ? Math.round(feeBase * taxRate * 100) / 100 : 0
@@ -323,7 +325,8 @@ export default function PlatformBookingForm({ block }: { block: any }) {
                 <span style={{ fontSize: '12px', color: '#555550' }}>%</span>
               </div>
             </div>
-            <div style={{ fontSize: '13px', color: '#e74c3c' }}>−${hostFeeAmt.toFixed(2)}</div>
+            <input type="number" value={payment.host_fee_override !== '' ? payment.host_fee_override : hostFeeCalc} onChange={e => setP('host_fee_override', e.target.value)} step="0.01"
+              style={{ width: '120px', padding: '6px 10px', background: '#363634', border: '0.5px solid #4A4A48', color: '#e74c3c', fontFamily: 'var(--sans)', fontSize: '13px', outline: 'none', textAlign: 'right' }} />
           </div>
 
           {/* payment processing fee */}
@@ -361,12 +364,11 @@ export default function PlatformBookingForm({ block }: { block: any }) {
               style={{ width: '120px', padding: '6px 10px', background: payment.auto_tax_split ? '#2A2A28' : '#363634', border: '0.5px solid #4A4A48', color: '#f39c12', fontFamily: 'var(--sans)', fontSize: '13px', outline: 'none', textAlign: 'right' }} />
           </div>
           {taxesYouRemitNum > 0 && (() => {
-            const matRate = block.property_id === 'nickel-beach' ? 0.04 : 0.06
-            const hstPortion = Math.round(taxesYouRemitNum * (0.13 / (0.13 + matRate)) * 100) / 100
+            const hstPortion = Math.round(feeBase * 0.13 * 100) / 100
             const matPortion = Math.round((taxesYouRemitNum - hstPortion) * 100) / 100
             return (
               <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0 8px', fontSize: '11px', color: '#666660' }}>
-                <span>≈ HST (CRA): ${hstPortion.toFixed(2)} · MAT (municipality): ${matPortion.toFixed(2)}</span>
+                <span>HST (13% of subtotal, to CRA): ${hstPortion.toFixed(2)} · MAT (remainder, to municipality): ${matPortion.toFixed(2)}</span>
               </div>
             )
           })()}
