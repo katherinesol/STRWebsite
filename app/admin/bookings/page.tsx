@@ -154,7 +154,7 @@ export default async function BookingsPage({
         ) : allRows.map(row => {
           if (row.type === 'direct') {
             const b = row.data
-            const s = getAutoStatus(b.check_in, b.check_out)
+            const s = getAutoStatus(b.check_in, b.check_out, b.early_checkin_granted ? b.early_checkin_time : null, b.late_checkout_granted ? b.late_checkout_time : null)
             const guest = Array.isArray(b.guest_info) ? b.guest_info[0] : b.guest_info
             const checkInTime = b.early_checkin_granted && b.early_checkin_time
               ? formatTime(b.early_checkin_time, '4:00 PM')
@@ -207,7 +207,7 @@ export default async function BookingsPage({
                   </div>
                 </div>
                 <div>
-                  {(() => { const ps = getAutoStatus(b.start_date, b.end_date); return <span style={{ display: 'inline-block', padding: '3px 8px', background: ps.bg, color: ps.color, fontSize: '9px', letterSpacing: '.1em', textTransform: 'uppercase' }}>{ps.label}</span> })()}
+                  {(() => { const ps = getAutoStatus(b.start_date, b.end_date, b.early_checkin_time, b.late_checkout_time); return <span style={{ display: 'inline-block', padding: '3px 8px', background: ps.bg, color: ps.color, fontSize: '9px', letterSpacing: '.1em', textTransform: 'uppercase' }}>{ps.label}</span> })()}
                 </div>
                 <div style={{ textAlign: 'right' }}>
                   <Link href={`/admin/bookings/block/${b.id}`} style={{ fontSize: '11px', color: 'var(--amber)', textDecoration: 'none' }}>Edit →</Link>
