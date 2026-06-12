@@ -12,7 +12,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: '#111110', fontFamily: 'var(--sans)' }}>
       <AdminNav />
-      <main style={{ flex: 1, marginLeft: '220px', padding: '32px', overflowY: 'auto' }}>
+      <main className="admin-main">
         {children}
       </main>
     </div>
