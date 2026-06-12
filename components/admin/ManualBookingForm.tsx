@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 
 const PROPERTIES = [
@@ -55,7 +55,22 @@ export default function ManualBookingForm({ guests }: { guests: { id: string; na
     finally { setSaving(false) }
   }
 
-  const canSave = form.check_in && form.check_out && (form.guest_name || form.use_existing)
+  const [busy, setBusy] = useState<{ start: string; end: string }[]>([])
+
+  useEffect(() => {
+    if (!form.property_id) return
+    fetch(`/api/admin/availability?property_id=${form.property_id}`)
+      .then(r => r.json())
+      .then(d => setBusy(d.busy || []))
+      .catch(() => setBusy([]))
+  }, [form.property_id])
+
+  // overlap check: [check_in, check_out) vs each busy [start, end)
+  const conflict = form.check_in && form.check_out
+    ? busy.find(b => form.check_in < b.end && form.check_out > b.start)
+    : null
+
+  const canSave = form.check_in && form.check_out && !conflict && (form.guest_name || form.use_existing)
 
   return (
     <div style={{ maxWidth: '680px' }}>
@@ -102,6 +117,11 @@ export default function ManualBookingForm({ guests }: { guests: { id: string; na
           </Field>
           <Field label="Check-out" half>
             <input type="date" value={form.check_out} onChange={e => set('check_out', e.target.value)} min={form.check_in} style={inputStyle} />
+            {conflict && (
+              <div style={{ fontSize: '11px', color: '#e74c3c', marginTop: '4px' }}>
+                ⚠ Dates unavailable — conflicts with existing booking/block ({conflict.start} → {conflict.end})
+              </div>
+            )}
           </Field>
         </div>
       </div>
