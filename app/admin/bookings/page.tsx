@@ -8,11 +8,17 @@ const PROPERTY_NAMES: Record<string, string> = {
   'nickel-beach':    'Nickel Beach',
 }
 
-function getAutoStatus(checkIn: string, checkOut: string): { label: string; color: string; bg: string } {
-  const today = new Date().toISOString().split('T')[0]
-  if (checkOut < today) return { label: 'Completed', color: '#9A9A92', bg: '#242422' }
-  if (checkIn === today) return { label: 'Checking in today', color: '#f39c12', bg: '#2a1f0a' }
-  if (checkIn <= today && checkOut >= today) return { label: 'Active', color: '#3498db', bg: '#0a1520' }
+function getAutoStatus(checkIn: string, checkOut: string, checkInTime?: string | null, checkOutTime?: string | null): { label: string; color: string; bg: string } {
+  const now = new Date()
+  const torontoDate = now.toLocaleDateString('en-CA', { timeZone: 'America/Toronto' })
+  const torontoTime = now.toLocaleTimeString('en-GB', { timeZone: 'America/Toronto', hour: '2-digit', minute: '2-digit', hour12: false })
+  const inTime = checkInTime || '16:00'
+  const outTime = checkOutTime || '11:00'
+
+  if (checkOut < torontoDate) return { label: 'Completed', color: '#AEAEA6', bg: '#1E1E1C' }
+  if (checkOut === torontoDate && torontoTime >= outTime) return { label: 'Completed', color: '#AEAEA6', bg: '#1E1E1C' }
+  if (checkIn === torontoDate && torontoTime < inTime) return { label: 'Checking in today', color: '#f39c12', bg: '#2a1f0a' }
+  if (checkIn <= torontoDate && checkOut >= torontoDate) return { label: 'Active', color: '#3498db', bg: '#0a1520' }
   return { label: 'Upcoming', color: '#2ecc71', bg: '#0a1f0f' }
 }
 
