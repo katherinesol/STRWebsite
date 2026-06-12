@@ -28,7 +28,7 @@ function Field({ label, helper, children }: { label: string; helper?: string; ch
   )
 }
 
-export default function SettingsForm({ settings }: { settings: { referral_reward_amount: number } | null }) {
+export default function SettingsForm({ icalUrls, settings }: { icalUrls: Record<string, string>;  settings: { referral_reward_amount: number } | null }) {
   const router = useRouter()
   const [referralAmount, setReferralAmount] = useState(settings?.referral_reward_amount || 50)
   const [etransferEmail, setEtransferEmail] = useState('')
@@ -83,12 +83,11 @@ export default function SettingsForm({ settings }: { settings: { referral_reward
               <div style={{ fontSize: '10px', letterSpacing: '.1em', textTransform: 'uppercase', color: '#9A9A92', marginBottom: '4px' }}>{label}</div>
               <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                 <code style={{ flex: 1, padding: '8px 12px', background: '#1E1E1C', border: '0.5px solid #363634', color: '#AEAEA6', fontSize: '11px', fontFamily: 'monospace', wordBreak: 'break-all' }}>
-                  {typeof window !== 'undefined' ? window.location.origin : 'https://yourdomain.com'}/api/ical/{id}?token=***
+                  {icalUrls[id] ? icalUrls[id].replace(/token=.*/, 'token=***') : 'Set ICAL_SECRET in env'}
                 </code>
                 <button
                   onClick={() => {
-                    const url = `${window.location.origin}/api/ical/${id}?token=${process.env.NEXT_PUBLIC_ICAL_SECRET || 'set-ICAL_SECRET-in-env'}`
-                    navigator.clipboard.writeText(url)
+                    navigator.clipboard.writeText(icalUrls[id] || '')
                   }}
                   style={{ padding: '8px 14px', background: '#363634', color: '#AEAEA6', border: 'none', fontFamily: 'var(--sans)', fontSize: '11px', cursor: 'pointer', whiteSpace: 'nowrap' }}
                 >
