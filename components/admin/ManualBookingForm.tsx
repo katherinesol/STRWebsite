@@ -57,6 +57,7 @@ export default function ManualBookingForm({ guests }: { guests: { id: string; na
   }
 
   const [busy, setBusy] = useState<{ start: string; end: string }[]>([])
+  const [pickerOpen, setPickerOpen] = useState(false)
 
   useEffect(() => {
     if (!form.property_id) return
@@ -114,17 +115,26 @@ export default function ManualBookingForm({ guests }: { guests: { id: string; na
             <input type="number" value={form.guests} onChange={e => set('guests', parseInt(e.target.value))} min={1} max={10} style={inputStyle} />
           </Field>
           <Field label="Check-in" half>
-            <input type="date" value={form.check_in} onChange={e => set('check_in', e.target.value)} style={inputStyle} />
+            <input type="text" readOnly value={form.check_in || 'Select date'} onClick={() => setPickerOpen(true)} style={{ ...inputStyle, cursor: 'pointer' }} />
           </Field>
           <Field label="Check-out" half>
-            <input type="date" value={form.check_out} onChange={e => set('check_out', e.target.value)} min={form.check_in} style={inputStyle} />
+            <input type="text" readOnly value={form.check_out || 'Select date'} onClick={() => setPickerOpen(true)} style={{ ...inputStyle, cursor: 'pointer' }} />
             {conflict && (
               <div style={{ fontSize: '11px', color: '#e74c3c', marginTop: '4px' }}>
                 ⚠ Dates unavailable — conflicts with existing booking/block ({conflict.start} → {conflict.end})
               </div>
             )}
-            <DateRangePicker busy={busy} checkIn={form.check_in} checkOut={form.check_out}
-              onChange={(ci, co) => setForm(f => ({ ...f, check_in: ci, check_out: co }))} />
+            {pickerOpen && (
+              <div style={{ position: 'relative' }}>
+                <div style={{ position: 'absolute', top: '4px', left: 0, zIndex: 50, width: '320px', boxShadow: '0 8px 24px rgba(0,0,0,.5)' }}>
+                  <DateRangePicker busy={busy} checkIn={form.check_in} checkOut={form.check_out}
+                    onChange={(ci, co) => {
+                      setForm(f => ({ ...f, check_in: ci, check_out: co }))
+                      if (ci && co) setPickerOpen(false)
+                    }} />
+                </div>
+              </div>
+            )}
           </Field>
         </div>
       </div>
