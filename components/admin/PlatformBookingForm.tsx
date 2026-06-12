@@ -99,6 +99,8 @@ export default function PlatformBookingForm({ block }: { block: any }) {
     discount: block.discount || '',
     discount_type: block.discount_type || 'Length of stay discount',
     payment_processing_fee: block.payment_processing_fee || '',
+    taxes_you_remit: block.taxes_you_remit || '',
+    taxes_platform_remits: block.taxes_platform_remits || '',
   })
 
   const [form, setForm] = useState({
@@ -131,8 +133,11 @@ export default function PlatformBookingForm({ block }: { block: any }) {
   const feeBase = accomNum - discountNum + cleaningNum + extrasNum
   const hostFeeAmt = Math.round(feeBase * (payment.host_service_fee_pct / 100) * 100) / 100
   const taxesNum = parseFloat(String(payment.taxes_collected)) || 0
+  const taxesYouRemitNum = parseFloat(String(payment.taxes_you_remit)) || 0
+  const taxesPlatformNum = parseFloat(String(payment.taxes_platform_remits)) || 0
   const processingFeeNum = parseFloat(String(payment.payment_processing_fee)) || 0
-  const payout = Math.round((feeBase - hostFeeAmt - processingFeeNum) * 100) / 100
+  const payout = Math.round((feeBase + taxesYouRemitNum - hostFeeAmt - processingFeeNum) * 100) / 100
+  const netRevenue = Math.round((payout - taxesYouRemitNum) * 100) / 100
   const guestTotal = Math.round((feeBase + taxesNum) * 100) / 100
 
   function setP(key: string, value: unknown) {
@@ -160,6 +165,8 @@ export default function PlatformBookingForm({ block }: { block: any }) {
           discount: discountNum || null,
           discount_type: discountNum ? payment.discount_type : null,
           payment_processing_fee: processingFeeNum || null,
+          taxes_you_remit: taxesYouRemitNum || null,
+          taxes_platform_remits: taxesPlatformNum || null,
           payout_amount: payout || null,
           guest_total: guestTotal || null,
           amount_paid: payout || null,
@@ -336,12 +343,23 @@ export default function PlatformBookingForm({ block }: { block: any }) {
             <div style={{ fontFamily: 'var(--serif)', fontSize: '22px', fontWeight: 300, color: 'var(--amber)' }}>${payout.toFixed(2)}</div>
           </div>
 
-          {/* taxes */}
+          {/* tax split */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '0.5px solid #2A2A28' }}>
+            <div style={{ fontSize: '13px', color: '#f39c12' }}>Lodging taxes YOU remit (HST owed to CRA)</div>
+            <input type="number" value={payment.taxes_you_remit} onChange={e => setP('taxes_you_remit', e.target.value)} placeholder="0.00"
+              style={{ width: '120px', padding: '6px 10px', background: '#363634', border: '0.5px solid #4A4A48', color: '#f39c12', fontFamily: 'var(--sans)', fontSize: '13px', outline: 'none', textAlign: 'right' }} />
+          </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0' }}>
-            <div style={{ fontSize: '12px', color: '#555550' }}>Taxes collected (by platform)</div>
-            <input type="number" value={payment.taxes_collected} onChange={e => setP('taxes_collected', e.target.value)} placeholder="0.00"
+            <div style={{ fontSize: '12px', color: '#555550' }}>Lodging taxes platform remits (MAT etc.)</div>
+            <input type="number" value={payment.taxes_platform_remits} onChange={e => setP('taxes_platform_remits', e.target.value)} placeholder="0.00"
               style={{ width: '120px', padding: '6px 10px', background: '#2A2A28', border: '0.5px solid #363634', color: '#555550', fontFamily: 'var(--sans)', fontSize: '12px', outline: 'none', textAlign: 'right' }} />
           </div>
+          {taxesYouRemitNum > 0 && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', fontSize: '12px', color: '#9A9A92' }}>
+              <span>Net revenue (payout − HST you remit)</span>
+              <span style={{ color: '#2ecc71' }}>${netRevenue.toFixed(2)}</span>
+            </div>
+          )}
         </div>
       </Section>
 

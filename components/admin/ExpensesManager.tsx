@@ -128,11 +128,11 @@ export default function ExpensesManager({ expenses, vendors }: { expenses: Expen
     finally { setExtracting(false) }
   }
 
-  async function handleSave() {
+  async function handleSave(force = false) {
     if (!form.description || !form.amount) return
     setSaving(true)
     try {
-      await fetch('/api/admin/expenses', {
+      const res = await fetch('/api/admin/expenses', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -141,8 +141,18 @@ export default function ExpensesManager({ expenses, vendors }: { expenses: Expen
           hst_paid: form.hst_paid ? parseFloat(form.hst_paid) : null,
           property_id: form.property_id || null,
           confirmed: true,
+          force,
         }),
       })
+      if (res.status === 409) {
+        const dup = await res.json()
+        if (confirm(`⚠ Possible duplicate:\n${dup.message}\n\nAdd anyway?`)) {
+          setSaving(false)
+          return handleSave(true)
+        }
+        setSaving(false)
+        return
+      }
       setForm({ date: today, vendor: '', description: '', amount: '', hst_paid: '', category: CATEGORIES[0], property_id: '', notes: '', receipt_url: '', ai_extracted: false, confirmed: false })
       setShowForm(false)
       router.refresh()
