@@ -291,7 +291,7 @@ export default function ExpensesManager({ expenses, vendors }: { expenses: Expen
             </div>
             <div style={{ display: 'flex', gap: '8px' }}>
               <button onClick={() => setShowForm(false)} style={{ padding: '8px 16px', background: '#363634', color: '#9A9A92', border: 'none', fontFamily: 'var(--sans)', fontSize: '11px', cursor: 'pointer' }}>Cancel</button>
-              <button onClick={handleSave} disabled={!form.description || !form.amount || saving}
+              <button onClick={() => handleSave()} disabled={!form.description || !form.amount || saving}
                 style={{ padding: '8px 20px', background: form.description && form.amount ? 'var(--amber)' : '#363634', color: form.description && form.amount ? '#1A1A18' : '#9A9A92', border: 'none', fontFamily: 'var(--sans)', fontSize: '11px', cursor: 'pointer', fontWeight: 500 }}>
                 {saving ? 'Saving...' : 'Add expense'}
               </button>

@@ -101,6 +101,7 @@ export default function PlatformBookingForm({ block }: { block: any }) {
     payment_processing_fee: block.payment_processing_fee || '',
     taxes_you_remit: block.taxes_you_remit || '',
     taxes_platform_remits: block.taxes_platform_remits || '',
+    auto_tax_split: false,
   })
 
   const [form, setForm] = useState({
@@ -133,7 +134,9 @@ export default function PlatformBookingForm({ block }: { block: any }) {
   const feeBase = accomNum - discountNum + cleaningNum + extrasNum
   const hostFeeAmt = Math.round(feeBase * (payment.host_service_fee_pct / 100) * 100) / 100
   const taxesNum = parseFloat(String(payment.taxes_collected)) || 0
-  const taxesYouRemitNum = parseFloat(String(payment.taxes_you_remit)) || 0
+  const taxRate = block.property_id === 'nickel-beach' ? 0.17 : 0.19 // HST 13% + MAT 4% or 6%
+  const autoTaxAmount = payment.auto_tax_split ? Math.round(feeBase * taxRate * 100) / 100 : 0
+  const taxesYouRemitNum = payment.auto_tax_split ? autoTaxAmount : (parseFloat(String(payment.taxes_you_remit)) || 0)
   const taxesPlatformNum = parseFloat(String(payment.taxes_platform_remits)) || 0
   const processingFeeNum = parseFloat(String(payment.payment_processing_fee)) || 0
   const payout = Math.round((feeBase + taxesYouRemitNum - hostFeeAmt - processingFeeNum) * 100) / 100
@@ -344,10 +347,18 @@ export default function PlatformBookingForm({ block }: { block: any }) {
           </div>
 
           {/* tax split */}
+          {/* auto tax split toggle */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '0.5px solid #2A2A28' }}>
+            <div style={{ fontSize: '12px', color: '#9A9A92' }}>Auto-calculate tax ({(taxRate * 100).toFixed(0)}% of subtotal — for older bookings where tax was bundled in)</div>
+            <button onClick={() => setP('auto_tax_split', !payment.auto_tax_split)}
+              style={{ padding: '5px 14px', background: payment.auto_tax_split ? 'var(--amber)' : '#363634', color: payment.auto_tax_split ? '#1A1A18' : '#9A9A92', border: 'none', fontFamily: 'var(--sans)', fontSize: '11px', cursor: 'pointer' }}>
+              {payment.auto_tax_split ? 'On' : 'Off'}
+            </button>
+          </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '0.5px solid #2A2A28' }}>
             <div style={{ fontSize: '13px', color: '#f39c12' }}>Lodging taxes YOU remit (HST + MAT)</div>
-            <input type="number" value={payment.taxes_you_remit} onChange={e => setP('taxes_you_remit', e.target.value)} placeholder="0.00"
-              style={{ width: '120px', padding: '6px 10px', background: '#363634', border: '0.5px solid #4A4A48', color: '#f39c12', fontFamily: 'var(--sans)', fontSize: '13px', outline: 'none', textAlign: 'right' }} />
+            <input type="number" value={payment.auto_tax_split ? autoTaxAmount : payment.taxes_you_remit} onChange={e => setP('taxes_you_remit', e.target.value)} placeholder="0.00" disabled={payment.auto_tax_split}
+              style={{ width: '120px', padding: '6px 10px', background: payment.auto_tax_split ? '#2A2A28' : '#363634', border: '0.5px solid #4A4A48', color: '#f39c12', fontFamily: 'var(--sans)', fontSize: '13px', outline: 'none', textAlign: 'right' }} />
           </div>
           {taxesYouRemitNum > 0 && (() => {
             const matRate = block.property_id === 'nickel-beach' ? 0.04 : 0.06
