@@ -93,10 +93,7 @@ export default async function BookingsPage({
     .filter(b => {
       const days = Math.round((new Date(b.end_date).getTime() - new Date(b.start_date).getTime()) / 86400000)
       // exclude prep days: 1-day blocks explicitly marked as not a booking
-      if (days <= 1 && (b as any).is_booking === false) return false
-      // exclude multi-day blocks explicitly marked as not a booking
-      if ((b as any).is_booking === false) return false
-      return true
+      return (b as any).is_booking === true
     })
     .map(b => ({
       id: b.id,

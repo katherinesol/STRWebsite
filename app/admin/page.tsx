@@ -40,10 +40,7 @@ export default async function AdminDashboard() {
     .gte('start_date', todayStr)
     .lte('start_date', sevenDaysStr)
     .order('start_date')
-  const platformCheckins = (platformCheckinsRaw || []).filter(b => {
-    const days = Math.round((new Date(b.end_date).getTime() - new Date(b.start_date).getTime()) / 86400000)
-    return days > 1 || b.is_booking
-  })
+  const platformCheckins = (platformCheckinsRaw || []).filter(b => b.is_booking === true)
 
   const { data: platformCheckoutsRaw } = await supabase
     .from('calendar_blocks')
@@ -52,10 +49,7 @@ export default async function AdminDashboard() {
     .gte('end_date', todayStr)
     .lte('end_date', sevenDaysStr)
     .order('end_date')
-  const platformCheckouts = (platformCheckoutsRaw || []).filter(b => {
-    const days = Math.round((new Date(b.end_date).getTime() - new Date(b.start_date).getTime()) / 86400000)
-    return days > 1 || b.is_booking
-  })
+  const platformCheckouts = (platformCheckoutsRaw || []).filter(b => b.is_booking === true)
 
   const { data: allPlatformBlocks } = await supabase
     .from('calendar_blocks')
