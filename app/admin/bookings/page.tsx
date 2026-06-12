@@ -11,6 +11,7 @@ const PROPERTY_NAMES: Record<string, string> = {
 function getAutoStatus(checkIn: string, checkOut: string): { label: string; color: string; bg: string } {
   const today = new Date().toISOString().split('T')[0]
   if (checkOut < today) return { label: 'Completed', color: '#9A9A92', bg: '#242422' }
+  if (checkIn === today) return { label: 'Checking in today', color: '#f39c12', bg: '#2a1f0a' }
   if (checkIn <= today && checkOut >= today) return { label: 'Active', color: '#3498db', bg: '#0a1520' }
   return { label: 'Upcoming', color: '#2ecc71', bg: '#0a1f0f' }
 }
@@ -192,7 +193,7 @@ export default async function BookingsPage({
             return (
               <div key={row.id} style={{ display: 'grid', gridTemplateColumns: '100px 1fr 160px 180px 100px 80px', padding: '14px 20px', borderBottom: '0.5px solid #363634', alignItems: 'center' }}>
                 <div>
-                  {(() => { const ps = getAutoStatus(b.start_date, b.end_date); return <span style={{ display: 'inline-block', padding: '3px 8px', background: ps.bg, color: ps.color, fontSize: '9px', letterSpacing: '.08em', textTransform: 'uppercase' }}>{ps.label}</span> })()}
+                  <span style={{ fontSize: '9px', padding: '3px 8px', background: '#1E1E1C', color: PLATFORM_COLORS[b.platform] || '#9A9A92', letterSpacing: '.08em', textTransform: 'uppercase' }}>{b.platform}</span>
                 </div>
                 <div>
                   <div style={{ fontSize: '13px', color: '#F5F2EC', fontWeight: 500 }}>{b.guest_name || '—'}</div>
@@ -206,7 +207,7 @@ export default async function BookingsPage({
                   </div>
                 </div>
                 <div>
-                  <span style={{ fontSize: '9px', padding: '3px 8px', background: '#1E1E1C', color: PLATFORM_COLORS[b.platform] || '#9A9A92', letterSpacing: '.08em', textTransform: 'uppercase' }}>Platform</span>
+                  {(() => { const ps = getAutoStatus(b.start_date, b.end_date); return <span style={{ display: 'inline-block', padding: '3px 8px', background: ps.bg, color: ps.color, fontSize: '9px', letterSpacing: '.1em', textTransform: 'uppercase' }}>{ps.label}</span> })()}
                 </div>
                 <div style={{ textAlign: 'right' }}>
                   <Link href={`/admin/bookings/block/${b.id}`} style={{ fontSize: '11px', color: 'var(--amber)', textDecoration: 'none' }}>Edit →</Link>
