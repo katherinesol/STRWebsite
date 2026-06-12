@@ -345,10 +345,20 @@ export default function PlatformBookingForm({ block }: { block: any }) {
 
           {/* tax split */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '0.5px solid #2A2A28' }}>
-            <div style={{ fontSize: '13px', color: '#f39c12' }}>Lodging taxes YOU remit (HST owed to CRA)</div>
+            <div style={{ fontSize: '13px', color: '#f39c12' }}>Lodging taxes YOU remit (HST + MAT)</div>
             <input type="number" value={payment.taxes_you_remit} onChange={e => setP('taxes_you_remit', e.target.value)} placeholder="0.00"
               style={{ width: '120px', padding: '6px 10px', background: '#363634', border: '0.5px solid #4A4A48', color: '#f39c12', fontFamily: 'var(--sans)', fontSize: '13px', outline: 'none', textAlign: 'right' }} />
           </div>
+          {taxesYouRemitNum > 0 && (() => {
+            const matRate = block.property_id === 'nickel-beach' ? 0.04 : 0.06
+            const hstPortion = Math.round(taxesYouRemitNum * (0.13 / (0.13 + matRate)) * 100) / 100
+            const matPortion = Math.round((taxesYouRemitNum - hstPortion) * 100) / 100
+            return (
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0 8px', fontSize: '11px', color: '#666660' }}>
+                <span>≈ HST (CRA): ${hstPortion.toFixed(2)} · MAT (municipality): ${matPortion.toFixed(2)}</span>
+              </div>
+            )
+          })()}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0' }}>
             <div style={{ fontSize: '12px', color: '#555550' }}>Lodging taxes platform remits (MAT etc.)</div>
             <input type="number" value={payment.taxes_platform_remits} onChange={e => setP('taxes_platform_remits', e.target.value)} placeholder="0.00"
