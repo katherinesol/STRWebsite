@@ -1,4 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/server'
+import MobileAgenda from '@/components/admin/MobileAgenda'
 import CalendarView from '@/components/admin/CalendarView'
 import { syncICalToDB } from '@/lib/ical-sync'
 
@@ -23,5 +24,12 @@ export default async function CalendarPage() {
       .order('start_date'),
   ])
 
-  return <CalendarView bookings={bookings || []} blocks={blocks || []} />
+  return (
+    <>
+      <div className="cal-desktop">
+        <CalendarView bookings={bookings || []} blocks={blocks || []} />
+      </div>
+      <MobileAgenda bookings={bookings || []} blocks={blocks || []} />
+    </>
+  )
 }
