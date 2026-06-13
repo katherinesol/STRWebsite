@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react'
 import { Property } from '@/lib/properties'
 import DateRangePicker from './DateRangePicker'
+import { calcStay, type PricingConfig, type Override } from '@/lib/pricing'
 
 export default function BookingWidget({ property }: { property: Property }) {
   const [checkIn, setCheckIn] = useState('')
@@ -34,12 +35,12 @@ export default function BookingWidget({ property }: { property: Property }) {
       <div style={{ marginBottom: '20px' }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px' }}>
           <span style={{ fontFamily: 'var(--serif)', fontSize: '32px', fontWeight: 300, color: 'var(--noir)' }}>
-            ${property.nightly}
+            ${displayRate}
           </span>
           <span style={{ fontSize: '13px', color: 'var(--muted)' }}>/ night</span>
         </div>
         <div style={{ fontSize: '10px', fontWeight: 500, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--amber)', marginTop: '4px' }}>
-          {property.minStay} night minimum · Book direct & save
+          {effMinStay} night minimum · Book direct & save
         </div>
       </div>
 
@@ -47,7 +48,7 @@ export default function BookingWidget({ property }: { property: Property }) {
       <div style={{ marginBottom: '16px' }}>
         <DateRangePicker
           blockedDates={blockedDates}
-          minStay={property.minStay}
+          minStay={effMinStay}
           onRangeChange={(ci, co) => { setCheckIn(ci); setCheckOut(co) }}
         />
       </div>
@@ -77,8 +78,8 @@ export default function BookingWidget({ property }: { property: Property }) {
         <div style={{ marginBottom: '20px' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
             {[
-              { label: `$${property.nightly} × ${nights} nights`, value: `$${accommodation}` },
-              { label: 'Cleaning fee', value: `$${property.cleaningFee}` },
+              { label: stay.nights.length > 0 && stay.nights.every(n => n.rate === stay.nights[0].rate) ? `$${stay.avgRate} × ${nights} nights` : `${nights} nights (avg $${stay.avgRate})`, value: `$${accommodation}` },
+              { label: 'Cleaning fee', value: `$${cleaningFee}` },
               { label: `HST (${Math.round(property.hst * 100)}%)`, value: `$${hstAmount}` },
               { label: `MAT (${Math.round(property.mat * 100)}%)`, value: `$${matAmount}` },
               { label: 'Platform fees', value: '$0', accent: true },
