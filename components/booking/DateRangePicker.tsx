@@ -154,7 +154,8 @@ export default function DateRangePicker({ blockedDates, minStay, onRangeChange }
           position: 'absolute', top: '100%', left: 0, right: 0,
           background: 'white', border: '0.5px solid var(--sand)',
           zIndex: 50, boxShadow: '0 8px 32px rgba(0,0,0,.12)',
-          overflowX: 'auto',
+          overflowX: 'auto', overflowY: 'auto',
+          maxHeight: 'min(420px, 60vh)',
         }}>
           <style>{`
             .rdp { --rdp-accent-color: #1A1A18; --rdp-background-color: #F0EDE6; margin: 0; font-family: var(--sans); }
