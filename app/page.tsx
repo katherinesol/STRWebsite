@@ -19,11 +19,26 @@ export default async function Home() {
     .gte('rating', 5)
     .order('created_at', { ascending: false })
 
+  // cover photo per property for the homepage cards
+  const { data: coverRows } = await supabase
+    .from('property_photos')
+    .select('property_id, storage_path, is_cover, sort_order')
+    .eq('media_type', 'image')
+    .order('sort_order')
+  const covers: Record<string, string> = {}
+  for (const row of coverRows || []) {
+    // first photo per property, overridden by explicit cover
+    if (!covers[row.property_id] || row.is_cover) {
+      const { data } = supabase.storage.from('property-photos').getPublicUrl(row.storage_path)
+      covers[row.property_id] = data.publicUrl
+    }
+  }
+
   return (
     <>
       <Nav />
       <Hero />
-      <Properties />
+      <Properties covers={covers} />
       <WhyDirect />
       <ReviewStrip reviews={reviews || []} />
       <HowItWorks />

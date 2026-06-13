@@ -27,7 +27,7 @@ const PROPERTIES = [
   },
 ]
 
-export default function Properties() {
+export default function Properties({ covers = {} }: { covers?: Record<string, string> }) {
   return (
     <section id="properties" style={{ background: 'var(--chalk)', padding: 'clamp(48px, 8vw, 80px) clamp(20px, 5vw, 40px) 0' }}>
       <div style={{
@@ -62,14 +62,19 @@ export default function Properties() {
           <div key={p.id} style={{ background: 'var(--chalk)', cursor: 'pointer' }}>
             <div style={{
               width: '100%', aspectRatio: '3/2', background: p.bg,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
             }}>
-              <span style={{
-                fontSize: '10px', letterSpacing: '.1em',
-                textTransform: 'uppercase', color: 'var(--sand-mid)',
-              }}>
-                Property photo
-              </span>
+              {covers[p.id] ? (
+                <img src={covers[p.id]} alt={p.name.replace('\n', ' ')} loading="lazy"
+                  style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              ) : (
+                <span style={{
+                  fontSize: '10px', letterSpacing: '.1em',
+                  textTransform: 'uppercase', color: 'var(--sand-mid)',
+                }}>
+                  Property photo
+                </span>
+              )}
             </div>
             <div style={{ padding: '20px 22px 24px' }}>
               <div style={{
