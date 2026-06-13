@@ -51,6 +51,9 @@ export default async function PropertiesPage() {
               <Link href={`/admin/properties/${p.id}/photos`} style={{ fontSize: '11px', color: '#9A9A92', textDecoration: 'none', marginRight: '16px' }}>
                 Photos →
               </Link>
+              <Link href={`/admin/properties/${p.id}/pricing`} style={{ fontSize: '11px', color: '#9A9A92', textDecoration: 'none', marginRight: '16px' }}>
+                Pricing →
+              </Link>
               <Link href={`/admin/properties/${p.id}`} style={{
                 padding: '10px 20px', background: '#363634', color: '#AEAEA6',
                 fontSize: '11px', letterSpacing: '.1em', textTransform: 'uppercase',
