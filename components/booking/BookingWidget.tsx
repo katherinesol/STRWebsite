@@ -9,25 +9,40 @@ export default function BookingWidget({ property }: { property: Property }) {
   const [checkOut, setCheckOut] = useState('')
   const [guests, setGuests] = useState(2)
   const [blockedDates, setBlockedDates] = useState<{ start: string; end: string }[]>([])
+  const [pricing, setPricing] = useState<{ config: PricingConfig | null; overrides: Override[] }>({ config: null, overrides: [] })
 
   useEffect(() => {
     fetch(`/api/calendar?property=${property.id}`)
       .then(r => r.ok ? r.json() : null)
       .then(data => { if (data?.blocked) setBlockedDates(data.blocked) })
       .catch(() => {})
+    fetch(`/api/pricing?property=${property.id}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data) setPricing({ config: data.config, overrides: data.overrides || [] }) })
+      .catch(() => {})
   }, [property.id])
 
-  const nights = checkIn && checkOut
-    ? Math.max(0, Math.round((new Date(checkOut).getTime() - new Date(checkIn).getTime()) / 86400000))
-    : 0
+  const effConfig: PricingConfig = pricing.config || {
+    property_id: property.id,
+    base_rate: property.nightly,
+    weekend_rate: null,
+    min_stay: property.minStay,
+    cleaning_fee: property.cleaningFee,
+  }
+  const displayRate = Number(effConfig.base_rate)
+  const cleaningFee = Number(effConfig.cleaning_fee) || property.cleaningFee
+  const effMinStay = Number(effConfig.min_stay) || property.minStay
 
-  const accommodation = nights * property.nightly
+  const stay = checkIn && checkOut
+    ? calcStay(checkIn, checkOut, effConfig, pricing.overrides)
+    : { nights: [], nightCount: 0, accommodation: 0, avgRate: 0, requiredMinStay: effMinStay }
+  const nights = stay.nightCount
+  const accommodation = stay.accommodation
   const matAmount = Math.round(accommodation * property.mat)
-  const hstAmount = Math.round((accommodation + property.cleaningFee) * property.hst)
-  const total = accommodation + property.cleaningFee + matAmount + hstAmount
+  const hstAmount = Math.round((accommodation + cleaningFee) * property.hst)
+  const total = accommodation + cleaningFee + matAmount + hstAmount
   const deposit = Math.round(total * property.depositPercent / 100)
-
-  const canBook = nights >= property.minStay
+  const canBook = nights >= stay.requiredMinStay
 
   return (
     <div style={{ border: '0.5px solid var(--sand-mid)', background: 'var(--chalk)', padding: '28px' }}>
