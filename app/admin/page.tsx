@@ -97,6 +97,9 @@ export default async function AdminDashboard() {
         <StatCard label="Overdue payments" value={overduePayments?.length || 0} accent={!!overduePayments?.length} />
       </div>
 
+      <div style={{ marginBottom: '32px' }}>
+        <CisternLevel />
+      </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
 
         {/* upcoming check-ins */}
