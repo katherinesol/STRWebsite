@@ -39,7 +39,8 @@ export default function ExpensesManager({ expenses, vendors }: { expenses: Expen
   const [saving, setSaving] = useState(false)
   const [extracting, setExtracting] = useState(false)
   const [view, setView] = useState<'list' | 'category' | 'month'>('list')
-  const [filterMonth, setFilterMonth] = useState(today.slice(0, 7))
+  const [filterYear, setFilterYear] = useState(today.slice(0, 4))
+  const [filterMonth, setFilterMonth] = useState('') // '' = whole year
   const [filterCategory, setFilterCategory] = useState('')
   const [filterProperty, setFilterProperty] = useState('')
 
@@ -158,7 +159,8 @@ export default function ExpensesManager({ expenses, vendors }: { expenses: Expen
 
   // filter expenses
   const filtered = expenses.filter(e => {
-    if (filterMonth && !e.date.startsWith(filterMonth)) return false
+    if (filterYear && !e.date.startsWith(filterYear)) return false
+    if (filterMonth && e.date.slice(5, 7) !== filterMonth) return false
     if (filterCategory && e.category !== filterCategory) return false
     if (filterProperty && e.property_id !== filterProperty) return false
     return true
@@ -192,8 +194,19 @@ export default function ExpensesManager({ expenses, vendors }: { expenses: Expen
 
       {/* filters */}
       <div className="filter-row" style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: '20px', alignItems: 'center' }}>
-        <input type="month" value={filterMonth} onChange={e => setFilterMonth(e.target.value)}
-          style={{ ...inputStyle, width: 'auto', background: '#363634' }} />
+        <select value={filterYear} onChange={e => setFilterYear(e.target.value)}
+          style={{ ...inputStyle, width: 'auto', background: '#363634' }}>
+          {Array.from({ length: 5 }, (_, i) => String(new Date().getFullYear() - i)).map(y => (
+            <option key={y} value={y}>{y}</option>
+          ))}
+        </select>
+        <select value={filterMonth} onChange={e => setFilterMonth(e.target.value)}
+          style={{ ...inputStyle, width: 'auto', background: '#363634' }}>
+          <option value="">All months</option>
+          {['01','02','03','04','05','06','07','08','09','10','11','12'].map((m, i) => (
+            <option key={m} value={m}>{['January','February','March','April','May','June','July','August','September','October','November','December'][i]}</option>
+          ))}
+        </select>
         <select value={filterCategory} onChange={e => setFilterCategory(e.target.value)}
           style={{ ...inputStyle, width: 'auto', background: '#363634' }}>
           <option value="">All categories</option>
