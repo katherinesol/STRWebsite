@@ -1,17 +1,13 @@
 'use client'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { EXPENSE_CATEGORIES } from '@/lib/expense-categories'
+import { PROPERTY_OPTIONS } from '@/lib/property-options'
 
 const CATEGORIES = [
   'Advertising', 'Insurance', 'Interest & bank charges', 'Office expenses',
   'Supplies', 'Professional fees', 'Management & admin fees', 'Repairs & maintenance',
   'Salaries & wages', 'Property taxes', 'Travel', 'Utilities', 'Motor vehicle', 'Other',
-]
-const PROPERTIES = [
-  { id: '', name: 'Unassigned / all' },
-  { id: 'royal-york-east', name: 'Royal York East' },
-  { id: 'royal-york-west', name: 'Royal York West' },
-  { id: 'nickel-beach', name: 'Nickel Beach' },
 ]
 
 const inputStyle: React.CSSProperties = {
@@ -100,13 +96,13 @@ function ReceiptCard({ p, onResolve }: { p: Pending; onResolve: (id: string) => 
         <div>
           <div style={{ fontSize: '9px', letterSpacing: '.1em', textTransform: 'uppercase', color: '#9A9A92', marginBottom: '4px' }}>Category</div>
           <select value={f.category} onChange={e => setF(s => ({ ...s, category: e.target.value }))} style={inputStyle}>
-            {CATEGORIES.map(c => <option key={c}>{c}</option>)}
+            {EXPENSE_CATEGORIES.map(c => <option key={c}>{c}</option>)}
           </select>
         </div>
         <div>
           <div style={{ fontSize: '9px', letterSpacing: '.1em', textTransform: 'uppercase', color: '#9A9A92', marginBottom: '4px' }}>Property</div>
           <select value={f.property_id} onChange={e => setF(s => ({ ...s, property_id: e.target.value }))} style={inputStyle}>
-            {PROPERTIES.map(pr => <option key={pr.id} value={pr.id}>{pr.name}</option>)}
+            {PROPERTY_OPTIONS.map(pr => <option key={pr.id} value={pr.id}>{pr.name}</option>)}
           </select>
         </div>
       </div>
