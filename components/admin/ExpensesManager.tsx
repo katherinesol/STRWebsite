@@ -2,31 +2,10 @@
 import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { format, startOfMonth, endOfMonth, startOfYear } from 'date-fns'
+import { EXPENSE_CATEGORIES } from '@/lib/expense-categories'
+import { PROPERTY_OPTIONS } from '@/lib/property-options'
 
-const CATEGORIES = [
-  'Platform Fees (Airbnb/VRBO)',
-  'Cleaning Fees',
-  'Utilities',
-  'Property Tax',
-  'Insurance',
-  'Repairs & Maintenance',
-  'Furnishings & Supplies',
-  'Internet & Cable',
-  'Vehicle (KM Method)',
-  'Meals',
-  'Materials',
-  'Labor',
-  'Renovation',
-  'Bank Fees',
-  'Other',
-]
 
-const PROPERTIES = [
-  { id: '', name: 'All properties / General' },
-  { id: 'royal-york-east', name: 'Royal York East' },
-  { id: 'royal-york-west', name: 'Royal York West' },
-  { id: 'nickel-beach', name: 'Nickel Beach' },
-]
 
 const inputStyle: React.CSSProperties = {
   width: '100%', padding: '8px 10px',
@@ -70,7 +49,7 @@ export default function ExpensesManager({ expenses, vendors }: { expenses: Expen
     description: '',
     amount: '',
     hst_paid: '',
-    category: CATEGORIES[0],
+    category: EXPENSE_CATEGORIES[0],
     property_id: '',
     notes: '',
     receipt_url: '',
@@ -79,7 +58,14 @@ export default function ExpensesManager({ expenses, vendors }: { expenses: Expen
     confirmed: false,
   })
 
+  const [hstManual, setHstManual] = useState(false)
   function set(key: string, value: unknown) {
+    if (key === 'hst_paid') setHstManual(true)
+    if (key === 'amount' && !hstManual) {
+      const amt = parseFloat(String(value))
+      setForm(f => ({ ...f, amount: String(value), hst_paid: amt ? (amt * 13 / 113).toFixed(2) : '' }))
+      return
+    }
     setForm(f => ({ ...f, [key]: value }))
   }
 
@@ -157,7 +143,7 @@ export default function ExpensesManager({ expenses, vendors }: { expenses: Expen
         setSaving(false)
         return
       }
-      setForm({ date: today, vendor: '', description: '', amount: '', hst_paid: '', category: CATEGORIES[0], property_id: '', notes: '', receipt_url: '', receipt_path: null, ai_extracted: false, confirmed: false })
+      setForm({ date: today, vendor: '', description: '', amount: '', hst_paid: '', category: EXPENSE_CATEGORIES[0], property_id: '', notes: '', receipt_url: '', receipt_path: null, ai_extracted: false, confirmed: false })
       setShowForm(false)
       router.refresh()
     } catch {}
@@ -182,7 +168,7 @@ export default function ExpensesManager({ expenses, vendors }: { expenses: Expen
   const totalHst = filtered.reduce((s, e) => s + (e.hst_paid || 0), 0)
 
   // category breakdown
-  const byCategory = CATEGORIES.map(cat => ({
+  const byCategory = EXPENSE_CATEGORIES.map(cat => ({
     cat,
     total: filtered.filter(e => e.category === cat).reduce((s, e) => s + (e.amount || 0), 0),
     count: filtered.filter(e => e.category === cat).length,
@@ -211,11 +197,11 @@ export default function ExpensesManager({ expenses, vendors }: { expenses: Expen
         <select value={filterCategory} onChange={e => setFilterCategory(e.target.value)}
           style={{ ...inputStyle, width: 'auto', background: '#363634' }}>
           <option value="">All categories</option>
-          {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+          {EXPENSE_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
         </select>
         <select value={filterProperty} onChange={e => setFilterProperty(e.target.value)}
           style={{ ...inputStyle, width: 'auto', background: '#363634' }}>
-          {PROPERTIES.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+          {PROPERTY_OPTIONS.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
         </select>
         <div style={{ display: 'flex', gap: '1px', marginLeft: 'auto' }}>
           {(['list', 'category'] as const).map(v => (
@@ -283,13 +269,13 @@ export default function ExpensesManager({ expenses, vendors }: { expenses: Expen
               <div>
                 <div style={{ fontSize: '10px', letterSpacing: '.1em', textTransform: 'uppercase', color: '#9A9A92', marginBottom: '5px' }}>Category</div>
                 <select value={form.category} onChange={e => set('category', e.target.value)} style={{ ...inputStyle, background: '#363634' }}>
-                  {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                  {EXPENSE_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
               <div>
                 <div style={{ fontSize: '10px', letterSpacing: '.1em', textTransform: 'uppercase', color: '#9A9A92', marginBottom: '5px' }}>Property</div>
                 <select value={form.property_id} onChange={e => set('property_id', e.target.value)} style={{ ...inputStyle, background: '#363634' }}>
-                  {PROPERTIES.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  {PROPERTY_OPTIONS.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                 </select>
               </div>
             </div>

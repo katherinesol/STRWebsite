@@ -48,13 +48,22 @@ function ReceiptCard({ p, onResolve }: { p: Pending; onResolve: (id: string) => 
   })
   const [busy, setBusy] = useState(false)
 
-  async function act(action: 'approve' | 'reject') {
+  async function act(action: 'approve' | 'reject', force = false) {
     setBusy(true)
     try {
-      await fetch('/api/admin/pending-receipts', {
+      const res = await fetch('/api/admin/pending-receipts', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: p.id, action, fields: { ...f, receipt_path: p.receipt_path } }),
+        body: JSON.stringify({ id: p.id, action, fields: { ...f, receipt_path: p.receipt_path, force } }),
       })
+      if (res.status === 409) {
+        const dup = await res.json()
+        if (confirm(`⚠ Possible duplicate:\n${dup.message}\n\nApprove anyway?`)) {
+          setBusy(false)
+          return act('approve', true)
+        }
+        setBusy(false)
+        return
+      }
       onResolve(p.id)
     } finally { setBusy(false) }
   }
