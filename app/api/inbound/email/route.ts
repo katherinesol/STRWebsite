@@ -14,10 +14,12 @@ async function fetchFirstAttachment(emailId: string): Promise<{ base64: string; 
     if (!listRes.ok) {
       const errText = await listRes.text()
       console.log('ATTACHMENT LIST error body:', errText)
+      ;(globalThis as any).__lastAttachmentDebug = JSON.stringify({ status: listRes.status, error: errText })
       return null
     }
     const list = await listRes.json()
     console.log('ATTACHMENT LIST response:', JSON.stringify(list))
+    ;(globalThis as any).__lastAttachmentDebug = JSON.stringify({ status: listRes.status, body: list })
     const attachments = list.data || list.attachments || []
     const att = attachments.find((a: any) => {
       const ct = a.content_type || ''
@@ -103,7 +105,7 @@ export async function POST(request: NextRequest) {
     contact_id: contactId,
     contact_name: contactName,
     receipt_path: receiptPath,
-    raw_text: bodyText.slice(0, 2000),
+    raw_text: ((globalThis as any).__lastAttachmentDebug ? '[DEBUG] ' + (globalThis as any).__lastAttachmentDebug + ' | ' : '') + bodyText.slice(0, 1500),
     vendor: extracted.vendor,
     amount: extracted.amount,
     hst_paid: extracted.hst,
