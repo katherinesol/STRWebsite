@@ -2,62 +2,90 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { extractReceipt } from '@/lib/extract-receipt'
 
+const RESEND_KEY = process.env.RESEND_API_KEY
+
+// fetch attachment list for a received email, returns first image/pdf as base64
+async function fetchFirstAttachment(emailId: string): Promise<{ base64: string; ctype: string } | null> {
+  try {
+    const listRes = await fetch(`https://api.resend.com/emails/receiving/${emailId}/attachments`, {
+      headers: { Authorization: `Bearer ${RESEND_KEY}` },
+    })
+    if (!listRes.ok) return null
+    const list = await listRes.json()
+    const attachments = list.data || list.attachments || []
+    const att = attachments.find((a: any) => {
+      const ct = a.content_type || ''
+      return ct.startsWith('image/') || ct.includes('pdf')
+    })
+    if (!att) return null
+
+    const url = att.download_url || att.url
+    if (!url) return null
+    const fileRes = await fetch(url)
+    if (!fileRes.ok) return null
+    const buf = Buffer.from(await fileRes.arrayBuffer())
+    return { base64: buf.toString('base64'), ctype: att.content_type || 'image/jpeg' }
+  } catch {
+    return null
+  }
+}
+
+// fetch email body text if no attachment
+async function fetchEmailBody(emailId: string): Promise<string> {
+  try {
+    const res = await fetch(`https://api.resend.com/emails/receiving/${emailId}`, {
+      headers: { Authorization: `Bearer ${RESEND_KEY}` },
+    })
+    if (!res.ok) return ''
+    const data = await res.json()
+    const d = data.data || data
+    return d.text || d.subject || ''
+  } catch {
+    return ''
+  }
+}
+
 export async function POST(request: NextRequest) {
   let event: any
-  try {
-    event = await request.json()
-  } catch {
-    return NextResponse.json({ error: 'Invalid payload' }, { status: 400 })
-  }
-
-  if (event.type !== 'email.received') {
-    return NextResponse.json({ ok: true }) // ignore non-receive events
-  }
+  try { event = await request.json() } catch { return NextResponse.json({ error: 'Invalid' }, { status: 400 }) }
+  if (event.type !== 'email.received') return NextResponse.json({ ok: true })
 
   const data = event.data || {}
+  const emailId = data.email_id
   const from = data.from || null
-  const bodyText = data.text || data.subject || ''
+  const subject = data.subject || ''
   const supabase = createAdminClient()
 
-  // match sender email to a contact
+  // match sender to a contact
   let contactId: string | null = null
   let contactName: string | null = null
   if (from) {
-    // from may be "Name <email@x.com>" — pull the address
     const emailMatch = from.match(/<([^>]+)>/)
     const addr = (emailMatch ? emailMatch[1] : from).toLowerCase().trim()
-    const { data: contact } = await supabase
-      .from('contacts')
-      .select('id, name')
-      .contains('emails', [addr])
-      .maybeSingle()
+    const { data: contact } = await supabase.from('contacts').select('id, name').contains('emails', [addr]).maybeSingle()
     if (contact) { contactId = contact.id; contactName = contact.name }
   }
 
-  let receiptPath: string | null = null
+  // try attachment first, fall back to email body text
   let content: any = null
+  let receiptPath: string | null = null
+  let bodyText = subject
 
-  // attachments arrive as metadata — fetch the first image/pdf via Resend Attachments API
-  const attachment = (data.attachments || [])[0]
-  if (attachment?.content) {
-    // some inbound providers inline base64; handle that
-    const base64 = attachment.content
-    const ctype = attachment.content_type || 'image/jpeg'
-    const ext = ctype.includes('pdf') ? 'pdf' : (ctype.split('/')[1] || 'jpg')
+  const att = emailId ? await fetchFirstAttachment(emailId) : null
+  if (att) {
+    const ext = att.ctype.includes('pdf') ? 'pdf' : (att.ctype.split('/')[1] || 'jpg')
     receiptPath = `inbound/${Date.now()}.${ext}`
     try {
-      const bytes = Buffer.from(base64, 'base64')
-      await supabase.storage.from('property-management').upload(receiptPath, bytes, { contentType: ctype })
+      await supabase.storage.from('property-management').upload(receiptPath, Buffer.from(att.base64, 'base64'), { contentType: att.ctype })
     } catch { receiptPath = null }
-
-    content = ctype.includes('pdf')
-      ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 } }
-      : { type: 'image', source: { type: 'base64', media_type: ctype, data: base64 } }
-  } else if (bodyText.trim()) {
-    content = { type: 'text', text: `Receipt email:\n${bodyText}` }
+    content = att.ctype.includes('pdf')
+      ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: att.base64 } }
+      : { type: 'image', source: { type: 'base64', media_type: att.ctype, data: att.base64 } }
+  } else {
+    bodyText = (emailId ? await fetchEmailBody(emailId) : '') || subject
+    if (bodyText.trim()) content = { type: 'text', text: `Receipt email:\n${bodyText}` }
   }
 
-  // run extraction if we have something
   let extracted = { vendor: null, amount: null, hst: null, date: null, category: null, description: null } as any
   if (content) {
     try { extracted = await extractReceipt(content) } catch {}
