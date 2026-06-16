@@ -19,6 +19,21 @@ export async function POST(request: NextRequest) {
   const bodyText = data.text || data.subject || ''
   const supabase = createAdminClient()
 
+  // match sender email to a contact
+  let contactId: string | null = null
+  let contactName: string | null = null
+  if (from) {
+    // from may be "Name <email@x.com>" — pull the address
+    const emailMatch = from.match(/<([^>]+)>/)
+    const addr = (emailMatch ? emailMatch[1] : from).toLowerCase().trim()
+    const { data: contact } = await supabase
+      .from('contacts')
+      .select('id, name')
+      .contains('emails', [addr])
+      .maybeSingle()
+    if (contact) { contactId = contact.id; contactName = contact.name }
+  }
+
   let receiptPath: string | null = null
   let content: any = null
 
@@ -51,6 +66,8 @@ export async function POST(request: NextRequest) {
   await supabase.from('pending_receipts').insert({
     source: 'email',
     from_address: from,
+    contact_id: contactId,
+    contact_name: contactName,
     receipt_path: receiptPath,
     raw_text: bodyText.slice(0, 2000),
     vendor: extracted.vendor,

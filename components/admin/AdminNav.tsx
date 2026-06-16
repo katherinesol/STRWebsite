@@ -8,6 +8,7 @@ const NAV = [
   { href: '/admin/bookings', label: 'Bookings', icon: '◈' },
   { href: '/admin/calendar', label: 'Calendar', icon: '▦' },
   { href: '/admin/guests', label: 'Guests', icon: '◉' },
+  { href: '/admin/contacts', label: 'Contacts', icon: '✉' },
   { href: '/admin/properties', label: 'Properties', icon: '⌂' },
   { href: '/admin/access', label: 'Access', icon: '⊙' },
   { href: '/admin/reviews', label: 'Reviews', icon: '◎' },

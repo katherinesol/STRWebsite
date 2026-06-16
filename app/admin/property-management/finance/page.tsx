@@ -1,6 +1,7 @@
 import { createAdminClient } from '@/lib/supabase/server'
 import Link from 'next/link'
 import ExpensesManager from '@/components/admin/ExpensesManager'
+import ReceiptReviewQueue from '@/components/admin/ReceiptReviewQueue'
 
 export default async function FinancePage() {
   const supabase = createAdminClient()
@@ -35,6 +36,21 @@ export default async function FinancePage() {
   // taxes collected by platforms (HST remitted on your behalf or owed)
   const taxesCollected = (platformBookings || []).reduce((s, b) => s + (b.taxes_collected || 0), 0)
 
+  // pending receipts awaiting review
+  const { data: pendingRaw } = await supabase
+    .from('pending_receipts')
+    .select('*')
+    .eq('status', 'pending')
+    .order('created_at', { ascending: false })
+  const pending = await Promise.all((pendingRaw || []).map(async (p) => {
+    let signed_receipt_url: string | null = null
+    if (p.receipt_path) {
+      const { data: s } = await supabase.storage.from('property-management').createSignedUrl(p.receipt_path, 3600)
+      signed_receipt_url = s?.signedUrl || null
+    }
+    return { ...p, signed_receipt_url }
+  }))
+
   return (
     <div>
       <div style={{ marginBottom: '24px' }}>
@@ -58,6 +74,7 @@ export default async function FinancePage() {
         ))}
       </div>
 
+      <ReceiptReviewQueue initialPending={pending} />
       <ExpensesManager expenses={expensesWithReceipts} vendors={vendors} />
     </div>
   )
