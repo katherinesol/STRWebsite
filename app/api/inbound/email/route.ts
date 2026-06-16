@@ -10,8 +10,14 @@ async function fetchFirstAttachment(emailId: string): Promise<{ base64: string; 
     const listRes = await fetch(`https://api.resend.com/emails/receiving/${emailId}/attachments`, {
       headers: { Authorization: `Bearer ${RESEND_KEY}` },
     })
-    if (!listRes.ok) return null
+    console.log('ATTACHMENT LIST status:', listRes.status)
+    if (!listRes.ok) {
+      const errText = await listRes.text()
+      console.log('ATTACHMENT LIST error body:', errText)
+      return null
+    }
     const list = await listRes.json()
+    console.log('ATTACHMENT LIST response:', JSON.stringify(list))
     const attachments = list.data || list.attachments || []
     const att = attachments.find((a: any) => {
       const ct = a.content_type || ''
