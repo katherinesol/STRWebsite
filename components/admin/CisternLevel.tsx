@@ -16,6 +16,7 @@ export default function CisternLevel() {
   const [empty, setEmpty] = useState('')
   const [threshold, setThreshold] = useState('')
   const [saving, setSaving] = useState(false)
+  const [usage, setUsage] = useState<any>(null)
 
   function load() {
     fetch('/api/admin/cistern')
@@ -82,6 +83,18 @@ export default function CisternLevel() {
         <div style={{ height: '100%', width: `${pct ?? 0}%`, background: barColor, transition: 'width .4s' }} />
       </div>
 
+      {usage?.avgPerNight != null && (
+        <div style={{ marginBottom: '10px', padding: '10px 12px', background: '#1E1E1C', border: '0.5px solid #363634' }}>
+          <div style={{ fontSize: '11px', color: '#9A9A92' }}>
+            Avg usage <strong style={{ color: '#F5F2EC' }}>{usage.avgPerNight}%/night</strong> <span style={{ color: '#666660' }}>(over {usage.sampleStays} stay{usage.sampleStays !== 1 ? 's' : ''})</span>
+          </div>
+          {usage.daysUntilRefill != null && (
+            <div style={{ fontSize: '12px', marginTop: '4px', color: usage.daysUntilRefill <= 3 ? '#e74c3c' : '#B8956B' }}>
+              {usage.daysUntilRefill <= 0 ? 'Refill needed now' : `Refill needed in ~${usage.daysUntilRefill} day${usage.daysUntilRefill !== 1 ? 's' : ''} at this pace`}
+            </div>
+          )}
+        </div>
+      )}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ fontSize: '11px', color: '#666660' }}>
           {data?.reported && `Updated ${data.reported}`}

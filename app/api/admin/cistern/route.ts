@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { cookies } from 'next/headers'
+import { getCisternLevel } from '@/lib/cistern'
 
 async function checkAuth() {
   const cookieStore = await cookies()
