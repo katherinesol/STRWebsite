@@ -1,15 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
-import { cookies } from 'next/headers'
 import { revalidatePath } from 'next/cache'
+import { isAuthed } from '@/lib/auth'
 
-async function checkAuth() {
-  const cookieStore = await cookies()
-  return cookieStore.get('admin_session')?.value === process.env.ADMIN_SECRET
-}
 
 export async function POST(request: NextRequest) {
-  const authed = await checkAuth()
+  const authed = await isAuthed()
   console.log('Supplies auth check:', authed, 'secret present:', !!process.env.ADMIN_SECRET)
   if (!authed) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const body = await request.json()

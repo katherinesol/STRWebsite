@@ -16,6 +16,7 @@ const NAV = [
   { href: '/admin/newsletter', label: 'Newsletter', icon: '◻' },
   { href: '/admin/property-management', label: 'Prop mgmt', icon: '⚙' },
   { href: '/admin/settings', label: 'Settings', icon: '◈' },
+  { href: '/admin/users', label: 'Team & Access', icon: '⊕', ownerOnly: true },
 ]
 
 function NavLinks({ pathname, onNavigate, onLogout }: { pathname: string; onNavigate?: () => void; onLogout: () => void }) {
@@ -51,7 +52,7 @@ function NavLinks({ pathname, onNavigate, onLogout }: { pathname: string; onNavi
   )
 }
 
-export default function AdminNav() {
+export default function AdminNav({ role = 'cleaner' }: { role?: string }) {
   const pathname = usePathname()
   const router = useRouter()
   const [open, setOpen] = useState(false)

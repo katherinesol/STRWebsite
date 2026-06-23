@@ -1,14 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
-import { cookies } from 'next/headers'
+import { isAuthed } from '@/lib/auth'
 
-async function checkAuth() {
-  const cookieStore = await cookies()
-  return cookieStore.get('admin_session')?.value === process.env.ADMIN_SECRET
-}
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  if (!await checkAuth()) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!await isAuthed()) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const { id } = await params
   const body = await request.json()
   const supabase = createAdminClient()
@@ -34,7 +30,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 }
 
 export async function DELETE(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  if (!await checkAuth()) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!await isAuthed()) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const { id } = await params
   const supabase = createAdminClient()
   // nullify guest_id on bookings to preserve history

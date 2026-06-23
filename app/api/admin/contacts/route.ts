@@ -1,14 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
-import { cookies } from 'next/headers'
+import { isAuthed } from '@/lib/auth'
 
-async function checkAuth() {
-  const cookieStore = await cookies()
-  return cookieStore.get('admin_session')?.value === process.env.ADMIN_SECRET
-}
 
 export async function POST(request: NextRequest) {
-  if (!await checkAuth()) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!await isAuthed()) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const body = await request.json()
   if (!body.name?.trim()) return NextResponse.json({ error: 'Name required' }, { status: 400 })
   const supabase = createAdminClient()
@@ -24,7 +20,7 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
-  if (!await checkAuth()) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!await isAuthed()) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const body = await request.json()
   const { id, ...fields } = body
   if (fields.emails) fields.emails = fields.emails.map((e: string) => e.toLowerCase().trim()).filter(Boolean)
@@ -35,7 +31,7 @@ export async function PATCH(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
-  if (!await checkAuth()) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!await isAuthed()) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const id = request.nextUrl.searchParams.get('id')
   const supabase = createAdminClient()
   const { error } = await supabase.from('contacts').delete().eq('id', id)

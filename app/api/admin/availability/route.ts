@@ -1,14 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
-import { cookies } from 'next/headers'
+import { isAuthed } from '@/lib/auth'
 
-async function checkAuth() {
-  const cookieStore = await cookies()
-  return cookieStore.get('admin_session')?.value === process.env.ADMIN_SECRET
-}
 
 export async function GET(request: NextRequest) {
-  if (!await checkAuth()) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!await isAuthed()) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const propertyId = request.nextUrl.searchParams.get('property_id')
   if (!propertyId) return NextResponse.json({ error: 'property_id required' }, { status: 400 })
 

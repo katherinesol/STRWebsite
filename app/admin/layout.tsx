@@ -1,17 +1,17 @@
 import { redirect } from 'next/navigation'
-import { cookies } from 'next/headers'
 import AdminNav from '@/components/admin/AdminNav'
+import { getAuth } from '@/lib/auth'
+
+export const dynamic = 'force-dynamic'
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
-  const cookieStore = await cookies()
-  const session = cookieStore.get('admin_session')?.value
-  if (!session || session !== process.env.ADMIN_SECRET) {
+  const auth = await getAuth()
+  if (!auth.ok) {
     redirect('/login')
   }
-
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: '#111110', fontFamily: 'var(--sans)' }}>
-      <AdminNav />
+      <AdminNav role={auth.role} />
       <main className="admin-main">
         {children}
       </main>

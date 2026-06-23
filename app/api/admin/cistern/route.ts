@@ -1,15 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
-import { cookies } from 'next/headers'
 import { getCisternLevel } from '@/lib/cistern'
+import { isAuthed } from '@/lib/auth'
 
-async function checkAuth() {
-  const cookieStore = await cookies()
-  return cookieStore.get('admin_session')?.value === process.env.ADMIN_SECRET
-}
 
 export async function GET() {
-  if (!await checkAuth()) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!await isAuthed()) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const token = process.env.PTDEVICES_TOKEN
   const deviceId = process.env.PTDEVICES_CISTERN_DEVICE_ID
@@ -55,7 +51,7 @@ export async function GET() {
 
 // save calibration
 export async function PATCH(request: NextRequest) {
-  if (!await checkAuth()) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!await isAuthed()) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const body = await request.json()
   const supabase = createAdminClient()
   const { error } = await supabase.from('cistern_calibration').upsert({

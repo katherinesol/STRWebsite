@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 
 export default function AdminLogin() {
-  const [username, setUsername] = useState('')
+  const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -17,12 +17,12 @@ export default function AdminLogin() {
       const res = await fetch('/api/admin/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify({ email, password }),
       })
       if (res.ok) {
-        router.push('/admin')
+        window.location.href = '/admin'
       } else {
-        setError('Invalid username or password')
+        setError('Invalid email or password')
       }
     } catch {
       setError('Something went wrong — try again')
@@ -53,7 +53,7 @@ export default function AdminLogin() {
         </div>
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
           {[
-            { label: 'Username', value: username, setter: setUsername, type: 'text' },
+            { label: 'Email', value: email, setter: setEmail, type: 'email' },
             { label: 'Password', value: password, setter: setPassword, type: 'password' },
           ].map(({ label, value, setter, type }) => (
             <div key={label}>

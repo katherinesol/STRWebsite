@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { createAuthClient } from '@/lib/supabase/auth-server'
 
-// simple in-memory rate limiter — max 5 attempts per IP per 15 minutes
+// in-memory rate limiter — max 5 attempts per IP per 15 minutes
 const attempts = new Map<string, { count: number; resetAt: number }>()
-
 function checkRateLimit(ip: string): boolean {
   const now = Date.now()
   const record = attempts.get(ip)
@@ -21,22 +21,19 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Too many attempts — try again in 15 minutes' }, { status: 429 })
   }
 
-  const { username, password } = await request.json()
+  const body = await request.json()
+  const { email, password } = body
 
-  if (
-    username !== process.env.ADMIN_USERNAME ||
-    password !== process.env.ADMIN_PASSWORD
-  ) {
-    return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 })
+  // New path: Supabase Auth (email + password)
+  if (email) {
+    const supabase = await createAuthClient()
+    const { error } = await supabase.auth.signInWithPassword({ email, password })
+    if (error) {
+      return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 })
+    }
+    // session cookie is set automatically by the auth client
+    return NextResponse.json({ ok: true })
   }
 
-  const response = NextResponse.json({ ok: true })
-  response.cookies.set('admin_session', process.env.ADMIN_SECRET!, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
-    maxAge: 60 * 60 * 24 * 7,
-    path: '/',
-  })
-  return response
+  return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 })
 }

@@ -1,15 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
 import { rollingAverage, stayUsage } from '@/lib/water-usage'
 import { getCisternLevel } from '@/lib/cistern'
+import { isAuthed } from '@/lib/auth'
 
-async function checkAuth() {
-  const cookieStore = await cookies()
-  return cookieStore.get('admin_session')?.value === process.env.ADMIN_SECRET
-}
 
 export async function GET(request: NextRequest) {
-  if (!await checkAuth()) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!await isAuthed()) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const sp = request.nextUrl.searchParams
   const propertyId = sp.get('property') || 'nickel-beach'
   const checkIn = sp.get('checkIn')
