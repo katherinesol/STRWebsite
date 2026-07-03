@@ -4,6 +4,7 @@ import { format } from 'date-fns'
 import Link from 'next/link'
 import BookingActions from '@/components/admin/BookingActions'
 import WaterUsageCard from '@/components/admin/WaterUsageCard'
+import StayChecklist from '@/components/admin/StayChecklist'
 import PaymentReminderForm from '@/components/admin/PaymentReminderForm'
 import BookingEditForm from '@/components/admin/BookingEditForm'
 import GuestEditCard from '@/components/admin/GuestEditCard'
@@ -94,6 +95,7 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
         <div style={{ position: 'sticky', top: '32px' }}>
           <BookingActions booking={booking} />
           <PaymentReminderForm booking={booking} guest={guest} />
+          <StayChecklist propertyId={booking.property_id} bookingId={booking.id} />
           <WaterUsageCard propertyId={booking.property_id} checkIn={booking.check_in} checkOut={booking.check_out} />
         </div>
       </div>

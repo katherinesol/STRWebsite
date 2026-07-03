@@ -11,14 +11,35 @@ export default function UsersPage() {
   const [showAdd, setShowAdd] = useState(false)
   const [form, setForm] = useState({ name: '', email: '', password: '', role: 'cleaner' })
   const [saving, setSaving] = useState(false)
+  const [assignments, setAssignments] = useState<any[]>([])
+  const [asgUser, setAsgUser] = useState('')
+  const [asgProp, setAsgProp] = useState('')
 
   function load() {
     fetch('/api/admin/users')
       .then(r => r.json())
       .then(d => { if (d.error) { setError(d.error); setDenied(true) } else setUsers(d.users || []) })
       .finally(() => setLoading(false))
+    fetch('/api/admin/assignments').then(r => r.json()).then(d => { if (d.assignments) setAssignments(d.assignments) })
   }
   useEffect(() => { load() }, [])
+
+  async function addAssignment() {
+    if (!asgUser || !asgProp) return
+    const res = await fetch('/api/admin/assignments', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_id: asgUser, property_id: asgProp }) })
+    const d = await res.json()
+    if (d.error) { setError(d.error); return }
+    setAsgUser(''); setAsgProp(''); load()
+  }
+  async function removeAssignment(id: string) {
+    await fetch(`/api/admin/assignments?id=${id}`, { method: 'DELETE' })
+    load()
+  }
+  const PROPS = [
+    { id: 'royal-york-east', name: 'Royal York East' },
+    { id: 'royal-york-west', name: 'Royal York West' },
+    { id: 'nickel-beach', name: 'Nickel Beach' },
+  ]
 
   async function addUser() {
     setSaving(true); setError('')
@@ -108,6 +129,29 @@ export default function UsersPage() {
             </button>
           </div>
         ))}
+      </div>
+
+      <h2 style={{ fontFamily: 'var(--serif)', fontWeight: 300, fontSize: '22px', color: '#F0EDE6', marginTop: '36px', marginBottom: '14px' }}>Property Assignments</h2>
+      <p style={{ fontSize: '12px', color: '#9A9A92', marginTop: 0, marginBottom: '14px' }}>Cleaners only see tasks for properties they're assigned to.</p>
+      <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', flexWrap: 'wrap' }}>
+        <select value={asgUser} onChange={e => setAsgUser(e.target.value)} style={{ ...inp, width: 'auto' }}>
+          <option value="">Select person…</option>
+          {users.filter(u => u.role === 'cleaner' && u.active).map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+        </select>
+        <select value={asgProp} onChange={e => setAsgProp(e.target.value)} style={{ ...inp, width: 'auto' }}>
+          <option value="">Select property…</option>
+          {PROPS.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+        </select>
+        <button onClick={addAssignment} disabled={!asgUser || !asgProp} style={{ padding: '8px 16px', background: 'var(--amber)', color: '#242422', border: 'none', fontSize: '11px', fontWeight: 600, cursor: 'pointer', borderRadius: '2px' }}>Assign</button>
+      </div>
+      <div style={{ background: '#242422', border: '0.5px solid #363634', borderRadius: '2px' }}>
+        {!assignments.length ? <div style={{ padding: '16px', color: '#666660', fontSize: '13px' }}>No assignments yet.</div> :
+          assignments.map(a => (
+            <div key={a.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', borderBottom: '0.5px solid #2A2A28', fontSize: '13px' }}>
+              <span style={{ color: '#F0EDE6' }}>{(a.profiles as any)?.name || 'Unknown'} <span style={{ color: '#666660' }}>→</span> {PROPS.find(p => p.id === a.property_id)?.name || a.property_id}</span>
+              <button onClick={() => removeAssignment(a.id)} style={{ background: 'none', border: 'none', color: '#e74c3c', cursor: 'pointer', fontSize: '12px' }}>Remove</button>
+            </div>
+          ))}
       </div>
     </div>
   )
