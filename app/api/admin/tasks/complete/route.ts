@@ -7,7 +7,7 @@ export async function POST(request: NextRequest) {
   const access = await getTaskAccess()
   if (!access.ok) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { task_id, note, booking_id } = await request.json()
+  const { task_id, note, booking_id, completed_at } = await request.json()
   if (!task_id) return NextResponse.json({ error: 'task_id required' }, { status: 400 })
 
   const supabase = createAdminClient()
@@ -20,12 +20,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Not assigned to that property' }, { status: 403 })
   }
 
-  const { error } = await supabase.from('task_completions').insert({
+  const insertData: any = {
     task_id,
     completed_by: access.userId,
     note: note || null,
     booking_id: booking_id || null,
-  })
+  }
+  // allow backdating — if a date is provided, use it (set to noon to avoid timezone edge cases)
+  if (completed_at) insertData.completed_at = new Date(completed_at + 'T12:00:00').toISOString()
+  const { error } = await supabase.from('task_completions').insert(insertData)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ ok: true })
 }

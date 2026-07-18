@@ -32,6 +32,12 @@ export default function TasksPage() {
   const [saving, setSaving] = useState(false)
   const [completingId, setCompletingId] = useState<string | null>(null)
   const [completeNote, setCompleteNote] = useState('')
+  const [completeDate, setCompleteDate] = useState('')
+  const [historyId, setHistoryId] = useState<string | null>(null)
+  const [history, setHistory] = useState<any[]>([])
+  const [historyLoading, setHistoryLoading] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editTitle, setEditTitle] = useState('')
 
   function load() {
     fetch('/api/admin/tasks')
@@ -41,12 +47,27 @@ export default function TasksPage() {
   }
   useEffect(() => { load() }, [])
 
+  async function toggleHistory(taskId: string) {
+    if (historyId === taskId) { setHistoryId(null); return }
+    setHistoryId(taskId); setHistory([]); setHistoryLoading(true)
+    const d = await fetch(`/api/admin/tasks/complete?task_id=${taskId}`).then(r => r.json())
+    setHistory(d.history || []); setHistoryLoading(false)
+  }
+
+  async function saveEdit(taskId: string) {
+    await fetch(`/api/admin/tasks/${taskId}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: editTitle }),
+    })
+    setEditingId(null); setEditTitle(''); load()
+  }
+
   async function confirmComplete(taskId: string) {
     await fetch('/api/admin/tasks/complete', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ task_id: taskId, note: completeNote }),
+      body: JSON.stringify({ task_id: taskId, note: completeNote, completed_at: completeDate || undefined }),
     })
-    setCompletingId(null); setCompleteNote('')
+    setCompletingId(null); setCompleteNote(''); setCompleteDate('')
     load()
   }
 
@@ -148,7 +169,7 @@ export default function TasksPage() {
             return (
               <div key={t.id} style={{ borderBottom: '0.5px solid #2A2A28' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '14px 16px' }}>
-                  <button onClick={() => { setCompletingId(isCompleting ? null : t.id); setCompleteNote('') }} title="Mark done" style={{ padding: '7px 14px', borderRadius: '4px', border: 'none', background: isCompleting ? '#2ecc71' : '#1f2a1a', color: isCompleting ? '#1A1A18' : '#2ecc71', cursor: 'pointer', flexShrink: 0, fontSize: '12px', fontWeight: 600, letterSpacing: '.04em' }}>✓ Done</button>
+                  <button onClick={() => { setCompletingId(isCompleting ? null : t.id); setCompleteNote(''); setCompleteDate(new Date().toISOString().split('T')[0]) }} title="Mark done" style={{ padding: '7px 14px', borderRadius: '4px', border: 'none', background: isCompleting ? '#2ecc71' : '#1f2a1a', color: isCompleting ? '#1A1A18' : '#2ecc71', cursor: 'pointer', flexShrink: 0, fontSize: '12px', fontWeight: 600, letterSpacing: '.04em' }}>✓ Done</button>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: '14px', color: '#F0EDE6' }}>
                       {t.title}
@@ -159,14 +180,39 @@ export default function TasksPage() {
                       {t.lastCompletedAt && ` · last done ${new Date(t.lastCompletedAt).toLocaleDateString()}${t.lastCompletedBy ? ` by ${t.lastCompletedBy}` : ''}`}
                     </div>
                   </div>
+                  <button onClick={() => toggleHistory(t.id)} style={{ background: 'none', border: '0.5px solid #4A4A48', color: '#9A9A92', cursor: 'pointer', fontSize: '10px', padding: '4px 8px', borderRadius: '3px', whiteSpace: 'nowrap' }}>{historyId === t.id ? 'Hide log' : 'Log'}</button>
                   {due && <span style={{ fontSize: '11px', color: due.color, whiteSpace: 'nowrap' }}>{due.text}</span>}
+                  {isOwner && <button onClick={() => { setEditingId(editingId === t.id ? null : t.id); setEditTitle(t.title) }} style={{ background: 'none', border: '0.5px solid #4A4A48', color: '#9A9A92', cursor: 'pointer', fontSize: '10px', padding: '4px 8px', borderRadius: '3px' }}>Edit</button>}
                   {isOwner && <button onClick={() => del(t.id)} style={{ background: 'none', border: 'none', color: '#666660', cursor: 'pointer', fontSize: '12px' }}>✕</button>}
                 </div>
                 {isCompleting && (
                   <div style={{ display: 'flex', gap: '8px', alignItems: 'center', padding: '0 16px 14px 16px' }}>
+                    <input type="date" value={completeDate} onChange={e => setCompleteDate(e.target.value)} title="Completion date" style={{ padding: '9px 12px', background: '#363634', border: '0.5px solid #4A4A48', color: '#F0EDE6', fontSize: '13px', outline: 'none', borderRadius: '4px', boxSizing: 'border-box' }} />
                     <input autoFocus value={completeNote} onChange={e => setCompleteNote(e.target.value)} placeholder="Add a note (optional)…" onKeyDown={e => { if (e.key === 'Enter') confirmComplete(t.id) }} style={{ flex: 1, padding: '9px 12px', background: '#363634', border: '0.5px solid #4A4A48', color: '#F0EDE6', fontSize: '13px', outline: 'none', borderRadius: '4px', boxSizing: 'border-box' }} />
                     <button onClick={() => confirmComplete(t.id)} style={{ padding: '9px 18px', background: '#2ecc71', color: '#1A1A18', border: 'none', fontSize: '12px', fontWeight: 600, cursor: 'pointer', borderRadius: '4px' }}>Confirm</button>
                     <button onClick={() => { setCompletingId(null); setCompleteNote('') }} style={{ padding: '9px 14px', background: '#363634', color: '#9A9A92', border: 'none', fontSize: '12px', cursor: 'pointer', borderRadius: '4px' }}>Cancel</button>
+                  </div>
+                )}
+                {editingId === t.id && (
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center', padding: '0 16px 14px 16px' }}>
+                    <input autoFocus value={editTitle} onChange={e => setEditTitle(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') saveEdit(t.id) }} style={{ flex: 1, padding: '9px 12px', background: '#363634', border: '0.5px solid #4A4A48', color: '#F0EDE6', fontSize: '13px', outline: 'none', borderRadius: '4px', boxSizing: 'border-box' }} />
+                    <button onClick={() => saveEdit(t.id)} style={{ padding: '9px 18px', background: 'var(--amber)', color: '#242422', border: 'none', fontSize: '12px', fontWeight: 600, cursor: 'pointer', borderRadius: '4px' }}>Save</button>
+                    <button onClick={() => { setEditingId(null); setEditTitle('') }} style={{ padding: '9px 14px', background: '#363634', color: '#9A9A92', border: 'none', fontSize: '12px', cursor: 'pointer', borderRadius: '4px' }}>Cancel</button>
+                  </div>
+                )}
+                {historyId === t.id && (
+                  <div style={{ padding: '0 16px 14px 16px' }}>
+                    <div style={{ background: '#1A1A18', border: '0.5px solid #363634', borderRadius: '4px', padding: '10px 14px' }}>
+                      <div style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '.1em', color: '#B8956B', marginBottom: '8px' }}>Completion log</div>
+                      {historyLoading ? <div style={{ fontSize: '12px', color: '#666660' }}>Loading…</div> :
+                        !history.length ? <div style={{ fontSize: '12px', color: '#666660' }}>No completions yet.</div> :
+                        history.map((h, i) => (
+                          <div key={i} style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', padding: '5px 0', borderBottom: i < history.length - 1 ? '0.5px solid #2A2A28' : 'none', fontSize: '12px' }}>
+                            <span style={{ color: '#F0EDE6' }}>{new Date(h.at).toLocaleDateString()}{h.by ? ` · ${h.by}` : ''}</span>
+                            {h.note && <span style={{ color: '#9A9A92', fontStyle: 'italic', textAlign: 'right' }}>{h.note}</span>}
+                          </div>
+                        ))}
+                    </div>
                   </div>
                 )}
               </div>

@@ -64,6 +64,7 @@ export default function BookingEditForm({ booking }: { booking: any }) {
   const [vehicleCount, setVehicleCount] = useState(booking.vehicle_count || 0)
   const [status, setStatus] = useState(booking.status || 'confirmed')
   const [paymentMethod, setPaymentMethod] = useState(booking.payment_method || 'etransfer')
+  const [lockCode, setLockCode] = useState(booking.lock_code || '')
 
   // pricing fields
   const [accommodation, setAccommodation] = useState(booking.accommodation || '')
@@ -115,6 +116,7 @@ export default function BookingEditForm({ booking }: { booking: any }) {
           vehicle_count: vehicleCount,
           status,
           payment_method: paymentMethod,
+          lock_code: lockCode || null,
           accommodation: accomNum || null,
           cleaning_fee: cleaningNum || null,
           hst: hstAmount || null,
@@ -173,6 +175,11 @@ export default function BookingEditForm({ booking }: { booking: any }) {
       ))}
 
       {sectionLabel('Check-in / checkout')}
+      {field('Lock code (last 4)', (
+        <div>
+          <input value={lockCode} onChange={e => setLockCode(e.target.value.replace(/\D/g, '').slice(0, 4))} placeholder="from Airbnb/VRBO if no phone" style={inputStyle} />
+        </div>
+      ))}
       {field('Early check-in', (
         <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
           <Toggle value={earlyCheckin} onChange={setEarlyCheckin} />

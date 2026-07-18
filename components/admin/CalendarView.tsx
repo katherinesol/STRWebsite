@@ -79,6 +79,8 @@ export default function CalendarView({ bookings, blocks }: { bookings: Booking[]
   const [blockStart, setBlockStart] = useState('')
   const [blockEnd, setBlockEnd] = useState('')
   const [blockReason, setBlockReason] = useState('manual')
+  const [blockFor, setBlockFor] = useState('myself')
+  const [blockForName, setBlockForName] = useState('')
   const [blockNotes, setBlockNotes] = useState('')
   const [saving, setSaving] = useState(false)
   const [icalStatus, setIcalStatus] = useState<Record<string, 'idle' | 'loading' | 'done' | 'error'>>({})
@@ -200,11 +202,13 @@ export default function CalendarView({ bookings, blocks }: { bookings: Booking[]
           start_date: blockStart,
           end_date: blockEnd,
           reason: blockReason,
+          block_for: blockReason === 'owner' ? blockFor : undefined,
+          block_for_name: blockReason === 'owner' && blockFor === 'friends-family' ? blockForName : undefined,
           notes: blockNotes,
         }),
       })
       setShowBlockModal(false)
-      setBlockStart(''); setBlockEnd(''); setBlockNotes('')
+      setBlockStart(''); setBlockEnd(''); setBlockNotes(''); setBlockFor('myself'); setBlockForName('')
       router.refresh()
     } catch {}
     finally { setSaving(false) }
@@ -745,6 +749,22 @@ export default function CalendarView({ bookings, blocks }: { bookings: Booking[]
                   {Object.entries(BLOCK_REASONS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
                 </select>
               </div>
+              {blockReason === 'owner' && (
+                <div>
+                  <div style={{ fontSize: '10px', letterSpacing: '.12em', textTransform: 'uppercase', color: '#9A9A92', marginBottom: '6px' }}>Who are you blocking for?</div>
+                  <select value={blockFor} onChange={e => setBlockFor(e.target.value)}
+                    style={{ width: '100%', padding: '10px 12px', background: '#363634', border: '0.5px solid #4A4A48', color: '#F5F2EC', fontFamily: 'var(--sans)', fontSize: '13px', outline: 'none', marginBottom: blockFor === 'friends-family' ? '8px' : '0' }}
+                  >
+                    <option value="myself">Myself</option>
+                    <option value="friends-family">Friends &amp; family</option>
+                  </select>
+                  {blockFor === 'friends-family' && (
+                    <input type="text" value={blockForName} onChange={e => setBlockForName(e.target.value)} placeholder="Name of guest"
+                      style={{ width: '100%', padding: '10px 12px', background: '#363634', border: '0.5px solid #4A4A48', color: '#F5F2EC', fontFamily: 'var(--sans)', fontSize: '13px', outline: 'none', boxSizing: 'border-box' }}
+                    />
+                  )}
+                </div>
+              )}
 
               {/* notes */}
               <div>

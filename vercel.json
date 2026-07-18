@@ -5,7 +5,7 @@
       "schedule": "0 10 * * *"
     },
     {
-      "path": "/api/cron/cistern",
+      "path": "/api/cron/automations",
       "schedule": "0 12 * * *"
     }
   ]
