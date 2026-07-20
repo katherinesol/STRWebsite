@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
+import { EXPENSE_CATEGORIES } from '@/lib/expense-categories'
 
 const PROPERTIES = [
   { id: 'royal-york', name: 'Royal York (both)' },
@@ -23,7 +24,7 @@ export default function InvoicesPage() {
 
   async function openEdit(id: string | null) {
     if (id === null) {
-      setEditing({ contractor_name: '', company: '', contractor_contact: '', property_id: '', title: '', items: [], adjustments: [], payments: [] })
+      setEditing({ contractor_name: '', company: '', contractor_contact: '', property_id: '', title: '', category: 'Repairs & maintenance', items: [], adjustments: [], payments: [] })
       return
     }
     const d = await fetch(`/api/admin/invoices/${id}`).then(r => r.json())
@@ -36,6 +37,7 @@ export default function InvoicesPage() {
       title: d.invoice.title || '',
       share_token: d.invoice.share_token,
       acknowledged_at: d.invoice.acknowledged_at,
+      category: d.invoice.category || 'Repairs & maintenance',
       tax_mode: d.invoice.tax_mode || 'auto',
       hst_amount: d.invoice.hst_amount ?? '',
       items: d.items || [],
@@ -100,6 +102,8 @@ function InvoiceEditor({ editing, setEditing, saveAll, error, onCancel, onDelete
   const [adjDesc, setAdjDesc] = useState(''); const [adjAmt, setAdjAmt] = useState('')
   const [payAmt, setPayAmt] = useState(''); const [payStatus, setPayStatus] = useState('paid'); const [payDate, setPayDate] = useState(new Date().toISOString().split('T')[0])
   const [payMethod, setPayMethod] = useState('etransfer'); const [payDetail, setPayDetail] = useState(''); const [payLast4, setPayLast4] = useState('')
+  const [vendors, setVendors] = useState<any[]>([]); const [savedMethods, setSavedMethods] = useState<any[]>([])
+  const [showVendorList, setShowVendorList] = useState(false)
 
   const itemTotal = e.items.reduce((s: number, i: any) => s + (Number(i.amount) || 0), 0)
   const adjTotal = e.adjustments.reduce((s: number, a: any) => s + (Number(a.amount) || 0), 0)
@@ -119,6 +123,19 @@ function InvoiceEditor({ editing, setEditing, saveAll, error, onCancel, onDelete
   const shareUrl = typeof window !== 'undefined' && e.share_token ? `${window.location.origin}/invoice/${e.share_token}` : ''
 
   const lbl: React.CSSProperties = { fontSize: '10px', textTransform: 'uppercase', letterSpacing: '.1em', margin: '16px 0 8px' }
+
+  useEffect(() => {
+    fetch('/api/admin/invoices/vendors').then(r => r.json()).then(d => { setVendors(d.contractors || []); setSavedMethods(d.methods || []) })
+  }, [])
+
+  const vendorMatches = e.contractor_name.length >= 1
+    ? vendors.filter((v: any) => v.contractor_name.toLowerCase().includes(e.contractor_name.toLowerCase()) && v.contractor_name.toLowerCase() !== e.contractor_name.toLowerCase()).slice(0, 6)
+    : []
+
+  function pickVendor(v: any) {
+    setEditing((prev: any) => ({ ...prev, contractor_name: v.contractor_name, company: v.company || prev.company, contractor_contact: v.contractor_contact || prev.contractor_contact }))
+    setShowVendorList(false)
+  }
 
   function flushAndSave() {
     // fold any filled-in input fields into the arrays before saving, so nothing typed is lost
@@ -141,11 +158,25 @@ function InvoiceEditor({ editing, setEditing, saveAll, error, onCancel, onDelete
 
       {/* header fields */}
       <div style={{ background: '#242422', border: '0.5px solid #363634', padding: '18px', borderRadius: '3px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '16px' }}>
-        <input placeholder="Contractor name" value={e.contractor_name} onChange={ev => set({ contractor_name: ev.target.value })} style={inp} />
+        <div style={{ position: 'relative' }}>
+          <input placeholder="Contractor name" value={e.contractor_name} onChange={ev => { set({ contractor_name: ev.target.value }); setShowVendorList(true) }} onFocus={() => setShowVendorList(true)} style={{ ...inp, width: '100%' }} />
+          {showVendorList && vendorMatches.length > 0 && (
+            <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 20, background: '#2A2A28', border: '0.5px solid #4A4A48', borderRadius: '3px', marginTop: '2px', maxHeight: '200px', overflowY: 'auto' }}>
+              {vendorMatches.map((v: any, i: number) => (
+                <div key={i} onClick={() => pickVendor(v)} style={{ padding: '8px 12px', cursor: 'pointer', fontSize: '13px', color: '#F0EDE6', borderBottom: '0.5px solid #363634' }}>
+                  {v.contractor_name}{v.company ? <span style={{ color: '#9A9A92' }}> · {v.company}</span> : ''}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
         <input placeholder="Company (optional)" value={e.company} onChange={ev => set({ company: ev.target.value })} style={inp} />
         <input placeholder="Title (e.g. Kitchen reno)" value={e.title} onChange={ev => set({ title: ev.target.value })} style={inp} />
         <select value={e.property_id} onChange={ev => set({ property_id: ev.target.value })} style={inp}>
           <option value="">No property</option>{PROPERTIES.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+        </select>
+        <select value={e.category || 'Repairs & maintenance'} onChange={ev => set({ category: ev.target.value })} style={{ ...inp, gridColumn: '1 / -1' }}>
+          {EXPENSE_CATEGORIES.map((c: string) => <option key={c} value={c}>{c}</option>)}
         </select>
         <input placeholder="Contact (phone/email)" value={e.contractor_contact} onChange={ev => set({ contractor_contact: ev.target.value })} style={{ ...inp, gridColumn: '1 / -1' }} />
       </div>
@@ -180,7 +211,7 @@ function InvoiceEditor({ editing, setEditing, saveAll, error, onCancel, onDelete
         {e.payments.map((p: any, i: number) => (
           <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: '13px', color: '#F0EDE6' }}>
             <span>${Number(p.amount).toFixed(2)}{p.method ? ` · ${p.method}${p.method_detail ? ' ' + p.method_detail : ''}${p.method_last4 ? ' …' + p.method_last4 : ''}` : ''} {p.status === 'paid' ? <span style={{ color: '#2ecc71' }}>· paid {p.paid_at || ''}</span> : <span style={{ color: '#9A9A92' }}>· planned</span>}</span>
-            <button onClick={() => setEditing((prev: any) => ({ ...prev, payments: prev.payments.filter((_: any, x: number) => x !== i) }))} style={{ background: 'none', border: 'none', color: '#666660', cursor: 'pointer' }}>✕</button>
+            <button onClick={() => { if (p.status === 'paid' && p.id && !window.confirm('Delete this payment? This will also delete the corresponding expense in your books.')) return; setEditing((prev: any) => ({ ...prev, payments: prev.payments.filter((_: any, x: number) => x !== i) })) }} style={{ background: 'none', border: 'none', color: '#666660', cursor: 'pointer' }}>✕</button>
           </div>
         ))}
         <div style={{ marginTop: '8px' }}>
@@ -198,10 +229,21 @@ function InvoiceEditor({ editing, setEditing, saveAll, error, onCancel, onDelete
             {payStatus === 'paid' && <input type="date" value={payDate} onChange={ev => setPayDate(ev.target.value)} style={{ ...inp, width: 'auto' }} />}
           </div>
           {(payMethod === 'card' || payMethod === 'etransfer') && (
-            <div style={{ display: 'flex', gap: '6px', marginBottom: '6px' }}>
-              <input placeholder={payMethod === 'card' ? 'Card (e.g. Amex)' : 'Bank (e.g. PC Financial)'} value={payDetail} onChange={ev => setPayDetail(ev.target.value)} style={{ ...inp, flex: 1 }} />
-              <input placeholder="Last 4" value={payLast4} onChange={ev => setPayLast4(ev.target.value.replace(/\D/g, '').slice(0, 4))} style={{ ...inp, width: '90px' }} />
-            </div>
+            <>
+              {savedMethods.filter((m: any) => m.method === payMethod && (m.method_detail || m.method_last4)).length > 0 && (
+                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '6px' }}>
+                  {savedMethods.filter((m: any) => m.method === payMethod && (m.method_detail || m.method_last4)).map((m: any, i: number) => (
+                    <button key={i} onClick={() => { setPayDetail(m.method_detail || ''); setPayLast4(m.method_last4 || '') }} style={{ padding: '5px 10px', background: '#2A2A28', border: '0.5px solid #4A4A48', color: '#AEAEA6', cursor: 'pointer', borderRadius: '3px', fontSize: '11px' }}>
+                      {m.method_detail}{m.method_last4 ? ' …' + m.method_last4 : ''}
+                    </button>
+                  ))}
+                </div>
+              )}
+              <div style={{ display: 'flex', gap: '6px', marginBottom: '6px' }}>
+                <input placeholder={payMethod === 'card' ? 'Card (e.g. Amex)' : 'Bank (e.g. PC Financial)'} value={payDetail} onChange={ev => setPayDetail(ev.target.value)} style={{ ...inp, flex: 1 }} />
+                <input placeholder="Last 4" value={payLast4} onChange={ev => setPayLast4(ev.target.value.replace(/\D/g, '').slice(0, 4))} style={{ ...inp, width: '90px' }} />
+              </div>
+            </>
           )}
           <button onClick={() => { if (payAmt) { setEditing((prev: any) => ({ ...prev, payments: [...prev.payments, { amount: payAmt, status: payStatus, paid_at: payStatus === 'paid' ? payDate : null, method: payMethod, method_detail: (payMethod === 'card' || payMethod === 'etransfer') ? payDetail : null, method_last4: (payMethod === 'card' || payMethod === 'etransfer') ? payLast4 : null }] })); setPayAmt(''); setPayDetail(''); setPayLast4('') } }} style={{ padding: '8px 16px', background: '#363634', color: '#AEAEA6', border: 'none', cursor: 'pointer', borderRadius: '3px', fontSize: '12px' }}>Add payment</button>
         </div>

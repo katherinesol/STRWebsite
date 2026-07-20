@@ -7,7 +7,7 @@ export async function POST(request: NextRequest) {
   if (!await hasRole('owner', 'co-owner')) return NextResponse.json({ error: 'Not allowed' }, { status: 403 })
   const auth = await getAuth()
   const body = await request.json()
-  const { id, contractor_name, company, contractor_contact, property_id, title, notes, hst_amount, tax_mode, items = [], adjustments = [], payments = [] } = body
+  const { id, contractor_name, company, contractor_contact, property_id, title, notes, hst_amount, tax_mode, category, items = [], adjustments = [], payments = [] } = body
 
   if (!contractor_name || !title) return NextResponse.json({ error: 'Contractor and title required' }, { status: 400 })
   const supabase = createAdminClient()
@@ -18,13 +18,13 @@ export async function POST(request: NextRequest) {
     await supabase.from('invoices').update({
       contractor_name, company: company || null, contractor_contact: contractor_contact || null,
       property_id: property_id || null, title, notes: notes || null,
-      hst_amount: hst_amount ?? null, tax_mode: tax_mode || 'auto',
+      hst_amount: hst_amount ?? null, tax_mode: tax_mode || 'auto', category: category || 'Repairs & maintenance',
     }).eq('id', invoiceId)
   } else {
     const { data: created, error } = await supabase.from('invoices').insert({
       contractor_name, company: company || null, contractor_contact: contractor_contact || null,
       property_id: property_id || null, title, notes: notes || null,
-      hst_amount: hst_amount ?? null, tax_mode: tax_mode || 'auto',
+      hst_amount: hst_amount ?? null, tax_mode: tax_mode || 'auto', category: category || 'Repairs & maintenance',
       created_by: auth.ok ? auth.userId : null,
     }).select('id').single()
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
@@ -47,9 +47,22 @@ export async function POST(request: NextRequest) {
     if (delAdjs.length) await supabase.from('invoice_adjustments').delete().in('id', delAdjs)
 
     // for payments: also clean up their expenses when deleted
-    const { data: dbPays } = await supabase.from('invoice_payments').select('id').eq('invoice_id', invoiceId)
-    const delPays = (dbPays || []).filter(r => !keepPayIds.includes(r.id)).map(r => r.id)
-    if (delPays.length) await supabase.from('invoice_payments').delete().in('id', delPays)
+    const { data: dbPays } = await supabase.from('invoice_payments').select('*').eq('invoice_id', invoiceId)
+    const delPayRows = (dbPays || []).filter(r => !keepPayIds.includes(r.id))
+    if (delPayRows.length) {
+      // delete the matching expense for any paid payment that had one
+      const { data: invForExp } = await supabase.from('invoices').select('contractor_name, title').eq('id', invoiceId).single()
+      for (const p of delPayRows) {
+        if (p.status === 'paid' && p.expense_created && p.paid_at) {
+          await supabase.from('expenses').delete()
+            .eq('vendor', invForExp?.contractor_name)
+            .eq('amount', Number(p.amount))
+            .eq('date', p.paid_at)
+            .eq('notes', 'From invoice tracker')
+        }
+      }
+      await supabase.from('invoice_payments').delete().in('id', delPayRows.map(r => r.id))
+    }
   }
 
   // 2. insert any NEW lines (those without an id). Existing ones already persisted.
@@ -74,7 +87,7 @@ export async function POST(request: NextRequest) {
     }).select('id').single()
 
     if (status === 'paid' && payRow) {
-      const { data: inv } = await supabase.from('invoices').select('contractor_name, property_id, title, hst_amount').eq('id', invoiceId).single()
+      const { data: inv } = await supabase.from('invoices').select('contractor_name, property_id, title, hst_amount, category').eq('id', invoiceId).single()
       const methodStr = p.method ? `${p.method}${p.method_detail ? ' ' + p.method_detail : ''}${p.method_last4 ? ' …' + p.method_last4 : ''}` : ''
       await supabase.from('expenses').insert({
         property_id: inv?.property_id || null,
@@ -82,7 +95,7 @@ export async function POST(request: NextRequest) {
         vendor: inv?.contractor_name,
         description: `Payment — ${inv?.title}${methodStr ? ' (' + methodStr + ')' : ''}`,
         amount: Number(p.amount) || 0,
-        category: 'Repairs & maintenance',
+        category: inv?.category || 'Repairs & maintenance',
         hst_paid: inv?.hst_amount ?? null,
         notes: 'From invoice tracker',
         confirmed: true,
