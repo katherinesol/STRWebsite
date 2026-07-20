@@ -3,45 +3,95 @@ import Link from 'next/link'
 import { useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 
-const NAV = [
-  { href: '/admin', label: 'Dashboard', icon: '▦' },
-  { href: '/admin/bookings', label: 'Bookings', icon: '◈' },
-  { href: '/admin/calendar', label: 'Calendar', icon: '▦' },
-  { href: '/admin/tasks', label: 'Tasks', icon: '☑' },
-  { href: '/admin/guests', label: 'Guests', icon: '◉' },
-  { href: '/admin/contacts', label: 'Contacts', icon: '✉' },
-  { href: '/admin/properties', label: 'Properties', icon: '⌂' },
-  { href: '/admin/access', label: 'Access', icon: '⊙' },
-  { href: '/admin/reviews', label: 'Reviews', icon: '◎' },
-  { href: '/admin/damage', label: 'Damage', icon: '⚠' },
-  { href: '/admin/newsletter', label: 'Newsletter', icon: '◻' },
-  { href: '/admin/property-management', label: 'Prop mgmt', icon: '⚙' },
-  { href: '/admin/settings', label: 'Settings', icon: '◈' },
-  { href: '/admin/users', label: 'Team & Access', icon: '⊕', ownerOnly: true },
+const DASHBOARD = { href: '/admin', label: 'Dashboard', icon: '▦' }
+
+const SECTIONS = [
+  { title: 'Operations', items: [
+    { href: '/admin/bookings', label: 'Bookings', icon: '◈' },
+    { href: '/admin/calendar', label: 'Calendar', icon: '▦' },
+    { href: '/admin/tasks', label: 'Tasks', icon: '☑' },
+  ]},
+  { title: 'Guests', items: [
+    { href: '/admin/guests', label: 'Guests', icon: '◉' },
+    { href: '/admin/contacts', label: 'Contacts', icon: '✉' },
+    { href: '/admin/reviews', label: 'Reviews', icon: '◎' },
+  ]},
+  { title: 'Money', items: [
+    { href: '/admin/property-management/finance', label: 'Expenses', icon: '$' },
+    { href: '/admin/invoices', label: 'Invoices', icon: '❋', staffOnly: true },
+    { href: '/admin/damage', label: 'Damage', icon: '⚠' },
+  ]},
+  { title: 'Property', items: [
+    { href: '/admin/properties', label: 'Properties', icon: '⌂' },
+    { href: '/admin/property-management', label: 'Prop mgmt', icon: '⚙' },
+    { href: '/admin/access', label: 'Access', icon: '⊙' },
+  ]},
+  { title: 'Admin', items: [
+    { href: '/admin/newsletter', label: 'Newsletter', icon: '◻' },
+    { href: '/admin/settings', label: 'Settings', icon: '◈' },
+    { href: '/admin/users', label: 'Team & Access', icon: '⊕', ownerOnly: true },
+  ]},
 ]
 
-function NavLinks({ pathname, onNavigate, onLogout }: { pathname: string; onNavigate?: () => void; onLogout: () => void }) {
+function canSee(item: any, role: string) {
+  if (item.ownerOnly && role !== 'owner') return false
+  if (item.staffOnly && role !== 'owner' && role !== 'co-owner') return false
+  return true
+}
+
+function NavLink({ item, pathname, onNavigate }: any) {
+  const active = item.href === '/admin' ? pathname === '/admin' : pathname.startsWith(item.href)
+  return (
+    <Link href={item.href} onClick={onNavigate}
+      style={{
+        display: 'flex', alignItems: 'center', gap: '12px',
+        padding: '10px 20px', minHeight: '40px',
+        fontSize: '13px', textDecoration: 'none',
+        color: active ? '#F5F2EC' : '#9A9A92',
+        background: active ? '#242422' : 'transparent',
+        borderLeft: active ? '2px solid var(--amber)' : '2px solid transparent',
+      }}>
+      <span style={{ fontSize: '12px', opacity: .7 }}>{item.icon}</span>
+      {item.label}
+    </Link>
+  )
+}
+
+function NavLinks({ pathname, onNavigate, onLogout, role }: { pathname: string; onNavigate?: () => void; onLogout: () => void; role: string }) {
+  // which section contains the current page — start expanded
+  const initialOpen: Record<string, boolean> = {}
+  for (const s of SECTIONS) {
+    initialOpen[s.title] = s.items.some(it => pathname.startsWith(it.href))
+  }
+  const [open, setOpen] = useState<Record<string, boolean>>(initialOpen)
+
   return (
     <>
-      <div style={{ padding: '24px 20px 16px', fontSize: '11px', fontWeight: 500, letterSpacing: '.16em', textTransform: 'uppercase', color: 'var(--amber)' }}>
+      <div style={{ padding: '24px 20px 12px', fontSize: '11px', fontWeight: 500, letterSpacing: '.16em', textTransform: 'uppercase', color: 'var(--amber)' }}>
         Admin
       </div>
-      <nav style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-        {NAV.map(item => {
-          const active = item.href === '/admin' ? pathname === '/admin' : pathname.startsWith(item.href)
+      <nav style={{ flex: 1, display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
+        <NavLink item={DASHBOARD} pathname={pathname} onNavigate={onNavigate} />
+        {SECTIONS.map(section => {
+          const items = section.items.filter(it => canSee(it, role))
+          if (!items.length) return null
+          const isOpen = open[section.title]
           return (
-            <Link key={item.href} href={item.href} onClick={onNavigate}
-              style={{
-                display: 'flex', alignItems: 'center', gap: '12px',
-                padding: '12px 20px', minHeight: '44px',
-                fontSize: '13px', textDecoration: 'none',
-                color: active ? '#F5F2EC' : '#9A9A92',
-                background: active ? '#242422' : 'transparent',
-                borderLeft: active ? '2px solid var(--amber)' : '2px solid transparent',
-              }}>
-              <span style={{ fontSize: '12px', opacity: .7 }}>{item.icon}</span>
-              {item.label}
-            </Link>
+            <div key={section.title}>
+              <button onClick={() => setOpen(o => ({ ...o, [section.title]: !o[section.title] }))}
+                style={{
+                  width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  padding: '14px 20px 6px', background: 'none', border: 'none', cursor: 'pointer',
+                  fontSize: '10px', fontWeight: 600, letterSpacing: '.14em', textTransform: 'uppercase',
+                  color: '#666660', fontFamily: 'var(--sans)',
+                }}>
+                {section.title}
+                <span style={{ fontSize: '9px', opacity: .6 }}>{isOpen ? '▾' : '▸'}</span>
+              </button>
+              {isOpen && items.map(item => (
+                <NavLink key={item.href} item={item} pathname={pathname} onNavigate={onNavigate} />
+              ))}
+            </div>
           )
         })}
       </nav>
@@ -72,7 +122,7 @@ export default function AdminNav({ role = 'cleaner' }: { role?: string }) {
         borderRight: '0.5px solid #363634',
         flexDirection: 'column',
       }}>
-        <NavLinks pathname={pathname} onLogout={handleLogout} />
+        <NavLinks pathname={pathname} onLogout={handleLogout}  role={role} />
       </div>
 
       {/* mobile top bar */}
@@ -89,7 +139,7 @@ export default function AdminNav({ role = 'cleaner' }: { role?: string }) {
       {/* mobile drawer */}
       {open && <div className="admin-drawer-overlay" onClick={() => setOpen(false)} />}
       <div className={`admin-drawer${open ? ' open' : ''}`} style={{ display: 'flex', flexDirection: 'column' }}>
-        <NavLinks pathname={pathname} onNavigate={() => setOpen(false)} onLogout={handleLogout} />
+        <NavLinks pathname={pathname} onNavigate={() => setOpen(false)} onLogout={handleLogout} role={role} />
       </div>
     </>
   )
