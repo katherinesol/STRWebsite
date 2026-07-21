@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { EXPENSE_CATEGORIES } from '@/lib/expense-categories'
 
 const PROPERTIES = [
@@ -104,6 +104,10 @@ function InvoiceEditor({ editing, setEditing, saveAll, error, onCancel, onDelete
   const [payMethod, setPayMethod] = useState('etransfer'); const [payDetail, setPayDetail] = useState(''); const [payLast4, setPayLast4] = useState('')
   const [vendors, setVendors] = useState<any[]>([]); const [savedMethods, setSavedMethods] = useState<any[]>([])
   const [showVendorList, setShowVendorList] = useState(false)
+  const [extracting, setExtracting] = useState(false)
+  const [extracted, setExtracted] = useState<any>(null)
+  const [extractError, setExtractError] = useState('')
+  const fileRef = useRef<HTMLInputElement>(null)
 
   const itemTotal = e.items.reduce((s: number, i: any) => s + (Number(i.amount) || 0), 0)
   const adjTotal = e.adjustments.reduce((s: number, a: any) => s + (Number(a.amount) || 0), 0)
@@ -137,12 +141,43 @@ function InvoiceEditor({ editing, setEditing, saveAll, error, onCancel, onDelete
     setShowVendorList(false)
   }
 
+  async function handleReceipt(file: File) {
+    setExtracting(true); setExtractError(''); setExtracted(null)
+    try {
+      const fd = new FormData()
+      fd.append('receipt', file)
+      const res = await fetch('/api/admin/invoices/extract', { method: 'POST', body: fd })
+      const d = await res.json()
+      if (d.error) { setExtractError(d.error); return }
+      setExtracted({ ...d.extracted, receipt_path: d.receipt_path })
+    } catch (err: any) {
+      setExtractError('Upload failed')
+    } finally {
+      setExtracting(false)
+    }
+  }
+
+  function applyExtracted() {
+    if (!extracted) return
+    setEditing((prev: any) => ({
+      ...prev,
+      contractor_name: extracted.contractor_name || prev.contractor_name,
+      company: extracted.company || prev.company,
+      category: extracted.category || prev.category,
+      title: prev.title || (extracted.items?.[0]?.description ? `${extracted.contractor_name || 'Invoice'} work` : prev.title),
+      items: [...prev.items, ...(extracted.items || []).map((it: any) => ({ description: it.description, amount: it.amount }))],
+      hst_amount: extracted.hst != null ? extracted.hst : prev.hst_amount,
+      tax_mode: extracted.hst != null ? 'manual' : prev.tax_mode,
+    }))
+    setExtracted(null)
+  }
+
   function flushAndSave() {
     // fold any filled-in input fields into the arrays before saving, so nothing typed is lost
     let next = { ...editing }
     if (itemDesc && itemAmt) next = { ...next, items: [...next.items, { description: itemDesc, amount: itemAmt }] }
     if (adjDesc && adjAmt) next = { ...next, adjustments: [...next.adjustments, { description: adjDesc, amount: adjAmt }] }
-    if (payAmt) next = { ...next, payments: [...next.payments, { amount: payAmt, status: payStatus, paid_at: payStatus === 'paid' ? payDate : null, method: payMethod, method_detail: (payMethod === 'card' || payMethod === 'etransfer') ? payDetail : null, method_last4: (payMethod === 'card' || payMethod === 'etransfer') ? payLast4 : null }] }
+    if (payAmt) next = { ...next, payments: [...next.payments, { amount: payAmt, status: payStatus, paid_at: payStatus === 'paid' ? payDate : null, method: payMethod, method_detail: (payMethod === 'credit' || payMethod === 'debit' || payMethod === 'etransfer') ? payDetail : null, method_last4: (payMethod === 'credit' || payMethod === 'debit' || payMethod === 'etransfer') ? payLast4 : null }] }
     setEditing(next)
     // clear the inputs
     setItemDesc(''); setItemAmt(''); setAdjDesc(''); setAdjAmt(''); setPayAmt(''); setPayDetail(''); setPayLast4('')
@@ -179,6 +214,38 @@ function InvoiceEditor({ editing, setEditing, saveAll, error, onCancel, onDelete
           {EXPENSE_CATEGORIES.map((c: string) => <option key={c} value={c}>{c}</option>)}
         </select>
         <input placeholder="Contact (phone/email)" value={e.contractor_contact} onChange={ev => set({ contractor_contact: ev.target.value })} style={{ ...inp, gridColumn: '1 / -1' }} />
+      </div>
+
+      {/* receipt attach + AI extract */}
+      <div style={{ background: '#242422', border: '0.5px solid #363634', padding: '16px 18px', borderRadius: '3px', marginBottom: '16px' }}>
+        <input ref={fileRef} type="file" accept="image/*,application/pdf" style={{ display: 'none' }}
+          onChange={ev => { const f = ev.target.files?.[0]; if (f) handleReceipt(f) }} />
+        {extracting ? (
+          <div style={{ fontSize: '13px', color: 'var(--amber)' }}>Reading receipt…</div>
+        ) : extracted ? (
+          <div>
+            <div style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '.1em', color: 'var(--amber)', marginBottom: '10px' }}>Review extracted — nothing fills until you apply</div>
+            <div style={{ fontSize: '13px', color: '#F0EDE6', lineHeight: 1.7 }}>
+              {extracted.contractor_name && <div>Contractor: <span style={{ color: '#9A9A92' }}>{extracted.contractor_name}</span></div>}
+              {extracted.company && <div>Company: <span style={{ color: '#9A9A92' }}>{extracted.company}</span></div>}
+              {extracted.date && <div>Date: <span style={{ color: '#9A9A92' }}>{extracted.date}</span></div>}
+              {extracted.category && <div>Category: <span style={{ color: '#9A9A92' }}>{extracted.category}</span></div>}
+              {(extracted.items || []).length > 0 && <div>Items: <span style={{ color: '#9A9A92' }}>{extracted.items.length} line(s) — ${(extracted.items).reduce((s: number, i: any) => s + (Number(i.amount) || 0), 0).toFixed(2)}</span></div>}
+              {extracted.hst != null && <div>HST: <span style={{ color: '#9A9A92' }}>${Number(extracted.hst).toFixed(2)}</span></div>}
+              {extracted.total != null && <div>Total: <span style={{ color: '#9A9A92' }}>${Number(extracted.total).toFixed(2)}</span></div>}
+            </div>
+            <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
+              <button onClick={applyExtracted} style={{ padding: '8px 16px', background: 'var(--amber)', color: '#242422', border: 'none', fontSize: '11px', fontWeight: 600, cursor: 'pointer', borderRadius: '3px' }}>Apply to form</button>
+              <button onClick={() => setExtracted(null)} style={{ padding: '8px 14px', background: '#363634', color: '#9A9A92', border: 'none', fontSize: '11px', cursor: 'pointer', borderRadius: '3px' }}>Discard</button>
+            </div>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ fontSize: '13px', color: '#9A9A92' }}>Attach a receipt or invoice — AI will pull the details</div>
+            <button onClick={() => fileRef.current?.click()} style={{ padding: '8px 16px', background: '#363634', color: '#AEAEA6', border: 'none', fontSize: '11px', fontWeight: 600, cursor: 'pointer', borderRadius: '3px' }}>📎 Attach receipt</button>
+          </div>
+        )}
+        {extractError && <div style={{ fontSize: '12px', color: '#e74c3c', marginTop: '8px' }}>{extractError}</div>}
       </div>
 
       {/* line items */}
@@ -219,7 +286,8 @@ function InvoiceEditor({ editing, setEditing, saveAll, error, onCancel, onDelete
             <input placeholder="Amount" type="number" value={payAmt} onChange={ev => setPayAmt(ev.target.value)} style={{ ...inp, flex: 1, minWidth: '90px' }} />
             <select value={payMethod} onChange={ev => setPayMethod(ev.target.value)} style={{ ...inp, width: 'auto' }}>
               <option value="etransfer">E-transfer</option>
-              <option value="card">Card</option>
+              <option value="credit">Credit card</option>
+              <option value="debit">Debit card</option>
               <option value="cash">Cash</option>
             </select>
             <select value={payStatus} onChange={ev => setPayStatus(ev.target.value)} style={{ ...inp, width: 'auto' }}>
@@ -228,7 +296,7 @@ function InvoiceEditor({ editing, setEditing, saveAll, error, onCancel, onDelete
             </select>
             {payStatus === 'paid' && <input type="date" value={payDate} onChange={ev => setPayDate(ev.target.value)} style={{ ...inp, width: 'auto' }} />}
           </div>
-          {(payMethod === 'card' || payMethod === 'etransfer') && (
+          {(payMethod === 'credit' || payMethod === 'debit' || payMethod === 'etransfer') && (
             <>
               {savedMethods.filter((m: any) => m.method === payMethod && (m.method_detail || m.method_last4)).length > 0 && (
                 <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '6px' }}>
@@ -240,12 +308,12 @@ function InvoiceEditor({ editing, setEditing, saveAll, error, onCancel, onDelete
                 </div>
               )}
               <div style={{ display: 'flex', gap: '6px', marginBottom: '6px' }}>
-                <input placeholder={payMethod === 'card' ? 'Card (e.g. Amex)' : 'Bank (e.g. PC Financial)'} value={payDetail} onChange={ev => setPayDetail(ev.target.value)} style={{ ...inp, flex: 1 }} />
+                <input placeholder={payMethod === 'etransfer' ? 'Bank (e.g. PC Financial)' : 'Card (e.g. Amex, BMO)'} value={payDetail} onChange={ev => setPayDetail(ev.target.value)} style={{ ...inp, flex: 1 }} />
                 <input placeholder="Last 4" value={payLast4} onChange={ev => setPayLast4(ev.target.value.replace(/\D/g, '').slice(0, 4))} style={{ ...inp, width: '90px' }} />
               </div>
             </>
           )}
-          <button onClick={() => { if (payAmt) { setEditing((prev: any) => ({ ...prev, payments: [...prev.payments, { amount: payAmt, status: payStatus, paid_at: payStatus === 'paid' ? payDate : null, method: payMethod, method_detail: (payMethod === 'card' || payMethod === 'etransfer') ? payDetail : null, method_last4: (payMethod === 'card' || payMethod === 'etransfer') ? payLast4 : null }] })); setPayAmt(''); setPayDetail(''); setPayLast4('') } }} style={{ padding: '8px 16px', background: '#363634', color: '#AEAEA6', border: 'none', cursor: 'pointer', borderRadius: '3px', fontSize: '12px' }}>Add payment</button>
+          <button onClick={() => { if (payAmt) { setEditing((prev: any) => ({ ...prev, payments: [...prev.payments, { amount: payAmt, status: payStatus, paid_at: payStatus === 'paid' ? payDate : null, method: payMethod, method_detail: (payMethod === 'credit' || payMethod === 'debit' || payMethod === 'etransfer') ? payDetail : null, method_last4: (payMethod === 'credit' || payMethod === 'debit' || payMethod === 'etransfer') ? payLast4 : null }] })); setPayAmt(''); setPayDetail(''); setPayLast4('') } }} style={{ padding: '8px 16px', background: '#363634', color: '#AEAEA6', border: 'none', cursor: 'pointer', borderRadius: '3px', fontSize: '12px' }}>Add payment</button>
         </div>
 
         {/* tax control */}

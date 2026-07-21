@@ -23,8 +23,9 @@ export async function GET() {
     const itemTotal = sum(items, inv.id)
     const adjTotal = sum(adjs, inv.id)
     const paidTotal = sum(pays, inv.id, r => r.status === 'paid')
-    const total = itemTotal - adjTotal
-    return { ...inv, itemTotal, adjTotal, paidTotal, total, outstanding: total - paidTotal }
+    const hst = inv.tax_mode === 'none' ? 0 : Number(inv.hst_amount) || 0
+    const total = itemTotal - adjTotal + hst
+    return { ...inv, itemTotal, adjTotal, paidTotal, hst, total, outstanding: total - paidTotal }
   })
   return NextResponse.json({ invoices: enriched })
 }
