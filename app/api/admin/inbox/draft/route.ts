@@ -15,6 +15,16 @@ export async function POST(request: NextRequest) {
   ])
   if (!conv) return new Response('Not found', { status: 404 })
 
+  // greeting context: greet if this is a new conversation or 24h+ since the last message
+  const msgList = msgs || []
+  const hostMsgs = msgList.filter(m => m.sender !== 'guest')
+  const lastHostMsg = hostMsgs[hostMsgs.length - 1]
+  const hoursSinceLastHost = lastHostMsg ? (Date.now() - new Date(lastHostMsg.created_at).getTime()) / 3600000 : Infinity
+  const shouldGreet = hostMsgs.length === 0 || hoursSinceLastHost >= 24
+  const hour = new Date().getHours()
+  const timeOfDay = hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : 'evening'
+  const firstName = (conv.guest_name || '').split(' ')[0].replace(/[()]/g, '')
+
   // pull the property's knowledge base (+ general)
   const { data: kb } = await supabase
     .from('knowledge_base')
@@ -35,7 +45,8 @@ RULES:
 - Only state facts found in the property information above. Never invent details (wifi passwords, codes, times, policies).
 - If the guest asks something not covered, draft a reply that acknowledges warmly and says the host will follow up — do not guess.
 - For anything urgent or safety-related (gas smell, water leak, lockout, injury), draft a reply telling them to call the host immediately, and keep it brief.
-- Match a friendly hospitality tone. No preamble, no "here's a draft" — just the reply text itself.`
+- Match a friendly hospitality tone. No preamble, no "here's a draft" — just the reply text itself.
+${shouldGreet ? `- Open with a natural, time-appropriate greeting using the guest's first name "${firstName}" (it is currently ${timeOfDay} — e.g. "Good ${timeOfDay} ${firstName}!" or "Hi ${firstName}!"). Only greet once at the start.` : `- Do NOT open with a greeting or the guest's name — this is a continuing conversation, just answer naturally.`}`
 
   const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 

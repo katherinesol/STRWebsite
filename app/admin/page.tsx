@@ -1,4 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/server'
+import { getAuth } from '@/lib/auth'
 import { format, addDays } from 'date-fns'
 import CisternLevel from '@/components/admin/CisternLevel'
 
@@ -27,7 +28,12 @@ function StatCard({ label, value, sub, accent }: { label: string; value: string 
 
 export default async function AdminDashboard() {
   const supabase = createAdminClient()
+  const auth = await getAuth()
+  const firstName = (auth.ok && auth.name) ? auth.name.split(' ')[0] : ''
   const today = new Date()
+  // compute time-of-day in Toronto regardless of server timezone
+  const torontoHour = Number(new Date().toLocaleString('en-US', { timeZone: 'America/Toronto', hour: 'numeric', hour12: false }))
+  const greeting = torontoHour < 12 ? 'morning' : torontoHour < 17 ? 'afternoon' : 'evening'
   const sevenDaysOut = addDays(today, 7)
   const todayStr = format(today, 'yyyy-MM-dd')
   const sevenDaysStr = format(sevenDaysOut, 'yyyy-MM-dd')
@@ -85,7 +91,7 @@ export default async function AdminDashboard() {
           {format(today, 'EEEE, MMMM d yyyy')}
         </div>
         <h1 style={{ fontFamily: 'var(--serif)', fontSize: '36px', fontWeight: 300, color: '#F5F2EC', lineHeight: 1 }}>
-          Good {today.getHours() < 12 ? 'morning' : today.getHours() < 17 ? 'afternoon' : 'evening'}.
+          Good {greeting}{firstName ? `, ${firstName}` : ''}.
         </h1>
       </div>
 

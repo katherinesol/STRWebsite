@@ -29,6 +29,10 @@ export default function KnowledgePage() {
   const [form, setForm] = useState({ property_id: 'royal-york-east', topic: 'general', title: '', content: '' })
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editForm, setEditForm] = useState<any>({})
+  const [showImport, setShowImport] = useState(false)
+  const [importText, setImportText] = useState('')
+  const [importing, setImporting] = useState(false)
+  const [importedEntries, setImportedEntries] = useState<any[]>([])
 
   function load() {
     fetch('/api/admin/knowledge').then(r => r.json()).then(d => { if (d.error) setError(d.error); else setEntries(d.entries || []) }).finally(() => setLoading(false))
@@ -41,6 +45,24 @@ export default function KnowledgePage() {
     const d = await res.json()
     if (d.error) { setError(d.error); return }
     setForm({ property_id: propFilter, topic: 'general', title: '', content: '' }); setShowAdd(false); load()
+  }
+
+  async function runImport() {
+    setImporting(true); setError('')
+    try {
+      const res = await fetch('/api/admin/knowledge/import', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: importText }) })
+      const d = await res.json()
+      if (d.error) { setError(d.error); return }
+      setImportedEntries((d.entries || []).map((e: any) => ({ ...e, keep: true })))
+    } finally { setImporting(false) }
+  }
+
+  async function saveImported() {
+    const toSave = importedEntries.filter(e => e.keep)
+    for (const e of toSave) {
+      await fetch('/api/admin/knowledge', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ property_id: propFilter, topic: e.topic, title: e.title, content: e.content }) })
+    }
+    setImportedEntries([]); setImportText(''); setShowImport(false); load()
   }
 
   async function saveEdit(id: string) {
@@ -65,10 +87,39 @@ export default function KnowledgePage() {
     <div style={{ maxWidth: '820px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
         <h1 style={{ fontFamily: 'var(--serif)', fontWeight: 300, fontSize: '28px', color: '#F0EDE6' }}>Guest Knowledge Base</h1>
-        <button onClick={() => { setForm(f => ({ ...f, property_id: propFilter })); setShowAdd(s => !s) }} style={{ padding: '10px 18px', background: 'var(--amber)', color: '#242422', border: 'none', fontSize: '11px', fontWeight: 600, cursor: 'pointer', borderRadius: '3px' }}>{showAdd ? 'Cancel' : '+ Add entry'}</button>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <button onClick={() => setShowImport(s => !s)} style={{ padding: '10px 16px', background: '#363634', color: '#AEAEA6', border: 'none', fontSize: '11px', fontWeight: 600, cursor: 'pointer', borderRadius: '3px' }}>{showImport ? 'Cancel' : '📋 Import manual'}</button>
+          <button onClick={() => { setForm(f => ({ ...f, property_id: propFilter })); setShowAdd(s => !s) }} style={{ padding: '10px 18px', background: 'var(--amber)', color: '#242422', border: 'none', fontSize: '11px', fontWeight: 600, cursor: 'pointer', borderRadius: '3px' }}>{showAdd ? 'Cancel' : '+ Add entry'}</button>
+        </div>
       </div>
       <p style={{ fontSize: '12px', color: '#9A9A92', marginTop: 0, marginBottom: '18px' }}>Info the guest assistant will use to answer questions. Guest-facing details only — never other guests' info or operational data.</p>
       {error && <div style={{ color: '#e74c3c', fontSize: '13px', marginBottom: '14px' }}>{error}</div>}
+
+      {showImport && (
+        <div style={{ background: '#242422', border: '0.5px solid #363634', padding: '18px', marginBottom: '18px', borderRadius: '3px' }}>
+          <div style={{ fontSize: '12px', color: '#9A9A92', marginBottom: '10px' }}>Paste your whole house manual for <strong style={{ color: '#F0EDE6' }}>{PROPERTIES.find(p => p.id === propFilter)?.name}</strong> — the assistant will split it into entries you can review.</div>
+          {!importedEntries.length ? (
+            <>
+              <textarea value={importText} onChange={e => setImportText(e.target.value)} placeholder="Paste everything — wifi, check-in, amenities, house rules, local tips…" style={{ ...inp, minHeight: '160px', resize: 'vertical', fontFamily: 'inherit' }} />
+              <button onClick={runImport} disabled={importing || importText.trim().length < 20} style={{ marginTop: '10px', padding: '10px 18px', background: 'var(--amber)', color: '#242422', border: 'none', fontSize: '11px', fontWeight: 600, cursor: 'pointer', borderRadius: '3px' }}>{importing ? 'Splitting…' : 'Split into entries'}</button>
+            </>
+          ) : (
+            <>
+              <div style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '.1em', color: 'var(--amber)', marginBottom: '10px' }}>Review — uncheck any you don't want, then save</div>
+              {importedEntries.map((e, i) => (
+                <div key={i} style={{ display: 'flex', gap: '10px', padding: '8px 0', borderBottom: '0.5px solid #2A2A28', opacity: e.keep ? 1 : 0.4 }}>
+                  <input type="checkbox" checked={e.keep} onChange={() => setImportedEntries(prev => prev.map((x, xi) => xi === i ? { ...x, keep: !x.keep } : x))} style={{ marginTop: '3px' }} />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: '13px', color: '#F0EDE6' }}>{e.title} <span style={{ fontSize: '10px', color: '#666660' }}>· {e.topic}</span></div>
+                    <div style={{ fontSize: '12px', color: '#9A9A92' }}>{e.content}</div>
+                  </div>
+                </div>
+              ))}
+              <button onClick={saveImported} style={{ marginTop: '12px', padding: '10px 18px', background: 'var(--amber)', color: '#242422', border: 'none', fontSize: '11px', fontWeight: 600, cursor: 'pointer', borderRadius: '3px' }}>Save {importedEntries.filter(e => e.keep).length} entries</button>
+            </>
+          )}
+        </div>
+      )}
 
       {/* property tabs */}
       <div style={{ display: 'flex', gap: '6px', marginBottom: '18px', flexWrap: 'wrap' }}>

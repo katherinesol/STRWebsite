@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
 // deactivate / reactivate / change role (owner only)
 export async function PATCH(request: NextRequest) {
   if (!await hasRole('owner')) return NextResponse.json({ error: 'Owner only' }, { status: 403 })
-  const { id, active, role } = await request.json()
+  const { id, active, role, name } = await request.json()
   const me = await getAuth()
   // safety: don't let the owner deactivate or demote themselves
   if (me.ok && me.userId === id && (active === false || (role && role !== 'owner'))) {
@@ -49,6 +49,7 @@ export async function PATCH(request: NextRequest) {
   const updates: any = {}
   if (active != null) updates.active = active
   if (role) updates.role = role
+  if (name != null && name.trim()) updates.name = name.trim()
   const { error } = await supabase.from('profiles').update(updates).eq('id', id)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ ok: true })

@@ -11,6 +11,8 @@ export default function UsersPage() {
   const [showAdd, setShowAdd] = useState(false)
   const [form, setForm] = useState({ name: '', email: '', password: '', role: 'cleaner' })
   const [saving, setSaving] = useState(false)
+  const [editNameId, setEditNameId] = useState<string | null>(null)
+  const [nameVal, setNameVal] = useState('')
   const [assignments, setAssignments] = useState<any[]>([])
   const [asgUser, setAsgUser] = useState('')
   const [asgProp, setAsgProp] = useState('')
@@ -53,6 +55,11 @@ export default function UsersPage() {
     setForm({ name: '', email: '', password: '', role: 'cleaner' })
     setShowAdd(false)
     load()
+  }
+
+  async function saveName(id: string) {
+    await fetch('/api/admin/users', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, name: nameVal }) })
+    setEditNameId(null); load()
   }
 
   async function changeRole(id: string, role: string) {
@@ -119,7 +126,11 @@ export default function UsersPage() {
         </div>
         {users.map(u => (
           <div key={u.id} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 120px 110px', padding: '14px 16px', borderBottom: '0.5px solid #2A2A28', fontSize: '13px', alignItems: 'center', opacity: u.active ? 1 : 0.5 }}>
-            <span style={{ color: '#F0EDE6' }}>{u.name}</span>
+            {editNameId === u.id ? (
+              <input autoFocus value={nameVal} onChange={e => setNameVal(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') saveName(u.id); if (e.key === 'Escape') setEditNameId(null) }} onBlur={() => saveName(u.id)} style={{ ...inp, padding: '4px 8px', fontSize: '13px', width: '90%' }} />
+            ) : (
+              <span onClick={() => { setEditNameId(u.id); setNameVal(u.name) }} style={{ color: '#F0EDE6', cursor: 'pointer' }} title="Click to edit">{u.name}</span>
+            )}
             <span style={{ color: '#9A9A92', fontSize: '12px' }}>{u.email}</span>
             <select value={u.role} onChange={e => changeRole(u.id, e.target.value)} style={{ ...inp, padding: '5px 8px', fontSize: '12px', width: 'auto' }}>
               {ROLES.map(r => <option key={r} value={r}>{r}</option>)}

@@ -1,6 +1,7 @@
 'use client'
 import Link from 'next/link'
 import { useState } from 'react'
+import NavClock from './NavClock'
 import { usePathname, useRouter } from 'next/navigation'
 
 const DASHBOARD = { href: '/admin', label: 'Dashboard', icon: '▦' }
@@ -12,6 +13,7 @@ const SECTIONS = [
     { href: '/admin/tasks', label: 'Tasks', icon: '☑' },
   ]},
   { title: 'Guests', items: [
+    { href: '/admin/inbox', label: 'Inbox', icon: '✉' },
     { href: '/admin/guests', label: 'Guests', icon: '◉' },
     { href: '/admin/contacts', label: 'Contacts', icon: '✉' },
     { href: '/admin/reviews', label: 'Reviews', icon: '◎' },
@@ -96,6 +98,7 @@ function NavLinks({ pathname, onNavigate, onLogout, role }: { pathname: string; 
           )
         })}
       </nav>
+      <NavClock />
       <button onClick={onLogout}
         style={{ margin: '16px 20px', padding: '10px', background: 'none', border: '0.5px solid #363634', color: '#9A9A92', fontFamily: 'var(--sans)', fontSize: '11px', letterSpacing: '.1em', textTransform: 'uppercase', cursor: 'pointer' }}>
         Log out
