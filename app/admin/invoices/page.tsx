@@ -21,6 +21,16 @@ export default function InvoicesPage() {
     fetch('/api/admin/invoices').then(r => r.json()).then(d => { if (d.error) setError(d.error); else setInvoices(d.invoices || []) }).finally(() => setLoading(false))
   }
   useEffect(() => { load() }, [])
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const openId = params.get('open')
+    if (openId) {
+      openEdit(openId)
+      // clean the URL so refbutton doesn't re-open
+      window.history.replaceState({}, '', '/admin/invoices')
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   async function openEdit(id: string | null) {
     if (id === null) {

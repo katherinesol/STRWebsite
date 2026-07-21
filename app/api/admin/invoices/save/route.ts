@@ -75,12 +75,39 @@ export async function POST(request: NextRequest) {
     await supabase.from('invoice_adjustments').insert(newAdjs.map((a: any) => ({ invoice_id: invoiceId, description: a.description, amount: Number(a.amount) || 0, reason: a.reason || 'other' })))
   }
 
+  // 3a. update EXISTING payments (edited due_date, status, method, etc.)
+  const today0 = new Date().toISOString().split('T')[0]
+  const existingPays = payments.filter((p: any) => p.id && p.amount)
+  for (const p of existingPays) {
+    const st = p.status === 'planned' ? 'planned' : 'paid'
+    const pd = st === 'paid' ? (p.paid_at || today0) : null
+    await supabase.from('invoice_payments').update({
+      amount: Number(p.amount) || 0,
+      method: p.method || null, method_detail: p.method_detail || null, method_last4: p.method_last4 || null,
+      status: st, paid_at: pd,
+      due_date: st === 'planned' ? (p.due_date || 'completion') : null,
+    }).eq('id', p.id)
+    // if it flipped planned->paid and no expense yet, create the expense
+    if (st === 'paid' && !p.expense_created) {
+      const { data: inv } = await supabase.from('invoices').select('contractor_name, company, property_id, title, hst_amount, category').eq('id', invoiceId).single()
+      const methodStr = p.method ? `${p.method}${p.method_detail ? ' ' + p.method_detail : ''}${p.method_last4 ? ' …' + p.method_last4 : ''}` : ''
+      await supabase.from('expenses').insert({
+        property_id: inv?.property_id || null, date: pd,
+        vendor: inv?.contractor_name || inv?.company,
+        description: `Payment — ${inv?.title}${methodStr ? ' (' + methodStr + ')' : ''}`,
+        amount: Number(p.amount) || 0, category: inv?.category || 'Repairs & maintenance',
+        hst_paid: inv?.hst_amount ?? null, notes: 'From invoice tracker', confirmed: true,
+      })
+      await supabase.from('invoice_payments').update({ expense_created: true }).eq('id', p.id)
+    }
+  }
+
   // 3. payments — insert new ones. For paid payments, create an expense.
   const newPays = payments.filter((p: any) => !p.id && p.amount)
   for (const p of newPays) {
     const status = p.status === 'planned' ? 'planned' : 'paid'
     const paidDate = status === 'paid' ? (p.paid_at || new Date().toISOString().split('T')[0]) : null
-    const { data: payRow } = await supabase.from('invoice_payments').insert({
+    const { data: payRow, error: payErr } = await supabase.from('invoice_payments').insert({
       invoice_id: invoiceId, amount: Number(p.amount) || 0, method: p.method || null,
       method_detail: p.method_detail || null, method_last4: p.method_last4 || null,
       status, paid_at: paidDate, due_date: status === 'planned' ? (p.due_date || 'completion') : null,

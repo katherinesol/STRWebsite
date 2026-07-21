@@ -39,7 +39,7 @@ export default function UpcomingPayments() {
         <span style={{ fontSize: '13px', color: '#9A9A92' }}>${total.toFixed(2)} planned</span>
       </div>
       {payments.map(p => (
-        <div key={p.id} style={{ padding: '12px 18px', borderBottom: '0.5px solid #2A2A28', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px' }}>
+        <div key={p.id} onClick={() => { window.location.href = `/admin/invoices?open=${p.invoice_id}` }} style={{ padding: '12px 18px', borderBottom: '0.5px solid #2A2A28', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', cursor: 'pointer' }}>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: '14px', color: '#F0EDE6' }}>${Number(p.amount).toFixed(2)} · {p.vendor}</div>
             <div style={{ fontSize: '12px', color: '#9A9A92', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -50,7 +50,7 @@ export default function UpcomingPayments() {
           <div style={{ fontSize: '12px', color: isOverdue(p.due_date) ? '#e74c3c' : '#AEAEA6', whiteSpace: 'nowrap' }}>
             {isOverdue(p.due_date) ? 'Overdue · ' : 'Due '}{fmtDue(p.due_date)}
           </div>
-          <button onClick={() => markPaid(p.id)} disabled={marking === p.id} style={{ padding: '6px 14px', background: '#1f2a1a', color: '#2ecc71', border: 'none', fontSize: '11px', fontWeight: 600, cursor: 'pointer', borderRadius: '3px', whiteSpace: 'nowrap' }}>
+          <button onClick={(e) => { e.stopPropagation(); markPaid(p.id) }} disabled={marking === p.id} style={{ padding: '6px 14px', background: '#1f2a1a', color: '#2ecc71', border: 'none', fontSize: '11px', fontWeight: 600, cursor: 'pointer', borderRadius: '3px', whiteSpace: 'nowrap' }}>
             {marking === p.id ? '…' : 'Mark paid'}
           </button>
         </div>
