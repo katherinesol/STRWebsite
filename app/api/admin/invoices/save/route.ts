@@ -83,7 +83,7 @@ export async function POST(request: NextRequest) {
     const { data: payRow } = await supabase.from('invoice_payments').insert({
       invoice_id: invoiceId, amount: Number(p.amount) || 0, method: p.method || null,
       method_detail: p.method_detail || null, method_last4: p.method_last4 || null,
-      status, paid_at: paidDate,
+      status, paid_at: paidDate, due_date: status === 'planned' ? (p.due_date || 'completion') : null,
     }).select('id').single()
 
     if (status === 'paid' && payRow) {

@@ -103,6 +103,7 @@ function InvoiceEditor({ editing, setEditing, saveAll, error, onCancel, onDelete
   const [adjDesc, setAdjDesc] = useState(''); const [adjAmt, setAdjAmt] = useState('')
   const [payAmt, setPayAmt] = useState(''); const [payStatus, setPayStatus] = useState('paid'); const [payDate, setPayDate] = useState(new Date().toISOString().split('T')[0])
   const [payDue, setPayDue] = useState('completion')
+  const [editPayIdx, setEditPayIdx] = useState<number | null>(null)
   const [payMethod, setPayMethod] = useState('etransfer'); const [payDetail, setPayDetail] = useState(''); const [payLast4, setPayLast4] = useState('')
   const [vendors, setVendors] = useState<any[]>([]); const [savedMethods, setSavedMethods] = useState<any[]>([])
   const [showVendorList, setShowVendorList] = useState(false)
@@ -137,6 +138,14 @@ function InvoiceEditor({ editing, setEditing, saveAll, error, onCancel, onDelete
   const vendorMatches = e.contractor_name.length >= 1
     ? vendors.filter((v: any) => v.contractor_name.toLowerCase().includes(e.contractor_name.toLowerCase()) && v.contractor_name.toLowerCase() !== e.contractor_name.toLowerCase()).slice(0, 6)
     : []
+
+  function markPaymentPaid(i: number) {
+    const today = new Date().toISOString().split('T')[0]
+    setEditing((prev: any) => ({ ...prev, payments: prev.payments.map((p: any, x: number) => x === i ? { ...p, status: 'paid', paid_at: today, due_date: null } : p) }))
+  }
+  function updatePayment(i: number, patch: any) {
+    setEditing((prev: any) => ({ ...prev, payments: prev.payments.map((p: any, x: number) => x === i ? { ...p, ...patch } : p) }))
+  }
 
   function pickVendor(v: any) {
     setEditing((prev: any) => ({ ...prev, contractor_name: v.contractor_name, company: v.company || prev.company, contractor_contact: v.contractor_contact || prev.contractor_contact }))
@@ -289,9 +298,32 @@ function InvoiceEditor({ editing, setEditing, saveAll, error, onCancel, onDelete
 
         <div style={{ ...lbl, color: '#2ecc71' }}>Payments</div>
         {e.payments.map((p: any, i: number) => (
-          <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: '13px', color: '#F0EDE6' }}>
-            <span>${Number(p.amount).toFixed(2)}{p.method ? ` · ${p.method}${p.method_detail ? ' ' + p.method_detail : ''}${p.method_last4 ? ' …' + p.method_last4 : ''}` : ''} {p.status === 'paid' ? <span style={{ color: '#2ecc71' }}>· paid {p.paid_at || ''}</span> : <span style={{ color: '#9A9A92' }}>· planned</span>}</span>
-            <button onClick={() => { if (p.status === 'paid' && p.id && !window.confirm('Delete this payment? This will also delete the corresponding expense in your books.')) return; setEditing((prev: any) => ({ ...prev, payments: prev.payments.filter((_: any, x: number) => x !== i) })) }} style={{ background: 'none', border: 'none', color: '#666660', cursor: 'pointer' }}>✕</button>
+          <div key={i} style={{ padding: '4px 0', fontSize: '13px', color: '#F0EDE6' }}>
+            {editPayIdx === i ? (
+              <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap', padding: '6px 0' }}>
+                <input type="number" value={p.amount} onChange={ev => updatePayment(i, { amount: ev.target.value })} placeholder="Amount" style={{ ...inp, width: '90px' }} />
+                <select value={p.method || ''} onChange={ev => updatePayment(i, { method: ev.target.value })} style={{ ...inp, width: 'auto' }}>
+                  <option value="etransfer">E-transfer</option>
+                  <option value="billpay">Bill payment</option>
+                  <option value="credit">Credit card</option>
+                  <option value="debit">Debit card</option>
+                  <option value="cash">Cash</option>
+                </select>
+                {p.status === 'paid'
+                  ? <input type="date" value={p.paid_at || ''} onChange={ev => updatePayment(i, { paid_at: ev.target.value })} title="Paid on" style={{ ...inp, width: 'auto' }} />
+                  : <input type="date" value={p.due_date && p.due_date !== 'completion' ? p.due_date : ''} onChange={ev => updatePayment(i, { due_date: ev.target.value || 'completion' })} title="Due date (blank = on completion)" style={{ ...inp, width: 'auto' }} />}
+                <button onClick={() => setEditPayIdx(null)} style={{ padding: '5px 12px', background: 'var(--amber)', color: '#242422', border: 'none', fontSize: '11px', fontWeight: 600, cursor: 'pointer', borderRadius: '3px' }}>Done</button>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span>${Number(p.amount).toFixed(2)}{p.method ? ` · ${p.method}${p.method_detail ? ' ' + p.method_detail : ''}${p.method_last4 ? ' …' + p.method_last4 : ''}` : ''} {p.status === 'paid' ? <span style={{ color: '#2ecc71' }}>· paid {p.paid_at || ''}</span> : <span style={{ color: '#e6a54b' }}>· planned{p.due_date && p.due_date !== 'completion' ? ` · due ${p.due_date}` : ' · due on completion'}</span>}</span>
+                <span style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                  {p.status === 'planned' && <button onClick={() => markPaymentPaid(i)} style={{ padding: '3px 10px', background: '#1f2a1a', color: '#2ecc71', border: 'none', fontSize: '11px', fontWeight: 600, cursor: 'pointer', borderRadius: '3px' }}>Paid</button>}
+                  <button onClick={() => setEditPayIdx(i)} style={{ background: 'none', border: 'none', color: '#9A9A92', cursor: 'pointer', fontSize: '11px' }}>Edit</button>
+                  <button onClick={() => { if (p.status === 'paid' && p.id && !window.confirm('Delete this payment? This will also delete the corresponding expense in your books.')) return; setEditing((prev: any) => ({ ...prev, payments: prev.payments.filter((_: any, x: number) => x !== i) })) }} style={{ background: 'none', border: 'none', color: '#666660', cursor: 'pointer' }}>✕</button>
+                </span>
+              </div>
+            )}
           </div>
         ))}
         <div style={{ marginTop: '8px' }}>

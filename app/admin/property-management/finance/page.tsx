@@ -1,6 +1,7 @@
 import { createAdminClient } from '@/lib/supabase/server'
 import Link from 'next/link'
 import ExpensesManager from '@/components/admin/ExpensesManager'
+import UpcomingPayments from '@/components/admin/UpcomingPayments'
 import ReceiptReviewQueue from '@/components/admin/ReceiptReviewQueue'
 
 export default async function FinancePage() {
@@ -74,6 +75,7 @@ export default async function FinancePage() {
         ))}
       </div>
 
+      <UpcomingPayments />
       <ReceiptReviewQueue initialPending={pending} />
       <ExpensesManager expenses={expensesWithReceipts} vendors={vendors} />
     </div>
