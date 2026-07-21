@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
+import WaterOrderStatus from './WaterOrderStatus'
 
 const inputStyle: React.CSSProperties = {
   width: '100%', padding: '7px 10px', background: '#363634',
@@ -136,6 +137,7 @@ export default function CisternLevel() {
           </button>
         </div>
       )}
+      <WaterOrderStatus />
     </div>
   )
 }
