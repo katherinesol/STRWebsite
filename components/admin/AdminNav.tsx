@@ -12,6 +12,9 @@ const SECTIONS = [
     { href: '/admin/calendar', label: 'Calendar', icon: '▦' },
     { href: '/admin/tasks', label: 'Tasks', icon: '☑' },
   ]},
+  { title: 'Assistant', items: [
+    { href: '/admin/haussy', label: 'Haussy', icon: '✦', ownerOnly: false, staffOnly: true },
+  ] },
   { title: 'Guests', items: [
     { href: '/admin/inbox', label: 'Inbox', icon: '✉' },
     { href: '/admin/guests', label: 'Guests', icon: '◉' },
