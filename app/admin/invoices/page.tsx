@@ -24,7 +24,7 @@ export default function InvoicesPage() {
 
   async function openEdit(id: string | null) {
     if (id === null) {
-      setEditing({ contractor_name: '', company: '', contractor_contact: '', property_id: '', title: '', category: 'Repairs & maintenance', items: [], adjustments: [], payments: [] })
+      setEditing({ contractor_name: '', company: '', contractor_contact: '', property_id: '', title: '', category: 'Repairs & maintenance', due_date: 'completion', items: [], adjustments: [], payments: [] })
       return
     }
     const d = await fetch(`/api/admin/invoices/${id}`).then(r => r.json())
@@ -38,6 +38,7 @@ export default function InvoicesPage() {
       share_token: d.invoice.share_token,
       acknowledged_at: d.invoice.acknowledged_at,
       category: d.invoice.category || 'Repairs & maintenance',
+      due_date: d.invoice.due_date || 'completion',
       tax_mode: d.invoice.tax_mode || 'auto',
       hst_amount: d.invoice.hst_amount ?? '',
       items: d.items || [],
@@ -101,6 +102,7 @@ function InvoiceEditor({ editing, setEditing, saveAll, error, onCancel, onDelete
   const [itemDesc, setItemDesc] = useState(''); const [itemAmt, setItemAmt] = useState('')
   const [adjDesc, setAdjDesc] = useState(''); const [adjAmt, setAdjAmt] = useState('')
   const [payAmt, setPayAmt] = useState(''); const [payStatus, setPayStatus] = useState('paid'); const [payDate, setPayDate] = useState(new Date().toISOString().split('T')[0])
+  const [payDue, setPayDue] = useState('completion')
   const [payMethod, setPayMethod] = useState('etransfer'); const [payDetail, setPayDetail] = useState(''); const [payLast4, setPayLast4] = useState('')
   const [vendors, setVendors] = useState<any[]>([]); const [savedMethods, setSavedMethods] = useState<any[]>([])
   const [showVendorList, setShowVendorList] = useState(false)
@@ -177,7 +179,7 @@ function InvoiceEditor({ editing, setEditing, saveAll, error, onCancel, onDelete
     let next = { ...editing }
     if (itemDesc && itemAmt) next = { ...next, items: [...next.items, { description: itemDesc, amount: itemAmt }] }
     if (adjDesc && adjAmt) next = { ...next, adjustments: [...next.adjustments, { description: adjDesc, amount: adjAmt }] }
-    if (payAmt) next = { ...next, payments: [...next.payments, { amount: payAmt, status: payStatus, paid_at: payStatus === 'paid' ? payDate : null, method: payMethod, method_detail: (payMethod === 'credit' || payMethod === 'debit' || payMethod === 'etransfer') ? payDetail : null, method_last4: (payMethod === 'credit' || payMethod === 'debit' || payMethod === 'etransfer') ? payLast4 : null }] }
+    if (payAmt) next = { ...next, payments: [...next.payments, { amount: payAmt, status: payStatus, paid_at: payStatus === 'paid' ? payDate : null, due_date: payStatus === 'planned' ? payDue : null, method: payMethod, method_detail: (payMethod === 'credit' || payMethod === 'debit' || payMethod === 'etransfer' || payMethod === 'billpay') ? payDetail : null, method_last4: (payMethod === 'credit' || payMethod === 'debit' || payMethod === 'etransfer' || payMethod === 'billpay') ? payLast4 : null }] }
     setEditing(next)
     // clear the inputs
     setItemDesc(''); setItemAmt(''); setAdjDesc(''); setAdjAmt(''); setPayAmt(''); setPayDetail(''); setPayLast4('')
@@ -194,7 +196,13 @@ function InvoiceEditor({ editing, setEditing, saveAll, error, onCancel, onDelete
       {/* header fields */}
       <div style={{ background: '#242422', border: '0.5px solid #363634', padding: '18px', borderRadius: '3px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '16px' }}>
         <div style={{ position: 'relative' }}>
-          <input placeholder="Contractor name" value={e.contractor_name} onChange={ev => { set({ contractor_name: ev.target.value }); setShowVendorList(true) }} onFocus={() => setShowVendorList(true)} style={{ ...inp, width: '100%' }} />
+          <input placeholder="Contractor name" value={e.contractor_name} onChange={ev => {
+          const val = ev.target.value
+          const match = vendors.find((v: any) => v.contractor_name && v.contractor_name.toLowerCase() === val.toLowerCase())
+          if (match && !e.company) set({ contractor_name: val, company: match.company || '', contractor_contact: e.contractor_contact || match.contractor_contact || '' })
+          else set({ contractor_name: val })
+          setShowVendorList(true)
+        }} onFocus={() => setShowVendorList(true)} style={{ ...inp, width: '100%' }} />
           {showVendorList && vendorMatches.length > 0 && (
             <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 20, background: '#2A2A28', border: '0.5px solid #4A4A48', borderRadius: '3px', marginTop: '2px', maxHeight: '200px', overflowY: 'auto' }}>
               {vendorMatches.map((v: any, i: number) => (
@@ -205,7 +213,12 @@ function InvoiceEditor({ editing, setEditing, saveAll, error, onCancel, onDelete
             </div>
           )}
         </div>
-        <input placeholder="Company (optional)" value={e.company} onChange={ev => set({ company: ev.target.value })} style={inp} />
+        <input placeholder="Company (optional)" value={e.company} onChange={ev => {
+          const val = ev.target.value
+          const match = vendors.find((v: any) => v.company && v.company.toLowerCase() === val.toLowerCase())
+          if (match && !e.contractor_name) set({ company: val, contractor_name: match.contractor_name, contractor_contact: e.contractor_contact || match.contractor_contact || '' })
+          else set({ company: val })
+        }} style={inp} />
         <input placeholder="Title (e.g. Kitchen reno)" value={e.title} onChange={ev => set({ title: ev.target.value })} style={inp} />
         <select value={e.property_id} onChange={ev => set({ property_id: ev.target.value })} style={inp}>
           <option value="">No property</option>{PROPERTIES.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
@@ -286,6 +299,7 @@ function InvoiceEditor({ editing, setEditing, saveAll, error, onCancel, onDelete
             <input placeholder="Amount" type="number" value={payAmt} onChange={ev => setPayAmt(ev.target.value)} style={{ ...inp, flex: 1, minWidth: '90px' }} />
             <select value={payMethod} onChange={ev => setPayMethod(ev.target.value)} style={{ ...inp, width: 'auto' }}>
               <option value="etransfer">E-transfer</option>
+              <option value="billpay">Bill payment</option>
               <option value="credit">Credit card</option>
               <option value="debit">Debit card</option>
               <option value="cash">Cash</option>
@@ -294,13 +308,22 @@ function InvoiceEditor({ editing, setEditing, saveAll, error, onCancel, onDelete
               <option value="paid">Paid</option>
               <option value="planned">Planned</option>
             </select>
-            {payStatus === 'paid' && <input type="date" value={payDate} onChange={ev => setPayDate(ev.target.value)} style={{ ...inp, width: 'auto' }} />}
+            {payStatus === 'paid' && <input type="date" value={payDate} onChange={ev => setPayDate(ev.target.value)} title="Paid on" style={{ ...inp, width: 'auto' }} />}
+            {payStatus === 'planned' && (
+              <>
+                <select value={payDue === 'completion' ? 'completion' : 'date'} onChange={ev => setPayDue(ev.target.value === 'completion' ? 'completion' : new Date().toISOString().split('T')[0])} style={{ ...inp, width: 'auto' }}>
+                  <option value="completion">Due on completion</option>
+                  <option value="date">Due by date</option>
+                </select>
+                {payDue !== 'completion' && <input type="date" value={payDue} onChange={ev => setPayDue(ev.target.value)} style={{ ...inp, width: 'auto' }} />}
+              </>
+            )}
           </div>
-          {(payMethod === 'credit' || payMethod === 'debit' || payMethod === 'etransfer') && (
+          {(payMethod === 'credit' || payMethod === 'debit' || payMethod === 'etransfer' || payMethod === 'billpay') && (
             <>
-              {savedMethods.filter((m: any) => m.method === payMethod && (m.method_detail || m.method_last4)).length > 0 && (
+              {savedMethods.filter((m: any) => (m.method === payMethod || ((payMethod === 'etransfer' || payMethod === 'billpay') && (m.method === 'etransfer' || m.method === 'billpay'))) && (m.method_detail || m.method_last4)).length > 0 && (
                 <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '6px' }}>
-                  {savedMethods.filter((m: any) => m.method === payMethod && (m.method_detail || m.method_last4)).map((m: any, i: number) => (
+                  {savedMethods.filter((m: any) => (m.method === payMethod || ((payMethod === 'etransfer' || payMethod === 'billpay') && (m.method === 'etransfer' || m.method === 'billpay'))) && (m.method_detail || m.method_last4)).map((m: any, i: number) => (
                     <button key={i} onClick={() => { setPayDetail(m.method_detail || ''); setPayLast4(m.method_last4 || '') }} style={{ padding: '5px 10px', background: '#2A2A28', border: '0.5px solid #4A4A48', color: '#AEAEA6', cursor: 'pointer', borderRadius: '3px', fontSize: '11px' }}>
                       {m.method_detail}{m.method_last4 ? ' …' + m.method_last4 : ''}
                     </button>
@@ -313,7 +336,7 @@ function InvoiceEditor({ editing, setEditing, saveAll, error, onCancel, onDelete
               </div>
             </>
           )}
-          <button onClick={() => { if (payAmt) { setEditing((prev: any) => ({ ...prev, payments: [...prev.payments, { amount: payAmt, status: payStatus, paid_at: payStatus === 'paid' ? payDate : null, method: payMethod, method_detail: (payMethod === 'credit' || payMethod === 'debit' || payMethod === 'etransfer') ? payDetail : null, method_last4: (payMethod === 'credit' || payMethod === 'debit' || payMethod === 'etransfer') ? payLast4 : null }] })); setPayAmt(''); setPayDetail(''); setPayLast4('') } }} style={{ padding: '8px 16px', background: '#363634', color: '#AEAEA6', border: 'none', cursor: 'pointer', borderRadius: '3px', fontSize: '12px' }}>Add payment</button>
+          <button onClick={() => { if (payAmt) { setEditing((prev: any) => ({ ...prev, payments: [...prev.payments, { amount: payAmt, status: payStatus, paid_at: payStatus === 'paid' ? payDate : null, due_date: payStatus === 'planned' ? payDue : null, method: payMethod, method_detail: (payMethod === 'credit' || payMethod === 'debit' || payMethod === 'etransfer' || payMethod === 'billpay') ? payDetail : null, method_last4: (payMethod === 'credit' || payMethod === 'debit' || payMethod === 'etransfer' || payMethod === 'billpay') ? payLast4 : null }] })); setPayAmt(''); setPayDetail(''); setPayLast4(''); setPayDue('completion') } }} style={{ padding: '8px 16px', background: '#363634', color: '#AEAEA6', border: 'none', cursor: 'pointer', borderRadius: '3px', fontSize: '12px' }}>Add payment</button>
         </div>
 
         {/* tax control */}
@@ -349,7 +372,7 @@ function InvoiceEditor({ editing, setEditing, saveAll, error, onCancel, onDelete
       )}
 
       <div style={{ display: 'flex', gap: '10px' }}>
-        <button onClick={flushAndSave} disabled={!e.contractor_name || !e.title} style={{ padding: '12px 28px', background: 'var(--amber)', color: '#242422', border: 'none', fontSize: '12px', fontWeight: 600, letterSpacing: '.06em', textTransform: 'uppercase', cursor: 'pointer', borderRadius: '3px' }}>Save invoice</button>
+        <button onClick={flushAndSave} disabled={(!e.contractor_name && !e.company) || !e.title} style={{ padding: '12px 28px', background: 'var(--amber)', color: '#242422', border: 'none', fontSize: '12px', fontWeight: 600, letterSpacing: '.06em', textTransform: 'uppercase', cursor: 'pointer', borderRadius: '3px' }}>Save invoice</button>
         <button onClick={onCancel} style={{ padding: '12px 20px', background: '#363634', color: '#9A9A92', border: 'none', fontSize: '12px', cursor: 'pointer', borderRadius: '3px' }}>Cancel</button>
         {e.id && <button onClick={() => onDelete(e.id)} style={{ padding: '12px 20px', background: 'none', color: '#e74c3c', border: '0.5px solid #3a2020', fontSize: '12px', cursor: 'pointer', borderRadius: '3px', marginLeft: 'auto' }}>Delete</button>}
       </div>

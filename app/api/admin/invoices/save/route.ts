@@ -7,9 +7,9 @@ export async function POST(request: NextRequest) {
   if (!await hasRole('owner', 'co-owner')) return NextResponse.json({ error: 'Not allowed' }, { status: 403 })
   const auth = await getAuth()
   const body = await request.json()
-  const { id, contractor_name, company, contractor_contact, property_id, title, notes, hst_amount, tax_mode, category, items = [], adjustments = [], payments = [] } = body
+  const { id, contractor_name, company, contractor_contact, property_id, title, notes, hst_amount, tax_mode, category, due_date, items = [], adjustments = [], payments = [] } = body
 
-  if (!contractor_name || !title) return NextResponse.json({ error: 'Contractor and title required' }, { status: 400 })
+  if ((!contractor_name && !company) || !title) return NextResponse.json({ error: 'Contractor or company, and title required' }, { status: 400 })
   const supabase = createAdminClient()
 
   // 1. create or update the invoice header
@@ -18,13 +18,13 @@ export async function POST(request: NextRequest) {
     await supabase.from('invoices').update({
       contractor_name, company: company || null, contractor_contact: contractor_contact || null,
       property_id: property_id || null, title, notes: notes || null,
-      hst_amount: hst_amount ?? null, tax_mode: tax_mode || 'auto', category: category || 'Repairs & maintenance',
+      hst_amount: hst_amount ?? null, tax_mode: tax_mode || 'auto', category: category || 'Repairs & maintenance', due_date: due_date || 'completion',
     }).eq('id', invoiceId)
   } else {
     const { data: created, error } = await supabase.from('invoices').insert({
       contractor_name, company: company || null, contractor_contact: contractor_contact || null,
       property_id: property_id || null, title, notes: notes || null,
-      hst_amount: hst_amount ?? null, tax_mode: tax_mode || 'auto', category: category || 'Repairs & maintenance',
+      hst_amount: hst_amount ?? null, tax_mode: tax_mode || 'auto', category: category || 'Repairs & maintenance', due_date: due_date || 'completion',
       created_by: auth.ok ? auth.userId : null,
     }).select('id').single()
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
@@ -87,12 +87,12 @@ export async function POST(request: NextRequest) {
     }).select('id').single()
 
     if (status === 'paid' && payRow) {
-      const { data: inv } = await supabase.from('invoices').select('contractor_name, property_id, title, hst_amount, category').eq('id', invoiceId).single()
+      const { data: inv } = await supabase.from('invoices').select('contractor_name, company, property_id, title, hst_amount, category').eq('id', invoiceId).single()
       const methodStr = p.method ? `${p.method}${p.method_detail ? ' ' + p.method_detail : ''}${p.method_last4 ? ' …' + p.method_last4 : ''}` : ''
       await supabase.from('expenses').insert({
         property_id: inv?.property_id || null,
         date: paidDate,
-        vendor: inv?.contractor_name,
+        vendor: inv?.contractor_name || inv?.company,
         description: `Payment — ${inv?.title}${methodStr ? ' (' + methodStr + ')' : ''}`,
         amount: Number(p.amount) || 0,
         category: inv?.category || 'Repairs & maintenance',
