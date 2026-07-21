@@ -23,6 +23,7 @@ const SECTIONS = [
   ]},
   { title: 'Property', items: [
     { href: '/admin/properties', label: 'Properties', icon: '⌂' },
+    { href: '/admin/knowledge', label: 'Guest Info', icon: '❓', staffOnly: true },
     { href: '/admin/property-management', label: 'Prop mgmt', icon: '⚙' },
     { href: '/admin/access', label: 'Access', icon: '⊙' },
   ]},
