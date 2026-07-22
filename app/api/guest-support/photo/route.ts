@@ -22,6 +22,16 @@ export async function POST(request: NextRequest) {
   }
   if (!booking) return NextResponse.json({ error: 'Verification failed' }, { status: 403 })
 
+  // PHOTO LIMIT: cap photos per hour per booking (vision is pricier)
+  try {
+    const { data: c } = await supabase.from('conversations').select('id').eq('booking_id', booking_id).maybeSingle()
+    if (c) {
+      const hourAgo = new Date(Date.now() - 3600000).toISOString()
+      const { count } = await supabase.from('messages').select('*', { count: 'exact', head: true }).eq('conversation_id', c.id).eq('sender', 'guest').gte('created_at', hourAgo)
+      if ((count || 0) >= 40) return NextResponse.json({ answer: "Let's continue in a little while — for anything urgent, your host is happy to help directly." })
+    }
+  } catch {}
+
   // store the photo
   let photoUrl: string | null = null
   try {

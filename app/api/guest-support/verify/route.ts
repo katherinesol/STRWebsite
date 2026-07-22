@@ -11,6 +11,16 @@ export async function POST(request: NextRequest) {
   const codeUp = code.trim().toUpperCase()
   const lastLower = lastName.trim().toLowerCase()
 
+  // ATTEMPT LIMIT: block brute-forcing codes (max 8 failed tries per IP per 15 min)
+  const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
+  try {
+    const since = new Date(Date.now() - 15 * 60000).toISOString()
+    const { count } = await supabase.from('verify_attempts').select('*', { count: 'exact', head: true }).eq('ip', ip).eq('success', false).gte('created_at', since)
+    if ((count || 0) >= 8) {
+      return NextResponse.json({ error: 'Too many attempts. Please wait a few minutes and try again, or contact your host directly.' }, { status: 429 })
+    }
+  } catch {}
+
   // access window: stay dates ± 3 days
   const now = new Date()
   const windowStart = new Date(now.getTime() - 3 * 86400000).toISOString().split('T')[0]
@@ -61,7 +71,12 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  if (!match) return NextResponse.json({ error: 'No booking found with that code and last name. Please check and try again.' }, { status: 404 })
+  if (!match) {
+    try { await supabase.from('verify_attempts').insert({ ip, success: false }) } catch {}
+    return NextResponse.json({ error: 'No booking found with that code and last name. Please check and try again.' }, { status: 404 })
+  }
+  // log success
+  try { await supabase.from('verify_attempts').insert({ ip, success: true }) } catch {}
 
   // access window check
   if (match.check_out < windowStart) {

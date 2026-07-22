@@ -38,6 +38,19 @@ export async function POST(request: NextRequest) {
   }
   if (!booking) return NextResponse.json({ error: 'Verification expired. Please re-enter your code.' }, { status: 403 })
 
+  // RATE LIMIT: cap guest messages per hour per booking (abuse/cost protection)
+  const HOUR_LIMIT = 40
+  try {
+    const { data: conv } = await supabase.from('conversations').select('id').eq('booking_id', booking_id).maybeSingle()
+    if (conv) {
+      const hourAgo = new Date(Date.now() - 3600000).toISOString()
+      const { count } = await supabase.from('messages').select('*', { count: 'exact', head: true }).eq('conversation_id', conv.id).eq('sender', 'guest').gte('created_at', hourAgo)
+      if ((count || 0) >= HOUR_LIMIT) {
+        return NextResponse.json({ answer: "I want to make sure I'm giving you my best help — let's pick this up again in a little while. For anything urgent, your host is always happy to assist directly." })
+      }
+    }
+  } catch {}
+
   // property knowledge base (+ general)
   const { data: kb } = await supabase.from('knowledge_base').select('topic, title, content').eq('active', true)
     .or(`property_id.eq.${booking.property_id},property_id.eq.general`)
@@ -91,7 +104,8 @@ RULES:
       model: 'claude-sonnet-5',
       max_tokens: 700,
       system: systemPrompt,
-      messages: messages.map((m: any) => ({ role: m.role, content: String(m.content) })),
+      // CONTEXT CAP: only send the model the last 20 messages (bounds cost; guest still sees full history)
+      messages: messages.slice(-20).map((m: any) => ({ role: m.role, content: String(m.content) })),
     })
     const text = resp.content.filter((b: any) => b.type === 'text').map((b: any) => b.text).join('\n')
 
