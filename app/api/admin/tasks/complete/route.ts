@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getTaskAccess, canAccessProperty } from '@/lib/task-access'
 import { createAdminClient } from '@/lib/supabase/server'
+import { isAuthed } from '@/lib/auth'
 
 // mark a task complete — attributed to the logged-in user automatically
 export async function POST(request: NextRequest) {
+  if (!await isAuthed()) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const access = await getTaskAccess()
   if (!access.ok) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
@@ -35,6 +37,7 @@ export async function POST(request: NextRequest) {
 
 // completion history for one task (the "last done by X" log)
 export async function GET(request: NextRequest) {
+  if (!await isAuthed()) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const access = await getTaskAccess()
   if (!access.ok) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const taskId = request.nextUrl.searchParams.get('task_id')

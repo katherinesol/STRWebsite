@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getTaskAccess, canAccessProperty } from '@/lib/task-access'
 import { createAdminClient } from '@/lib/supabase/server'
+import { isAuthed } from '@/lib/auth'
 
 // per-stay tasks for a property + completion status for a specific booking
 export async function GET(request: NextRequest) {
+  if (!await isAuthed()) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const access = await getTaskAccess()
   if (!access.ok) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 

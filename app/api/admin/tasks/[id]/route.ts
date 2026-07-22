@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getTaskAccess } from '@/lib/task-access'
 import { createAdminClient } from '@/lib/supabase/server'
+import { isAuthed } from '@/lib/auth'
 
 // edit a task — owner only
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  if (!await isAuthed()) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const access = await getTaskAccess()
   if (!access.ok) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   if (access.role !== 'owner') return NextResponse.json({ error: 'Owner only' }, { status: 403 })
@@ -20,6 +22,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
 // delete a task — owner only
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  if (!await isAuthed()) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const access = await getTaskAccess()
   if (!access.ok) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   if (access.role !== 'owner') return NextResponse.json({ error: 'Owner only' }, { status: 403 })

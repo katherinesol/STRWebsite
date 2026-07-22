@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getTaskAccess, canAccessProperty } from '@/lib/task-access'
 import { createAdminClient } from '@/lib/supabase/server'
+import { isAuthed } from '@/lib/auth'
 
 // list tasks with their latest completion + computed due status
 export async function GET(request: NextRequest) {
+  if (!await isAuthed()) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const access = await getTaskAccess()
   if (!access.ok) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
@@ -54,6 +56,7 @@ export async function GET(request: NextRequest) {
 
 // create a task. Cleaners may only create maintenance tasks on their assigned properties.
 export async function POST(request: NextRequest) {
+  if (!await isAuthed()) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const access = await getTaskAccess()
   if (!access.ok) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
