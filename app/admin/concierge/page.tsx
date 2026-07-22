@@ -19,6 +19,26 @@ export default function ConciergeTrainingCenter() {
   const [input, setInput] = useState('')
   const [busy, setBusy] = useState(false)
   const endRef = useRef<HTMLDivElement>(null)
+  const [trainIdx, setTrainIdx] = useState<number | null>(null)
+  const [trainText, setTrainText] = useState('')
+  const [trainMsg, setTrainMsg] = useState('')
+
+  function renderContent(text: string) {
+    return String(text).split(/(\{\{copy:[^}]+\}\})/g).map((p, i) => {
+      const m = p.match(/^\{\{copy:([^}]+)\}\}$/)
+      return m ? <span key={i} onClick={() => navigator.clipboard.writeText(m[1])} style={{ background: '#1A1A18', color: '#fff', padding: '1px 8px', borderRadius: '5px', fontFamily: 'monospace', cursor: 'pointer', fontSize: '12px' }} title="Click to copy">{m[1]} ⧉</span> : <span key={i}>{p}</span>
+    })
+  }
+  async function submitTraining(i: number) {
+    if (!trainText.trim()) return
+    const q = messages[i - 1]?.content || ''
+    setTrainMsg('Saving…')
+    const res = await fetch('/api/admin/concierge-train', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ property_id: prop, question: q, rough_answer: trainText }) })
+    const d = await res.json()
+    if (d.error) { setTrainMsg(d.error); return }
+    setTrainMsg(`✓ Saved: "${d.entry?.title}"`); setTrainIdx(null); setTrainText(''); loadKB()
+    setTimeout(() => setTrainMsg(''), 3000)
+  }
 
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages, busy])
   function loadKB() { fetch('/api/admin/knowledge').then(r => r.json()).then(d => { if (d.entries) setEntries(d.entries) }) }
@@ -47,6 +67,7 @@ export default function ConciergeTrainingCenter() {
       <div style={{ marginBottom: '20px' }}>
         <h1 style={{ fontFamily: 'var(--serif)', fontWeight: 300, fontSize: '30px', color: '#F0EDE6', margin: 0 }}>Concierge Training</h1>
         <p style={{ fontSize: '12px', color: '#9A9A92', marginTop: '2px' }}>Test how your Virtual Concierge responds, and see everything it knows.</p>
+        {trainMsg && <div style={{ fontSize: '12px', color: trainMsg.startsWith('✓') ? '#7bc47b' : '#e6a86a', marginTop: '6px' }}>{trainMsg}</div>}
       </div>
 
       {/* property selector */}
@@ -65,7 +86,18 @@ export default function ConciergeTrainingCenter() {
             {messages.map((m, i) => (
               <div key={i} style={{ alignSelf: m.role === 'user' ? 'flex-end' : 'flex-start', maxWidth: '85%' }}>
                 {m.role !== 'user' && <span style={{ fontSize: '9px', color: m.escalated ? '#e6a86a' : '#B8956B', paddingLeft: '4px' }}>{m.escalated ? 'Virtual Concierge · escalated' : 'Virtual Concierge'}</span>}
-                <div style={{ padding: '9px 13px', borderRadius: '12px', fontSize: '13px', lineHeight: 1.5, background: m.role === 'user' ? 'var(--amber)' : '#363634', color: m.role === 'user' ? '#242422' : '#F0EDE6', whiteSpace: 'pre-wrap', marginTop: '2px' }}>{m.content}</div>
+                <div style={{ padding: '9px 13px', borderRadius: '12px', fontSize: '13px', lineHeight: 1.5, background: m.role === 'user' ? 'var(--amber)' : '#363634', color: m.role === 'user' ? '#242422' : '#F0EDE6', whiteSpace: 'pre-wrap', marginTop: '2px' }}>{m.role === 'user' ? m.content : renderContent(m.content)}</div>
+                {m.role !== 'user' && (
+                  <div style={{ display: 'flex', gap: '8px', marginTop: '4px', paddingLeft: '4px' }}>
+                    <button onClick={() => { setTrainIdx(trainIdx === i ? null : i); setTrainText('') }} style={{ fontSize: '10px', color: '#9A9A92', background: 'none', border: 'none', cursor: 'pointer' }}>{trainIdx === i ? 'cancel' : '✎ teach a better answer'}</button>
+                  </div>
+                )}
+                {trainIdx === i && (
+                  <div style={{ marginTop: '6px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <textarea value={trainText} onChange={e => setTrainText(e.target.value)} placeholder="Type the correct answer in plain words — I'll polish and save it." rows={3} style={{ padding: '8px 10px', background: '#1E1E1C', border: '0.5px solid #4A4A48', color: '#F0EDE6', fontSize: '12px', borderRadius: '6px', resize: 'vertical' }} />
+                    <button onClick={() => submitTraining(i)} style={{ alignSelf: 'flex-start', padding: '6px 14px', background: 'var(--amber)', color: '#242422', border: 'none', fontSize: '11px', fontWeight: 600, cursor: 'pointer', borderRadius: '6px' }}>Save to knowledge</button>
+                  </div>
+                )}
               </div>
             ))}
             {busy && <div style={{ alignSelf: 'flex-start', fontSize: '12px', color: '#9A9A92' }}>…</div>}
