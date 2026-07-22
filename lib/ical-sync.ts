@@ -40,29 +40,13 @@ function detectPlatform(url: string): string {
   return 'manual'
 }
 
-const URL_MAP: Record<string, string[]> = {
-  'nickel-beach': [
-    process.env.NICKEL_BEACH_AIRBNB_ICAL || '',
-    process.env.NICKEL_BEACH_VRBO_ICAL || '',
-    process.env.NICKEL_BEACH_HOUFY_ICAL || '',
-  ],
-  'royal-york-east': [
-    process.env.ROYAL_YORK_EAST_AIRBNB_ICAL || '',
-    process.env.ROYAL_YORK_EAST_VRBO_ICAL || '',
-    process.env.ROYAL_YORK_EAST_HOUFY_ICAL || '',
-  ],
-  'royal-york-west': [
-    process.env.ROYAL_YORK_WEST_AIRBNB_ICAL || '',
-    process.env.ROYAL_YORK_WEST_VRBO_ICAL || '',
-    process.env.ROYAL_YORK_WEST_HOUFY_ICAL || '',
-  ],
-}
 
 export async function syncICalToDB(propertyId: string): Promise<number> {
-  const urls = (URL_MAP[propertyId] || []).filter(Boolean)
+  const supabase = createAdminClient()
+  const { data: feeds } = await supabase.from('ical_feeds').select('url').eq('property_id', propertyId).eq('active', true)
+  const urls = (feeds || []).map((f: any) => f.url).filter(Boolean)
   if (!urls.length) return 0
 
-  const supabase = createAdminClient()
   let saved = 0
 
   await Promise.all(urls.map(async url => {

@@ -1,5 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/server'
 import SettingsForm from '@/components/admin/SettingsForm'
+import IcalFeedsManager from '@/components/admin/IcalFeedsManager'
 
 export default async function SettingsPage() {
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://rental-direct-five.vercel.app'
@@ -23,6 +24,7 @@ export default async function SettingsPage() {
         <h1 style={{ fontFamily: 'var(--serif)', fontSize: '32px', fontWeight: 300, color: '#F5F2EC', lineHeight: 1 }}>Settings.</h1>
       </div>
       <SettingsForm settings={settings} icalUrls={icalUrls} />
+      <IcalFeedsManager />
     </div>
   )
 }
