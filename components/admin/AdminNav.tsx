@@ -14,6 +14,7 @@ const SECTIONS = [
   ]},
   { title: 'Assistant', items: [
     { href: '/admin/haussy', label: 'Haussy', icon: '✦', ownerOnly: false, staffOnly: true },
+    { href: '/admin/concierge', label: 'Concierge Training', icon: '✦', ownerOnly: false, staffOnly: true },
   ] },
   { title: 'Guests', items: [
     { href: '/admin/inbox', label: 'Inbox', icon: '✉' },
@@ -28,7 +29,7 @@ const SECTIONS = [
   ]},
   { title: 'Property', items: [
     { href: '/admin/properties', label: 'Properties', icon: '⌂' },
-    { href: '/admin/knowledge', label: 'Guest Info', icon: '❓', staffOnly: true },
+    { href: '/admin/knowledge', label: 'Concierge Knowledge', icon: '❓', staffOnly: true },
     { href: '/admin/property-management', label: 'Prop mgmt', icon: '⚙' },
     { href: '/admin/access', label: 'Access', icon: '⊙' },
   ]},
@@ -127,7 +128,7 @@ export default function AdminNav({ role = 'cleaner' }: { role?: string }) {
         position: 'fixed', left: 0, top: 0, bottom: 0,
         width: '220px', background: '#1A1A18',
         borderRight: '0.5px solid #363634',
-        flexDirection: 'column',
+        display: 'flex', flexDirection: 'column', overflow: 'hidden',
       }}>
         <NavLinks pathname={pathname} onLogout={handleLogout}  role={role} />
       </div>

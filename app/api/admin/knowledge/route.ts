@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { hasRole, getAuth } from '@/lib/auth'
+import { hasRole } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/server'
 
-// list all knowledge entries (owner + co-owner)
 export async function GET() {
   if (!await hasRole('owner', 'co-owner')) return NextResponse.json({ error: 'Not allowed' }, { status: 403 })
   const supabase = createAdminClient()
@@ -11,19 +10,26 @@ export async function GET() {
   return NextResponse.json({ entries: data || [] })
 }
 
-// create an entry
-export async function POST(request: NextRequest) {
-  if (!await hasRole('owner', 'co-owner')) return NextResponse.json({ error: 'Not allowed' }, { status: 403 })
-  const auth = await getAuth()
-  const { property_id, topic, title, content } = await request.json()
-  if (!title || !content) return NextResponse.json({ error: 'Title and content required' }, { status: 400 })
+// update or delete an entry
+export async function PATCH(request: NextRequest) {
+  if (!await hasRole('owner')) return NextResponse.json({ error: 'Not allowed' }, { status: 403 })
+  const { id, title, content, topic, active } = await request.json()
   const supabase = createAdminClient()
-  const { data, error } = await supabase.from('knowledge_base').insert({
-    property_id: property_id || 'general',
-    topic: topic || 'general',
-    title, content,
-    created_by: auth.ok ? auth.userId : null,
-  }).select().single()
+  const upd: any = { updated_at: new Date().toISOString() }
+  if (title !== undefined) upd.title = title
+  if (content !== undefined) upd.content = content
+  if (topic !== undefined) upd.topic = topic
+  if (active !== undefined) upd.active = active
+  const { error } = await supabase.from('knowledge_base').update(upd).eq('id', id)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ ok: true, entry: data })
+  return NextResponse.json({ ok: true })
+}
+
+export async function DELETE(request: NextRequest) {
+  if (!await hasRole('owner')) return NextResponse.json({ error: 'Not allowed' }, { status: 403 })
+  const { id } = await request.json()
+  const supabase = createAdminClient()
+  const { error } = await supabase.from('knowledge_base').delete().eq('id', id)
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json({ ok: true })
 }
