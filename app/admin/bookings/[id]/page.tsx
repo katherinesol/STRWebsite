@@ -2,6 +2,7 @@ import { createAdminClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
 import { format } from 'date-fns'
 import Link from 'next/link'
+import BookingSupportCard from '@/components/admin/BookingSupportCard'
 import BookingActions from '@/components/admin/BookingActions'
 import WaterUsageCard from '@/components/admin/WaterUsageCard'
 import StayChecklist from '@/components/admin/StayChecklist'
@@ -94,6 +95,7 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
         {/* actions panel */}
         <div style={{ position: 'sticky', top: '32px' }}>
           <BookingActions booking={booking} />
+          <BookingSupportCard bookingId={booking.id} source="direct" initialCode={booking.confirmation_code} siteUrl={process.env.NEXT_PUBLIC_SITE_URL || 'https://rental-direct-five.vercel.app'} />
           <PaymentReminderForm booking={booking} guest={guest} />
           <StayChecklist propertyId={booking.property_id} bookingId={booking.id} />
           <WaterUsageCard propertyId={booking.property_id} checkIn={booking.check_in} checkOut={booking.check_out} />

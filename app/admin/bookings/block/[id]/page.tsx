@@ -1,5 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
+import BookingSupportCard from '@/components/admin/BookingSupportCard'
 import { format } from 'date-fns'
 import Link from 'next/link'
 import PlatformBookingForm from '@/components/admin/PlatformBookingForm'
@@ -41,6 +42,9 @@ export default async function PlatformBookingPage({ params }: { params: Promise<
         </div>
       </div>
       <PlatformBookingForm block={block} />
+      <div style={{ maxWidth: '520px', marginTop: '16px' }}>
+        <BookingSupportCard bookingId={block.id} source="platform" initialCode={block.confirmation_code} siteUrl={process.env.NEXT_PUBLIC_SITE_URL || 'https://rental-direct-five.vercel.app'} />
+      </div>
     </div>
   )
 }

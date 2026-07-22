@@ -152,7 +152,7 @@ export default function HaussyPage() {
               </select>
               <span style={{ fontSize: '10px', color: '#666660' }}>adjusts both dates</span>
             </label>
-            {[['guest_name','Guest'],['platform','Platform'],['check_in','Check-in'],['check_out','Check-out'],['check_in_time','Check-in time'],['check_out_time','Checkout time'],['door_code','Door code'],['guest_email','Email'],['guest_phone','Phone'],['nightly_rate','Nightly'],['accommodation','Accommodation'],['cleaning_fee','Cleaning'],['discount','Discount'],['occupancy_taxes','Occupancy taxes'],['guest_total','Guest total'],['payout_amount','Payout']].map(([k,label]) => (
+            {[['guest_name','Guest'],['platform','Platform'],['confirmation_code','Confirmation code'],['check_in','Check-in'],['check_out','Check-out'],['check_in_time','Check-in time'],['check_out_time','Checkout time'],['door_code','Door code'],['guest_email','Email'],['guest_phone','Phone'],['nightly_rate','Nightly'],['accommodation','Accommodation'],['cleaning_fee','Cleaning'],['discount','Discount'],['occupancy_taxes','Occupancy taxes'],['guest_total','Guest total'],['payout_amount','Payout']].map(([k,label]) => (
               <label key={k} style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                 <span style={{ fontSize: '9px', color: '#9A9A92', textTransform: 'uppercase' }}>{label}</span>
                 <input value={draftBooking[k] ?? ''} onChange={e => bset({ [k]: e.target.value })} style={{ padding: '6px 8px', background: '#363634', border: '0.5px solid #4A4A48', color: '#F0EDE6', fontSize: '12px', borderRadius: '3px' }} />
