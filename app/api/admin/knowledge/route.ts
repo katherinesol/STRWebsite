@@ -10,6 +10,19 @@ export async function GET() {
   return NextResponse.json({ entries: data || [] })
 }
 
+// create a single knowledge entry (used by Add entry form + import save)
+export async function POST(request: NextRequest) {
+  if (!await hasRole('owner', 'co-owner')) return NextResponse.json({ error: 'Not allowed' }, { status: 403 })
+  const { property_id, topic, title, content } = await request.json()
+  if (!property_id || !title || !content) return NextResponse.json({ error: 'property_id, title, content required' }, { status: 400 })
+  const supabase = createAdminClient()
+  const { data, error } = await supabase.from('knowledge_base').insert({
+    property_id, topic: topic || 'general', title, content, active: true,
+  }).select('id').single()
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json({ ok: true, id: data?.id })
+}
+
 // update or delete an entry
 export async function PATCH(request: NextRequest) {
   if (!await hasRole('owner')) return NextResponse.json({ error: 'Not allowed' }, { status: 403 })

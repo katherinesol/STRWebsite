@@ -99,6 +99,23 @@ export default function GuestSupport() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [verified, busy])
 
+  function CopyChip({ value }: { value: string }) {
+    const [done, setDone] = useState(false)
+    return (
+      <span onClick={() => { navigator.clipboard.writeText(value); setDone(true); setTimeout(() => setDone(false), 1500) }}
+        style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: '#1A1A18', color: '#fff', padding: '2px 10px', borderRadius: '6px', fontFamily: 'monospace', fontSize: '14px', cursor: 'pointer', margin: '0 2px', verticalAlign: 'middle' }}>
+        {value}<span style={{ fontSize: '10px', opacity: .7 }}>{done ? '✓ copied' : '⧉ copy'}</span>
+      </span>
+    )
+  }
+  function renderContent(text: string) {
+    const parts = String(text).split(/(\{\{copy:[^}]+\}\})/g)
+    return parts.map((p, i) => {
+      const m = p.match(/^\{\{copy:([^}]+)\}\}$/)
+      return m ? <CopyChip key={i} value={m[1]} /> : <span key={i}>{p}</span>
+    })
+  }
+
   function signOut() { try { localStorage.removeItem('zuhaus_guest') } catch {}; setVerified(null); setMessages([]); setCode(''); setLastName('') }
   const wrap: React.CSSProperties = { minHeight: '100vh', background: '#F5F2EC', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '24px', fontFamily: 'var(--sans, system-ui)' }
 
@@ -133,7 +150,7 @@ export default function GuestSupport() {
               {m.role !== 'user' && (
                 <span style={{ fontSize: '10px', color: '#B8956B', letterSpacing: '.04em', paddingLeft: '4px' }}>{m.host ? 'Katherine · Host' : 'Virtual Concierge'}</span>
               )}
-              <div style={{ padding: '11px 15px', borderRadius: '14px', fontSize: '15px', lineHeight: 1.5, background: m.role === 'user' ? '#1A1A18' : (m.host ? '#EDE7DA' : '#F0EDE6'), color: m.role === 'user' ? '#fff' : '#1A1A18', whiteSpace: 'pre-wrap' }}>{m.content}</div>
+              <div style={{ padding: '11px 15px', borderRadius: '14px', fontSize: '15px', lineHeight: 1.5, background: m.role === 'user' ? '#1A1A18' : (m.host ? '#EDE7DA' : '#F0EDE6'), color: m.role === 'user' ? '#fff' : '#1A1A18', whiteSpace: 'pre-wrap' }}>{m.role === 'user' ? m.content : renderContent(m.content)}</div>
             </div>
           ))}
           {busy && <div style={{ alignSelf: 'flex-start', color: '#999', fontSize: '14px' }}>…</div>}

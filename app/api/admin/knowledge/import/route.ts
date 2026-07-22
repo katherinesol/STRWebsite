@@ -13,7 +13,7 @@ export async function POST(request: NextRequest) {
   try {
     const msg = await client.messages.create({
       model: 'claude-sonnet-5',
-      max_tokens: 3000,
+      max_tokens: 8000,
       messages: [{
         role: 'user',
         content: `Split this house manual into individual knowledge entries for a guest assistant. Return ONLY valid JSON, no markdown, no preamble:
@@ -33,8 +33,21 @@ ${text}`,
     const textBlock = msg.content.find((b: any) => b.type === 'text')
     const raw = (textBlock && 'text' in textBlock ? textBlock.text : '{}') || '{}'
     const clean = raw.replace(/```json|```/g, '').trim()
-    const parsed = JSON.parse(clean)
-    return NextResponse.json({ ok: true, entries: parsed.entries || [] })
+
+    let entries: any[] = []
+    try {
+      entries = JSON.parse(clean).entries || []
+    } catch {
+      // salvage: response was likely truncated. Extract complete {topic,title,content} objects.
+      const matches = clean.match(/\{[^{}]*"topic"[^{}]*"title"[^{}]*"content"[^{}]*\}/g) || []
+      for (const m of matches) {
+        try { entries.push(JSON.parse(m)) } catch {}
+      }
+      if (!entries.length) {
+        return NextResponse.json({ error: 'The manual was too long to process at once. Try pasting it in two or three sections (e.g. access & wifi, then amenities, then local tips).' }, { status: 500 })
+      }
+    }
+    return NextResponse.json({ ok: true, entries })
   } catch (err: any) {
     return NextResponse.json({ error: 'Could not parse manual: ' + (err?.message || 'unknown') }, { status: 500 })
   }
