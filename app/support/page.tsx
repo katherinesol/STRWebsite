@@ -21,6 +21,28 @@ export default function GuestSupport() {
     const tick = () => setLocalTime(new Date().toLocaleTimeString('en-US', { timeZone: 'America/Toronto', hour: 'numeric', minute: '2-digit' }))
     tick(); const t = setInterval(tick, 30000); return () => clearInterval(t)
   }, [])
+  // restore saved session on load
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('zuhaus_guest')
+      if (saved) {
+        const { code: c, lastName: ln } = JSON.parse(saved)
+        if (c && ln) { setCode(c); setLastName(ln); setTimeout(() => reVerify(c, ln), 50) }
+      }
+    } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+  async function reVerify(c: string, ln: string) {
+    try {
+      const res = await fetch('/api/guest-support/verify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code: c, lastName: ln }) })
+      const d = await res.json()
+      if (d.ok) {
+        setVerified({ ...d.booking, code: c })
+        if (d.history?.length) setMessages(d.history)
+        else { const nm = d.booking.guest_name ? ' ' + d.booking.guest_name.split(' ')[0] : ''; setMessages([{ role: 'assistant', content: `Welcome back,${nm}. How can I help you?` }]) }
+      } else { try { localStorage.removeItem('zuhaus_guest') } catch {} }
+    } catch {}
+  }
 
   async function verify() {
     setVerifying(true); setVerifyErr('')
@@ -28,7 +50,9 @@ export default function GuestSupport() {
       const res = await fetch('/api/guest-support/verify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code, lastName }) })
       const d = await res.json()
       if (d.error) { setVerifyErr(d.error); return }
-      setVerified({ ...d.booking, code })
+      const session = { ...d.booking, code }
+      setVerified(session)
+      try { localStorage.setItem('zuhaus_guest', JSON.stringify({ code, lastName })) } catch {}
       if (d.history && d.history.length) {
         setMessages(d.history)
       } else {
@@ -57,6 +81,25 @@ export default function GuestSupport() {
     setInput(''); setEscalated(true); setBusy(false)
   }
 
+  // poll for new messages (host replies) while verified
+  useEffect(() => {
+    if (!verified) return
+    const poll = async () => {
+      if (busy) return
+      try {
+        const res = await fetch('/api/guest-support/poll', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code: verified.code, booking_id: verified.booking_id, source: verified.source }) })
+        const d = await res.json()
+        if (d.messages && d.messages.length) {
+          setMessages(prev => d.messages.length > prev.length ? d.messages : prev)
+        }
+      } catch {}
+    }
+    const t = setInterval(poll, 6000)
+    return () => clearInterval(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [verified, busy])
+
+  function signOut() { try { localStorage.removeItem('zuhaus_guest') } catch {}; setVerified(null); setMessages([]); setCode(''); setLastName('') }
   const wrap: React.CSSProperties = { minHeight: '100vh', background: '#F5F2EC', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '24px', fontFamily: 'var(--sans, system-ui)' }
 
   if (!verified) {
@@ -86,7 +129,12 @@ export default function GuestSupport() {
         </div>
         <div style={{ flex: 1, overflowY: 'auto', padding: '20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
           {messages.map((m, i) => (
-            <div key={i} style={{ alignSelf: m.role === 'user' ? 'flex-end' : 'flex-start', maxWidth: '80%', padding: '11px 15px', borderRadius: '14px', fontSize: '15px', lineHeight: 1.5, background: m.role === 'user' ? '#1A1A18' : '#F0EDE6', color: m.role === 'user' ? '#fff' : '#1A1A18', whiteSpace: 'pre-wrap' }}>{m.content}</div>
+            <div key={i} style={{ alignSelf: m.role === 'user' ? 'flex-end' : 'flex-start', maxWidth: '80%', display: 'flex', flexDirection: 'column', gap: '3px' }}>
+              {m.role !== 'user' && (
+                <span style={{ fontSize: '10px', color: '#B8956B', letterSpacing: '.04em', paddingLeft: '4px' }}>{m.host ? 'Katherine · Host' : 'Virtual Concierge'}</span>
+              )}
+              <div style={{ padding: '11px 15px', borderRadius: '14px', fontSize: '15px', lineHeight: 1.5, background: m.role === 'user' ? '#1A1A18' : (m.host ? '#EDE7DA' : '#F0EDE6'), color: m.role === 'user' ? '#fff' : '#1A1A18', whiteSpace: 'pre-wrap' }}>{m.content}</div>
+            </div>
           ))}
           {busy && <div style={{ alignSelf: 'flex-start', color: '#999', fontSize: '14px' }}>…</div>}
           <div ref={endRef} />

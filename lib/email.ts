@@ -178,3 +178,23 @@ export async function sendPortalSetup(guest: any, magicLink: string) {
     html: baseTemplate(content, 'Your guest portal is ready'),
   })
 }
+
+// Notify the host when the guest assistant escalates something it couldn't answer.
+export async function sendEscalationAlert(opts: { guestName: string; propertyName: string; question: string; checkIn?: string; checkOut?: string }) {
+  const to = process.env.HOST_ALERT_EMAIL || process.env.RESEND_FROM || ''
+  if (!to) return
+  const html = `
+    <div style="font-family:system-ui,sans-serif;max-width:520px;margin:0 auto;padding:24px">
+      <div style="font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#B8956B;margin-bottom:8px">Guest needs you</div>
+      <h2 style="font-weight:400;color:#1A1A18;margin:0 0 12px">${opts.guestName} has a question the assistant couldn't answer</h2>
+      <div style="font-size:14px;color:#555;line-height:1.6">
+        <p><strong>Property:</strong> ${opts.propertyName}</p>
+        ${opts.checkIn ? `<p><strong>Stay:</strong> ${opts.checkIn} → ${opts.checkOut}</p>` : ''}
+        <p style="background:#f5f2ec;padding:12px 14px;border-radius:6px"><strong>They asked:</strong><br>${opts.question}</p>
+        <p>Reply from your inbox and they'll see it in their chat.</p>
+      </div>
+    </div>`
+  try {
+    await getResend().emails.send({ from: FROM, to, subject: `Guest question — ${opts.guestName} at ${opts.propertyName}`, html })
+  } catch (e) { console.error('Escalation email failed:', e) }
+}

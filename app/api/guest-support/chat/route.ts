@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { createAdminClient } from '@/lib/supabase/server'
+import { sendEscalationAlert } from '@/lib/email'
 
 const BRAND = 'Zuhaus'  // guest-facing concierge brand — change here when finalized
 
@@ -104,7 +105,11 @@ RULES:
       }
       if (lastUser?.content) await supabase.from('messages').insert({ conversation_id: convId, sender: 'guest', body: lastUser.content, channel: 'direct' })
       await supabase.from('messages').insert({ conversation_id: convId, sender: 'ai', body: cleanText, channel: 'direct' })
-      if (shouldEscalate) await supabase.from('messages').insert({ conversation_id: convId, sender: 'ai', body: 'Auto-escalated: the assistant could not answer this and flagged it for you.', channel: 'direct' })
+      if (shouldEscalate) {
+        await supabase.from('messages').insert({ conversation_id: convId, sender: 'ai', body: 'Auto-escalated: the assistant could not answer this and flagged it for you.', channel: 'direct' })
+        const PROP: Record<string, string> = { 'royal-york-east': 'Royal York East', 'royal-york-west': 'Royal York West', 'nickel-beach': 'Nickel Beach Retreat' }
+        sendEscalationAlert({ guestName: booking.guest_name || 'A guest', propertyName: PROP[booking.property_id] || booking.property_id, question: lastUser?.content || '', checkIn: booking.check_in, checkOut: booking.check_out }).catch(() => {})
+      }
     } catch {}
 
     return NextResponse.json({ answer: cleanText, escalated: shouldEscalate })

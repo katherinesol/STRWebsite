@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import AdminNav from '@/components/admin/AdminNav'
+import EscalationNotifier from '@/components/admin/EscalationNotifier'
 import { getAuth } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
@@ -14,6 +15,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       <AdminNav role={auth.role} />
       <main className="admin-main">
         {children}
+        <EscalationNotifier />
       </main>
     </div>
   )
