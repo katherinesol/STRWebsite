@@ -116,6 +116,20 @@ export default function GuestSupport() {
     })
   }
 
+  const photoRef = useRef<HTMLInputElement>(null)
+  async function sendPhoto(file: File) {
+    if (!file) return
+    setBusy(true)
+    try {
+      const b64 = await new Promise<string>((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1]); r.onerror = rej; r.readAsDataURL(file) })
+      setMessages(m => [...m, { role: 'user', content: '📷 (photo sent)' }])
+      const res = await fetch('/api/guest-support/photo', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code: verified.code, booking_id: verified.booking_id, source: verified.source, imageBase64: b64, mediaType: file.type, caption: input.trim() }) })
+      const d = await res.json()
+      setInput('')
+      setMessages(m => [...m, { role: 'assistant', content: d.error ? `⚠️ ${d.error}` : d.answer }])
+    } finally { setBusy(false) }
+  }
+
   function signOut() { try { localStorage.removeItem('zuhaus_guest') } catch {}; setVerified(null); setMessages([]); setCode(''); setLastName('') }
   const wrap: React.CSSProperties = { minHeight: '100vh', background: '#F5F2EC', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '24px', fontFamily: 'var(--sans, system-ui)' }
 
@@ -158,6 +172,8 @@ export default function GuestSupport() {
         </div>
         <div style={{ padding: '14px 20px', borderTop: '1px solid #eee' }}>
           <div style={{ display: 'flex', gap: '8px' }}>
+            <input ref={photoRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) sendPhoto(f) }} />
+            <button onClick={() => photoRef.current?.click()} disabled={busy} title="Send a photo" style={{ padding: '12px 14px', background: '#F0EDE6', color: '#1A1A18', border: '1px solid #ddd', borderRadius: '10px', fontSize: '16px', cursor: 'pointer' }}>📷</button>
             <input value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') send() }} placeholder="Ask about your stay…" style={{ flex: 1, padding: '12px 15px', fontSize: '15px', border: '1px solid #ddd', borderRadius: '10px', outline: 'none' }} />
             <button onClick={send} disabled={busy || !input.trim()} style={{ padding: '12px 20px', background: '#1A1A18', color: '#fff', border: 'none', borderRadius: '10px', fontSize: '15px', fontWeight: 600, cursor: 'pointer' }}>Send</button>
           </div>
