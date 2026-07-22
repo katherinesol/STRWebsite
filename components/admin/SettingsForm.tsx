@@ -104,9 +104,6 @@ export default function SettingsForm({ icalUrls, settings }: { icalUrls: Record<
           {[
             { label: 'Schlage Home API', status: 'Not connected', note: 'Required for automatic access code generation' },
             { label: 'Resend (email)', status: 'Not connected', note: 'Required for booking confirmations and reminders' },
-            { label: 'Airbnb iCal', status: 'Connected', note: 'Nickel Beach synced' },
-            { label: 'VRBO iCal', status: 'Connected', note: 'Nickel Beach synced' },
-            { label: 'Houfy iCal', status: 'Connected', note: 'Nickel Beach synced' },
           ].map(({ label, status, note }) => (
             <div key={label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', background: '#1E1E1C', border: '0.5px solid #363634' }}>
               <div>
