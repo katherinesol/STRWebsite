@@ -23,6 +23,7 @@ const SECTIONS = [
     { href: '/admin/reviews', label: 'Reviews', icon: '◎' },
   ]},
   { title: 'Money', items: [
+    { href: '/admin/income', label: 'Income', icon: '↑', staffOnly: true },
     { href: '/admin/property-management/finance', label: 'Expenses', icon: '$' },
     { href: '/admin/invoices', label: 'Invoices', icon: '❋', staffOnly: true },
     { href: '/admin/damage', label: 'Damage', icon: '⚠' },
