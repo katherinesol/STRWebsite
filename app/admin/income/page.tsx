@@ -36,11 +36,13 @@ export default function IncomePage() {
   const [saving, setSaving] = useState(false)
   const [calcGross, setCalcGross] = useState('')
   const [lumpedTax, setLumpedTax] = useState('')
+  const [occ, setOcc] = useState<any>(null)
 
   function load() {
     fetch('/api/admin/income').then(r => r.json()).then(d => { if (d.rows) setRows(d.rows) }).finally(() => setLoading(false))
   }
   useEffect(() => { load() }, [])
+  useEffect(() => { fetch('/api/admin/occupancy').then(r => r.json()).then(d => { if (d.properties) setOcc(d) }).catch(() => {}) }, [])
 
   function openEdit(r: any) {
     setEditId(editId === r.id ? null : r.id)
@@ -232,6 +234,25 @@ export default function IncomePage() {
           ))}
         </div>
       </div>
+
+      {occ && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: '12px', marginBottom: '22px' }}>
+          {occ.properties.map((p: any) => (
+            <div key={p.property_id} style={{ background: '#242422', border: '0.5px solid #363634', borderRadius: '6px', padding: '15px 16px' }}>
+              <div style={{ fontSize: '12px', color: '#F0EDE6', marginBottom: '2px' }}>{PROP_NAMES[p.property_id] || p.property_id}</div>
+              <div style={{ fontSize: '9px', color: '#666660', marginBottom: '12px' }}>{occ.year} to date</div>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px', marginBottom: '10px' }}>
+                <span style={{ fontFamily: 'var(--serif)', fontSize: '27px', fontWeight: 300, color: 'var(--amber)' }}>{p.occupancy}%</span>
+                <span style={{ fontSize: '10px', color: '#8A8A82' }}>occupancy<Info text={`${p.nights_booked} nights booked out of ${p.days_available} available. ${p.days_blocked} day${p.days_blocked === 1 ? '' : 's'} taken off market are excluded.`} /></span>
+              </div>
+              <div style={{ display: 'flex', gap: '18px', fontSize: '11px', color: '#AEAEA6' }}>
+                <span>ADR {p.adr ? money(p.adr) : '—'}<Info text="Average nightly rate: accommodation revenue divided by nights booked. Reads low while bookings are missing amounts." /></span>
+                <span>RevPAR {money(p.revpar)}<Info text="Revenue per available night — occupancy and rate combined. The number to watch when comparing a high rate against a full calendar." /></span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {loading && <div style={{ color: '#666660', fontSize: '13px' }}>Loading…</div>}
 
