@@ -27,6 +27,7 @@ export async function POST(request: NextRequest) {
   "door_code": "access/door code digits, or null",
   "guests_adults": number or null,
   "guests_children": number or null,
+  "guests_count": number or null,
   "nights": number or null,
   "nightly_rate": number or null,
   "accommodation": number or null,
@@ -42,6 +43,7 @@ export async function POST(request: NextRequest) {
 }
 Rules:
 - Today's date is ${new Date().toISOString().split('T')[0]}. If a screenshot shows dates WITHOUT a year, assume the current year or the nearest UPCOMING occurrence — never a past year. A booking should almost never be in the past.
+- guests_count = total number of guests in the party (e.g. 'Erica's group of 3' means 3). Add adults + children if shown separately.
 - Combine info across multiple screenshots into one booking.
 - Numbers only, no currency symbols/commas.
 - accommodation = the room/nightly subtotal before fees/taxes (host side).

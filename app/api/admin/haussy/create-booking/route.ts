@@ -91,6 +91,7 @@ export async function POST(request: NextRequest) {
     const upd: any = {
       is_booking: true, platform: booking.platform || 'other', guest_id: guestId,
       guest_name: booking.guest_name || null, guest_email: booking.guest_email || null, guest_phone: booking.guest_phone || null,
+      guests: booking.guests_count ?? null,
       nightly_rate: booking.nightly_rate ?? null, accommodation: booking.accommodation ?? null,
       cleaning_fee: booking.cleaning_fee ?? null, taxes_collected: booking.occupancy_taxes ?? booking.taxes_collected ?? null,
       guest_total: booking.guest_total ?? null, payout_amount: booking.payout_amount ?? null,
@@ -120,6 +121,7 @@ export async function POST(request: NextRequest) {
     reason: 'manual', platform: booking.platform || 'other',
     is_booking: true, guest_id: guestId,
     guest_name: booking.guest_name || null, guest_email: booking.guest_email || null, guest_phone: booking.guest_phone || null,
+    guests: booking.guests_count ?? null,
     nightly_rate: booking.nightly_rate ?? null, accommodation: booking.accommodation ?? null,
     cleaning_fee: booking.cleaning_fee ?? null, taxes_collected: booking.occupancy_taxes ?? booking.taxes_collected ?? null,
     guest_total: booking.guest_total ?? null, payout_amount: booking.payout_amount ?? null,
