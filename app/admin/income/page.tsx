@@ -25,6 +25,47 @@ function Info({ text }: { text: string }) {
   )
 }
 
+function fieldsFor(platform: string, hasMat: boolean): string[][] {
+  const p = (platform || '').toLowerCase()
+  const money: string[][] = [['accommodation','Accommodation'],['cleaning_fee','Cleaning'],['extras','Extras (pet, extra guest)'],['discount','Discount']]
+
+  if (p === 'vrbo') {
+    return [...money,
+      ['host_fee','Vrbo commission'],
+      ['processing_fee','Payment processing fee'],
+      ['tax_collected','Lodging taxes you remit'],
+      ['hst','HST / GST (13%)'],
+      ...(hasMat ? [['mat','MAT (4%)']] : []),
+      ['payout','Your total payout'],
+    ]
+  }
+  if (p === 'houfy') {
+    return [...money,
+      ['host_fee','Houfy fee'],
+      ['processing_fee','Payment processing fee'],
+      ['tax_collected','Tax collected'],
+      ['hst','HST / GST (13%)'],
+      ...(hasMat ? [['mat','MAT (4%)']] : []),
+      ['payout','Payout received'],
+    ]
+  }
+  if (p === 'direct') {
+    return [...money,
+      ['tax_collected','Tax collected'],
+      ['hst','HST / GST (13%)'],
+      ...(hasMat ? [['mat','MAT (4%)']] : []),
+      ['payout','Total received'],
+    ]
+  }
+  return [...money,
+    ['host_fee','Host service fee'],
+    ['tax_collected','Tax Airbnb collected'],
+    ['hst','HST / GST (13%)'],
+    ...(hasMat ? [['mat','MAT (4%)']] : []),
+    ['payout','Payout received'],
+  ]
+}
+
 const GRID = '1.2fr .95fr .55fr .75fr .65fr .65fr .75fr .65fr .85fr'
 
 export default function IncomePage() {
@@ -133,7 +174,7 @@ export default function IncomePage() {
         <div style={{ padding: '16px', background: '#1E1E1C', borderBottom: '0.5px solid #2A2A28' }}>
           <div style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '.1em', color: 'var(--amber)', marginBottom: '10px' }}>Fix this booking</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', marginBottom: '14px' }}>
-            {([['accommodation','Accommodation'],['cleaning_fee','Cleaning'],['extras','Extras (pet fee etc)'],['discount','Discount'],['host_fee','Host service fee'],['tax_collected','Tax Airbnb collected'],['hst','HST / GST (13%)'],...(RATES[r.property_id]?.mat ? [['mat','MAT (4%)']] : []),['payout','Payout received']] as string[][]).map(([k, label]) => (
+            {fieldsFor(r.platform, !!RATES[r.property_id]?.mat).map(([k, label]) => (
               <label key={k} style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
                 <span style={{ fontSize: '9px', color: '#9A9A92', textTransform: 'uppercase' }}>{label}</span>
                 <input value={form[k] ?? ''} onChange={e => setForm((f: any) => ({ ...f, [k]: e.target.value }))} style={inp} />
