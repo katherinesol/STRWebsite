@@ -61,6 +61,7 @@ export default async function AdminDashboard() {
   const { data: allPlatformBlocks } = await supabase
     .from('calendar_blocks')
     .select('id')
+    .eq('is_booking', true)
     .in('platform', ['airbnb', 'vrbo', 'houfy'])
     .gte('end_date', todayStr)
 
@@ -75,11 +76,11 @@ export default async function AdminDashboard() {
     supabase.from('bookings').select('*, guest_info:guests(name, email)').eq('status', 'active').gte('check_out', todayStr).lte('check_out', sevenDaysStr).order('check_out'),
     supabase.from('bookings').select('*, guest_info:guests(name, email)').in('status', ['confirmed', 'pending_payment']).or(`second_due_date.lt.${todayStr},final_due_date.lt.${todayStr}`),
     supabase.from('bookings').select('*, guest_info:guests(name, email)').eq('status', 'pending_payment').eq('payment_method', 'etransfer'),
-    supabase.from('bookings').select('id, status, total').neq('status', 'cancelled'),
+    supabase.from('bookings').select('id, status, total, check_out').neq('status', 'cancelled'),
   ])
 
   const totalRevenue = allBookings?.filter(b => b.status === 'completed').reduce((sum, b) => sum + (b.total || 0), 0) || 0
-  const activeBookings = (allBookings?.filter(b => ['confirmed', 'active'].includes(b.status)).length || 0) + (allPlatformBlocks?.length || 0)
+  const activeBookings = (allBookings?.filter(b => ['confirmed', 'active'].includes(b.status) && b.check_out >= todayStr).length || 0) + (allPlatformBlocks?.length || 0)
   const allCheckins = [...(upcomingCheckins || []).map(b => ({ name: (Array.isArray(b.guest_info) ? (b.guest_info as any[])[0] : b.guest_info as any)?.name, property: b.property_id, date: b.check_in, nights: b.nights, type: 'direct' })), ...(platformCheckins || []).map(b => ({ name: b.guest_name || b.platform, property: b.property_id, date: b.start_date, nights: null, type: b.platform }))]
   const allCheckouts = [...(upcomingCheckouts || []).map(b => ({ name: (Array.isArray(b.guest_info) ? (b.guest_info as any[])[0] : b.guest_info as any)?.name, property: b.property_id, date: b.check_out, type: 'direct' })), ...(platformCheckouts || []).map(b => ({ name: b.guest_name || b.platform, property: b.property_id, date: b.end_date, type: b.platform }))]
 

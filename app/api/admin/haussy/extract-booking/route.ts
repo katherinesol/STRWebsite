@@ -32,6 +32,7 @@ export async function POST(request: NextRequest) {
   "nightly_rate": number or null,
   "accommodation": number or null,
   "cleaning_fee": number or null,
+  "extras": number or null,
   "discount": number or null,
   "guest_service_fee": number or null,
   "occupancy_taxes": number or null,
@@ -47,6 +48,7 @@ Rules:
 - Combine info across multiple screenshots into one booking.
 - Numbers only, no currency symbols/commas.
 - accommodation = the room/nightly subtotal before fees/taxes (host side).
+- extras = additional guest-charged fees such as pet fee, extra guest fee, or resort fee. Add them together if there are several.
 - discount = any negative rate adjustment or discount (store as a positive number). E.g. "Nightly rate adjustment -$125.10" means discount: 125.10.
 - commission = the host service fee the platform charges the host.
 - guest_service_fee = the service fee charged to the GUEST.
