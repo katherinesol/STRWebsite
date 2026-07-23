@@ -118,13 +118,37 @@ export default function GuestSupport() {
   }
 
   const photoRef = useRef<HTMLInputElement>(null)
+  const [pendingPhoto, setPendingPhoto] = useState<File | null>(null)
+  async function toJpegBase64(file: File): Promise<string> {
+    const dataUrl = await new Promise<string>((res, rej) => {
+      const r = new FileReader(); r.onload = () => res(String(r.result)); r.onerror = rej; r.readAsDataURL(file)
+    })
+    try {
+      const img = await new Promise<HTMLImageElement>((res, rej) => {
+        const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = dataUrl
+      })
+      const max = 1600
+      const scale = Math.min(1, max / Math.max(img.width, img.height))
+      const canvas = document.createElement('canvas')
+      canvas.width = Math.round(img.width * scale)
+      canvas.height = Math.round(img.height * scale)
+      const ctx = canvas.getContext('2d')
+      if (!ctx) throw new Error('no canvas')
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+      return canvas.toDataURL('image/jpeg', 0.85).split(',')[1]
+    } catch {
+      return dataUrl.split(',')[1]
+    }
+  }
+
   async function sendPhoto(file: File) {
     if (!file) return
     setBusy(true)
     try {
-      const b64 = await new Promise<string>((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1]); r.onerror = rej; r.readAsDataURL(file) })
-      setMessages(m => [...m, { role: 'user', content: '📷 (photo sent)' }])
-      const res = await fetch('/api/guest-support/photo', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code: verified.code, booking_id: verified.booking_id, source: verified.source, imageBase64: b64, mediaType: file.type, caption: input.trim() }) })
+      const b64 = await toJpegBase64(file)
+      const cap = input.trim()
+      setMessages(m => [...m, { role: 'user', content: cap ? `📷 ${cap}` : '📷 (photo sent)' }])
+      const res = await fetch('/api/guest-support/photo', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code: verified.code, booking_id: verified.booking_id, source: verified.source, imageBase64: b64, mediaType: 'image/jpeg', caption: input.trim() }) })
       const d = await res.json()
       setInput('')
       setMessages(m => [...m, { role: 'assistant', content: d.error ? `⚠️ ${d.error}` : d.answer }])
@@ -172,11 +196,17 @@ export default function GuestSupport() {
           <div ref={endRef} />
         </div>
         <div style={{ padding: '14px 20px', borderTop: '1px solid #eee' }}>
+          {pendingPhoto && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', fontSize: '12px', color: '#666' }}>
+              <span>📷 {pendingPhoto.name}</span>
+              <button onClick={() => setPendingPhoto(null)} style={{ background: 'none', border: 'none', color: '#999', cursor: 'pointer', fontSize: '12px' }}>remove</button>
+            </div>
+          )}
           <div style={{ display: 'flex', gap: '8px' }}>
-            <input ref={photoRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) sendPhoto(f) }} />
+            <input ref={photoRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) setPendingPhoto(f); e.target.value = '' }} />
             <button onClick={() => photoRef.current?.click()} disabled={busy} title="Send a photo" style={{ padding: '12px 14px', background: '#F0EDE6', color: '#1A1A18', border: '1px solid #ddd', borderRadius: '10px', fontSize: '16px', cursor: 'pointer' }}>📷</button>
             <input value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') send() }} placeholder="Ask about your stay…" style={{ flex: 1, padding: '12px 15px', fontSize: '15px', border: '1px solid #ddd', borderRadius: '10px', outline: 'none' }} />
-            <button onClick={send} disabled={busy || !input.trim()} style={{ padding: '12px 20px', background: '#1A1A18', color: '#fff', border: 'none', borderRadius: '10px', fontSize: '15px', fontWeight: 600, cursor: 'pointer' }}>Send</button>
+            <button onClick={() => { if (pendingPhoto) { const f = pendingPhoto; setPendingPhoto(null); sendPhoto(f) } else { send() } }} disabled={busy || (!input.trim() && !pendingPhoto)} style={{ padding: '12px 20px', background: '#1A1A18', color: '#fff', border: 'none', borderRadius: '10px', fontSize: '15px', fontWeight: 600, cursor: 'pointer' }}>Send</button>
           </div>
           <button onClick={escalate} disabled={busy || !input.trim()} style={{ marginTop: '8px', padding: '8px 14px', background: 'none', color: '#666', border: '1px solid #ddd', borderRadius: '8px', fontSize: '12px', cursor: 'pointer' }}>Send this to the host instead ↗</button>
         </div>

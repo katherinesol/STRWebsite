@@ -88,6 +88,7 @@ CRITICAL RULES:
 
     return NextResponse.json({ answer: clean, escalated, photoUrl })
   } catch (err: any) {
-    return NextResponse.json({ error: 'Could not process photo' }, { status: 500 })
+    console.error('PHOTO ERROR:', err)
+    return NextResponse.json({ error: 'Could not process photo: ' + (err?.message || 'unknown') }, { status: 500 })
   }
 }

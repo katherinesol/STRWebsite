@@ -22,6 +22,9 @@ export default function InboxPage() {
   const [activeId, setActiveId] = useState<string | null>(null)
   const [thread, setThread] = useState<any>(null)
   const [messages, setMessages] = useState<any[]>([])
+  const [trainFor, setTrainFor] = useState<string | null>(null)
+  const [trainText, setTrainText] = useState('')
+  const [trainMsg, setTrainMsg] = useState('')
   const [reply, setReply] = useState('')
   const [loading, setLoading] = useState(true)
   const [drafting, setDrafting] = useState(false)
@@ -113,7 +116,7 @@ export default function InboxPage() {
 
             {/* messages */}
             <div style={{ flex: 1, overflowY: 'auto', padding: '20px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              {messages.map(m => {
+              {messages.map((m, mi) => {
                 const photoMatch = String(m.body || '').match(/\[photo:\s*(\S+?)\]/)
                 const rawPhoto = photoMatch ? photoMatch[1] : null
                 const photoUrl = rawPhoto ? (rawPhoto.startsWith('http') ? rawPhoto : `/api/admin/photo?path=${encodeURIComponent(rawPhoto)}`) : null
@@ -137,7 +140,34 @@ export default function InboxPage() {
                     </div>
                     <div style={{ fontSize: '9px', color: '#666660', marginTop: '3px', textAlign: isGuest ? 'left' : 'right' }}>
                       {isAI ? 'AI · ' : ''}{new Date(m.created_at).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                      {isAI && (
+                        <button onClick={() => { setTrainFor(trainFor === m.id ? null : m.id); setTrainText(''); setTrainMsg('') }}
+                          style={{ marginLeft: '8px', background: 'none', border: 'none', color: '#8A7A5A', fontSize: '9px', cursor: 'pointer', padding: 0 }}>
+                          {trainFor === m.id ? 'cancel' : '✎ teach a better answer'}
+                        </button>
+                      )}
                     </div>
+                    {isAI && trainFor === m.id && (
+                      <div style={{ marginTop: '6px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                        <textarea value={trainText} onChange={e => setTrainText(e.target.value)} rows={3}
+                          placeholder="What should it have said? Plain words — it gets polished and saved."
+                          style={{ padding: '8px 10px', background: '#1E1E1C', border: '0.5px solid #4A4A48', color: '#F0EDE6', fontSize: '12px', borderRadius: '6px', resize: 'vertical', fontFamily: 'inherit' }} />
+                        <button onClick={async () => {
+                          if (!trainText.trim()) return
+                          setTrainMsg('Saving…')
+                          const q = [...messages].slice(0, mi).reverse().find((x: any) => x.sender === 'guest')?.body || ''
+                          const res = await fetch('/api/admin/concierge-train', {
+                            method: 'POST', headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ property_id: thread?.property_id, question: q, rough_answer: trainText }),
+                          })
+                          const d = await res.json()
+                          setTrainMsg(d.error ? d.error : `✓ Saved: ${d.entry?.title}`)
+                          if (!d.error) { setTrainFor(null); setTrainText('') }
+                          setTimeout(() => setTrainMsg(''), 3000)
+                        }} style={{ alignSelf: 'flex-start', padding: '6px 14px', background: 'var(--amber)', color: '#242422', border: 'none', fontSize: '11px', fontWeight: 600, cursor: 'pointer', borderRadius: '6px' }}>Save to knowledge</button>
+                        {trainMsg && <span style={{ fontSize: '10px', color: trainMsg.startsWith('✓') ? '#7bc47b' : '#e6a86a' }}>{trainMsg}</span>}
+                      </div>
+                    )}
                   </div>
                 )
               })}
