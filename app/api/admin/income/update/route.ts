@@ -6,7 +6,7 @@ const n = (v: any) => (v === '' || v === null || v === undefined || isNaN(Number
 
 export async function PATCH(request: NextRequest) {
   if (!await hasRole('owner')) return NextResponse.json({ error: 'Not allowed' }, { status: 403 })
-  const { id, source, accommodation, cleaning_fee, discount, extras, hst, mat, payout, host_fee, tax_note, tax_collected } = await request.json()
+  const { id, source, accommodation, cleaning_fee, discount, extras, hst, mat, payout, host_fee, tax_note, tax_collected, processing_fee } = await request.json()
   if (!id || !source) return NextResponse.json({ error: 'id and source required' }, { status: 400 })
   const supabase = createAdminClient()
 
@@ -22,7 +22,7 @@ export async function PATCH(request: NextRequest) {
       accommodation: n(accommodation), cleaning_fee: n(cleaning_fee), discount: n(discount), extras: n(extras),
       hst: h, mat: m,
       taxes_collected: n(tax_collected),
-      payout_amount: n(payout), commission: n(host_fee), tax_note: tax_note || null,
+      payout_amount: n(payout), commission: n(host_fee), payment_processing_fee: n(processing_fee), tax_note: tax_note || null,
     }).eq('id', id)
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   }

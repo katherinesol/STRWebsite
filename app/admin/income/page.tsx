@@ -87,7 +87,7 @@ export default function IncomePage() {
 
   function openEdit(r: any) {
     setEditId(editId === r.id ? null : r.id)
-    setForm({ tax_note: r.tax_note ?? '', tax_collected: r.tax_collected ?? '', accommodation: r.accommodation ?? '', cleaning_fee: r.cleaning_fee ?? '', extras: r.extras ?? '', discount: r.discount ?? '', hst: r.hst ?? '', mat: r.mat ?? '', host_fee: r.host_fee ?? '', payout: r.payout ?? '' })
+    setForm({ tax_note: r.tax_note ?? '', tax_collected: r.tax_collected ?? '', processing_fee: r.processing_fee ?? '', accommodation: r.accommodation ?? '', cleaning_fee: r.cleaning_fee ?? '', extras: r.extras ?? '', discount: r.discount ?? '', hst: r.hst ?? '', mat: r.mat ?? '', host_fee: r.host_fee ?? '', payout: r.payout ?? '' })
     const base = (Number(r.accommodation) || 0) + (Number(r.cleaning_fee) || 0) + (Number(r.extras) || 0) - (Number(r.discount) || 0)
     setCalcGross(base > 0 ? String(r2(base)) : (r.payout ?? ''))
     setLumpedTax(r.hst === null && r.mat === null && r.taxes_total ? String(r.taxes_total) : '')
@@ -141,7 +141,7 @@ export default function IncomePage() {
     const taxInPayout = f.tax_collected === '' || f.tax_collected === null || f.tax_collected === undefined
       ? (Number(f.hst) || 0) + (Number(f.mat) || 0)
       : Number(f.tax_collected) || 0
-    return r2(base - (Number(f.host_fee) || 0) + taxInPayout)
+    return r2(base - (Number(f.host_fee) || 0) - (Number(f.processing_fee) || 0) + taxInPayout)
   }
 
   const sum = (list: any[], k: string) => list.reduce((s, x) => s + (Number(x[k]) || 0), 0)
