@@ -7,6 +7,8 @@ export default function AdminLogin() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [mfa, setMfa] = useState(false)
+  const [token, setToken] = useState('')
   const router = useRouter()
 
   async function handleSubmit(e: React.FormEvent) {
@@ -17,12 +19,20 @@ export default function AdminLogin() {
       const res = await fetch('/api/admin/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email, password, token }),
       })
-      if (res.ok) {
+      const data = await res.json().catch(() => ({}))
+
+      if (data.mfaRequired) {
+        setMfa(true)
+        setToken('')
+        setError(data.error || '')
+        return
+      }
+      if (res.ok && data.ok) {
         window.location.href = '/admin'
       } else {
-        setError('Invalid email or password')
+        setError(data.error || 'Invalid email or password')
       }
     } catch {
       setError('Something went wrong — try again')
@@ -77,6 +87,33 @@ export default function AdminLogin() {
               />
             </div>
           ))}
+
+          {mfa && (
+            <div>
+              <div style={{
+                fontSize: '10px', fontWeight: 500, letterSpacing: '.14em',
+                textTransform: 'uppercase', color: '#AEAEA6', marginBottom: '6px',
+              }}>
+                Authentication code
+              </div>
+              <input
+                autoFocus
+                value={token}
+                onChange={e => setToken(e.target.value)}
+                placeholder="000000"
+                style={{
+                  width: '100%', padding: '12px 14px',
+                  background: '#363634', border: '0.5px solid #4A4A48',
+                  color: '#F0EDE6', fontFamily: 'monospace', fontSize: '16px',
+                  letterSpacing: '.2em', outline: 'none', borderRadius: '2px', boxSizing: 'border-box',
+                }}
+              />
+              <div style={{ fontSize: '10px', color: '#666660', marginTop: '6px' }}>
+                From your authenticator app, or one of your backup codes.
+              </div>
+            </div>
+          )}
+
           {error && (
             <div style={{ fontSize: '12px', color: '#e74c3c', textAlign: 'center' }}>
               {error}

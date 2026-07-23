@@ -38,6 +38,7 @@ const SECTIONS = [
     { href: '/admin/newsletter', label: 'Newsletter', icon: '◻' },
     { href: '/admin/settings', label: 'Settings', icon: '◈' },
     { href: '/admin/users', label: 'Team & Access', icon: '⊕', ownerOnly: true },
+    { href: '/admin/security', label: 'Security', icon: '⊘' },
   ]},
 ]
 
