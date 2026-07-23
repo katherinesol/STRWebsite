@@ -8,12 +8,13 @@ export async function GET() {
   if (!auth.ok) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const supabase = createAdminClient()
 
-  const [{ data: open }, { data: all }] = await Promise.all([
+  const [{ data: open }, { data: all }, { data: history }] = await Promise.all([
     supabase.from('water_orders').select('*').eq('delivered', false).order('ordered_at', { ascending: false }).limit(1).maybeSingle(),
     supabase.from('water_orders').select('company'),
+    supabase.from('water_orders').select('*').eq('delivered', true).order('delivered_at', { ascending: false }).limit(10),
   ])
   const companies = Array.from(new Set((all || []).map(w => w.company).filter(Boolean)))
-  return NextResponse.json({ open: open || null, companies })
+  return NextResponse.json({ open: open || null, companies, history: history || [] })
 }
 
 // record a water order — owner + co-owner

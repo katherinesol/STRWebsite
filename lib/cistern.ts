@@ -55,6 +55,37 @@ export async function getCisternLevel(store = false): Promise<CisternReading | n
         raw_level: raw,
         calibrated_level: calibrated,
       })
+
+      // a sizeable jump while an order is outstanding means it was delivered
+      try {
+        const { data: pending } = await supabase
+          .from('water_orders')
+          .select('id, ordered_at')
+          .eq('property_id', 'nickel-beach')
+          .eq('delivered', false)
+          .order('ordered_at', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+
+        if (pending && calibrated != null) {
+          const { data: prior } = await supabase
+            .from('cistern_readings')
+            .select('calibrated_level, recorded_at')
+            .eq('property_id', 'nickel-beach')
+            .gte('recorded_at', pending.ordered_at)
+            .order('recorded_at', { ascending: true })
+            .limit(1)
+            .maybeSingle()
+
+          const before = prior?.calibrated_level
+          if (before != null && calibrated - before >= 15) {
+            await supabase
+              .from('water_orders')
+              .update({ delivered: true, delivered_at: new Date().toISOString(), auto_detected: true })
+              .eq('id', pending.id)
+          }
+        }
+      } catch {}
     }
   }
 

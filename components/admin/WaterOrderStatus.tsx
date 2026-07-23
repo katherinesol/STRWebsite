@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react'
 export default function WaterOrderStatus() {
   const [open, setOpen] = useState<any>(null)
   const [companies, setCompanies] = useState<string[]>([])
+  const [history, setHistory] = useState<any[]>([])
+  const [showHistory, setShowHistory] = useState(false)
   const [loading, setLoading] = useState(true)
   const [canEdit, setCanEdit] = useState(false)
   const [showForm, setShowForm] = useState(false)
@@ -14,7 +16,7 @@ export default function WaterOrderStatus() {
 
   function load() {
     fetch('/api/admin/water-order').then(r => r.json()).then(d => {
-      setOpen(d.open || null); setCompanies(d.companies || [])
+      setOpen(d.open || null); setCompanies(d.companies || []); setHistory(d.history || [])
     }).finally(() => setLoading(false))
   }
   useEffect(() => {
@@ -40,6 +42,25 @@ export default function WaterOrderStatus() {
 
   const inp: React.CSSProperties = { width: '100%', padding: '7px 10px', background: '#363634', border: '0.5px solid #4A4A48', color: '#F5F2EC', fontSize: '13px', outline: 'none', boxSizing: 'border-box', borderRadius: '2px' }
 
+  const HistoryBlock = () => history.length === 0 ? null : (
+    <div style={{ marginTop: '10px', paddingTop: '8px', borderTop: '0.5px solid #2A2A28' }}>
+      <button onClick={() => setShowHistory(s => !s)} style={{ background: 'none', border: 'none', color: '#666660', fontSize: '10px', cursor: 'pointer', padding: 0 }}>
+        {showHistory ? 'Hide' : 'Past deliveries'} ({history.length})
+      </button>
+      {showHistory && (
+        <div style={{ marginTop: '6px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+          {history.map((h: any) => (
+            <div key={h.id} style={{ fontSize: '11px', color: '#8A8A82' }}>
+              {h.delivered_at ? new Date(h.delivered_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}
+              {h.company ? ` · ${h.company}` : ''}
+              {h.auto_detected ? <span style={{ color: '#666660' }}> · auto</span> : null}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+
   // open order → show status to everyone
   if (open) {
     return (
@@ -49,6 +70,7 @@ export default function WaterOrderStatus() {
           {open.company ? open.company : 'Delivery'}{open.expected_date ? ` · expected ${new Date(open.expected_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : ''}
         </div>
         {canEdit && <button onClick={markDelivered} style={{ marginTop: '8px', padding: '5px 12px', background: '#1f2a1a', color: '#2ecc71', border: 'none', fontSize: '11px', fontWeight: 600, cursor: 'pointer', borderRadius: '2px' }}>Mark delivered</button>}
+        <HistoryBlock />
       </div>
     )
   }
@@ -58,7 +80,7 @@ export default function WaterOrderStatus() {
   return (
     <div style={{ marginTop: '14px' }}>
       {!showForm ? (
-        <button onClick={() => setShowForm(true)} style={{ padding: '6px 12px', background: '#363634', color: '#AEAEA6', border: 'none', fontSize: '11px', fontWeight: 600, cursor: 'pointer', borderRadius: '2px' }}>+ Record water order</button>
+        <><button onClick={() => setShowForm(true)} style={{ padding: '6px 12px', background: '#363634', color: '#AEAEA6', border: 'none', fontSize: '11px', fontWeight: 600, cursor: 'pointer', borderRadius: '2px' }}>+ Record water order</button><HistoryBlock /></>
       ) : (
         <div style={{ padding: '12px 14px', background: '#242422', border: '0.5px solid #363634', borderRadius: '3px' }}>
           <div style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '.1em', color: '#9A9A92', marginBottom: '8px' }}>Record water order</div>
