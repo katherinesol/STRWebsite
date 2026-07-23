@@ -4,6 +4,30 @@ import { createAdminClient } from '@/lib/supabase/server'
 
 // STEP 1 (check): POST with { booking, check: true } → returns overlap warnings, does NOT write.
 // STEP 2 (commit): POST with { booking } → writes guest + calendar_blocks row.
+
+// Log the platform host service fee as a deductible expense, tied to the booking.
+async function logHostFeeExpense(supabase: any, booking: any, calendarBlockId: string) {
+  const fee = Number(booking.commission)
+  if (!fee || fee <= 0) return
+  const platform = (booking.platform || 'platform').charAt(0).toUpperCase() + (booking.platform || 'platform').slice(1)
+  const ref = booking.confirmation_code ? ` · ${booking.confirmation_code}` : ''
+  const note = `Host service fee — ${platform} booking, ${booking.guest_name || 'guest'}${ref}`
+  // avoid duplicate: skip if an expense already references this booking's fee
+  const { data: existing } = await supabase.from('expenses').select('id').eq('notes', note).maybeSingle()
+  if (existing) return
+  await supabase.from('expenses').insert({
+    property_id: booking.property_id,
+    date: booking.check_in || new Date().toISOString().split('T')[0],
+    vendor: platform,
+    description: 'Platform host service fee',
+    amount: fee,
+    category: 'Management & administration fees',
+    notes: note,
+    ai_extracted: true,
+    confirmed: false,
+  })
+}
+
 export async function POST(request: NextRequest) {
   if (!await hasRole('owner')) return NextResponse.json({ error: 'Not allowed' }, { status: 403 })
   const auth = await getAuth()
@@ -78,6 +102,7 @@ export async function POST(request: NextRequest) {
     }
     const { error: uerr } = await supabase.from('calendar_blocks').update(upd).eq('id', update_id)
     if (uerr) return NextResponse.json({ error: uerr.message }, { status: 500 })
+    await logHostFeeExpense(supabase, booking, update_id)
     try {
       await supabase.from('haussy_log').insert({
         user_id: auth.ok ? auth.userId : null, user_role: auth.ok ? auth.role : 'owner',
@@ -107,6 +132,7 @@ export async function POST(request: NextRequest) {
   }).select('id').single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  await logHostFeeExpense(supabase, booking, created?.id || '')
 
   // audit
   try {
