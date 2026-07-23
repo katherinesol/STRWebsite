@@ -40,17 +40,22 @@ export async function POST(request: NextRequest) {
   "guest_total": number or null,
   "payout_amount": number or null,
   "commission": number or null,
+  "payment_processing_fee": number or null,
+  "taxes_platform_remits": number or null,
   "confirmation_code": "or null"
 }
 Rules:
 - Today's date is ${new Date().toISOString().split('T')[0]}. If a screenshot shows dates WITHOUT a year, assume the current year or the nearest UPCOMING occurrence — never a past year. A booking should almost never be in the past.
 - guests_count = total number of guests in the party (e.g. 'Erica's group of 3' means 3). Add adults + children if shown separately.
 - Combine info across multiple screenshots into one booking.
-- Numbers only, no currency symbols/commas.
+- Numbers only, no currency symbols/commas. Always positive — strip any minus sign. Deductions like commission and processing fees are shown negative on statements but must be recorded as positive amounts.
 - accommodation = the room/nightly subtotal before fees/taxes (host side).
 - extras = additional guest-charged fees such as pet fee, extra guest fee, or resort fee. Add them together if there are several.
 - discount = any negative rate adjustment or discount (store as a positive number). E.g. "Nightly rate adjustment -$125.10" means discount: 125.10.
-- commission = the host service fee the platform charges the host.
+- commission = the fee the platform charges the host. Airbnb calls it "Host service fee", VRBO calls it "Vrbo commission".
+- payment_processing_fee = VRBO's payment processing fee, if shown. Airbnb has none.
+- VRBO shows TWO tax lines. "Lodging taxes you remit" is the host's and goes in occupancy_taxes. "Lodging taxes we remit" is the platform's own and goes in taxes_platform_remits — never combine them.
+- VRBO's "Guest service fee" appears as both a charge and a deduction and nets to zero for the host — put it in guest_service_fee, not in any total.
 - guest_service_fee = the service fee charged to the GUEST.
 - occupancy_taxes = occupancy/lodging taxes collected from the guest (this is taxes_collected too if not separately shown).
 - accommodation = subtotal for the stay before fees/taxes.

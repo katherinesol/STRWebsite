@@ -7,25 +7,32 @@ import { createAdminClient } from '@/lib/supabase/server'
 
 // Log the platform host service fee as a deductible expense, tied to the booking.
 async function logHostFeeExpense(supabase: any, booking: any, calendarBlockId: string) {
-  const fee = Number(booking.commission)
-  if (!fee || fee <= 0) return
   const platform = (booking.platform || 'platform').charAt(0).toUpperCase() + (booking.platform || 'platform').slice(1)
   const ref = booking.confirmation_code ? ` · ${booking.confirmation_code}` : ''
-  const note = `Host service fee — ${platform} booking, ${booking.guest_name || 'guest'}${ref}`
-  // avoid duplicate: skip if an expense already references this booking's fee
-  const { data: existing } = await supabase.from('expenses').select('id').eq('notes', note).maybeSingle()
-  if (existing) return
-  await supabase.from('expenses').insert({
-    property_id: booking.property_id,
-    date: booking.check_in || new Date().toISOString().split('T')[0],
-    vendor: platform,
-    description: 'Platform host service fee',
-    amount: fee,
-    category: 'Management & administration fees',
-    notes: note,
-    ai_extracted: true,
-    confirmed: false,
-  })
+  const who = booking.guest_name || 'guest'
+
+  const items = [
+    { amount: Number(booking.commission), label: 'Host fee / commission', desc: 'Platform host fee' },
+    { amount: Number(booking.payment_processing_fee), label: 'Payment processing fee', desc: 'Platform payment processing fee' },
+  ]
+
+  for (const item of items) {
+    if (!item.amount || item.amount <= 0) continue
+    const note = `${item.label} — ${platform} booking, ${who}${ref}`
+    const { data: existing } = await supabase.from('expenses').select('id').eq('notes', note).maybeSingle()
+    if (existing) continue
+    await supabase.from('expenses').insert({
+      property_id: booking.property_id,
+      date: booking.check_in || new Date().toISOString().split('T')[0],
+      vendor: platform,
+      description: item.desc,
+      amount: item.amount,
+      category: 'Management & administration fees',
+      notes: note,
+      ai_extracted: true,
+      confirmed: false,
+    })
+  }
 }
 
 export async function POST(request: NextRequest) {
@@ -96,6 +103,7 @@ export async function POST(request: NextRequest) {
       cleaning_fee: booking.cleaning_fee ?? null, taxes_collected: booking.occupancy_taxes ?? booking.taxes_collected ?? null,
       guest_total: booking.guest_total ?? null, payout_amount: booking.payout_amount ?? null,
       commission: booking.commission ?? null, discount: booking.discount ?? null, extras: booking.extras ?? null,
+    payment_processing_fee: booking.payment_processing_fee ?? null, taxes_platform_remits: booking.taxes_platform_remits ?? null,
       confirmation_code: booking.confirmation_code || null,
       early_checkin_time: booking.check_in_time || null, late_checkout_time: booking.check_out_time || null,
       door_code: booking.door_code || null,
@@ -126,6 +134,7 @@ export async function POST(request: NextRequest) {
     cleaning_fee: booking.cleaning_fee ?? null, taxes_collected: booking.occupancy_taxes ?? booking.taxes_collected ?? null,
     guest_total: booking.guest_total ?? null, payout_amount: booking.payout_amount ?? null,
     commission: booking.commission ?? null, discount: booking.discount ?? null, extras: booking.extras ?? null,
+    payment_processing_fee: booking.payment_processing_fee ?? null, taxes_platform_remits: booking.taxes_platform_remits ?? null,
     confirmation_code: booking.confirmation_code || null,
     early_checkin_time: booking.check_in_time || null,
     late_checkout_time: booking.check_out_time || null,
