@@ -35,6 +35,7 @@ export default function IncomePage() {
   const [form, setForm] = useState<any>({})
   const [saving, setSaving] = useState(false)
   const [calcGross, setCalcGross] = useState('')
+  const [lumpedTax, setLumpedTax] = useState('')
 
   function load() {
     fetch('/api/admin/income').then(r => r.json()).then(d => { if (d.rows) setRows(d.rows) }).finally(() => setLoading(false))
@@ -43,9 +44,11 @@ export default function IncomePage() {
 
   function openEdit(r: any) {
     setEditId(editId === r.id ? null : r.id)
-    setForm({ accommodation: r.accommodation ?? '', cleaning_fee: r.cleaning_fee ?? '', discount: r.discount ?? '', hst: r.hst ?? '', mat: r.mat ?? '', host_fee: r.host_fee ?? '', payout: r.payout ?? '' })
-    const base = (Number(r.accommodation) || 0) + (Number(r.cleaning_fee) || 0) - (Number(r.discount) || 0)
+    setForm({ tax_note: r.tax_note ?? '', tax_collected: r.tax_collected ?? '', accommodation: r.accommodation ?? '', cleaning_fee: r.cleaning_fee ?? '', extras: r.extras ?? '', discount: r.discount ?? '', hst: r.hst ?? '', mat: r.mat ?? '', host_fee: r.host_fee ?? '', payout: r.payout ?? '' })
+    const base = (Number(r.accommodation) || 0) + (Number(r.cleaning_fee) || 0) + (Number(r.extras) || 0) - (Number(r.discount) || 0)
     setCalcGross(base > 0 ? String(r2(base)) : (r.payout ?? ''))
+    setLumpedTax(r.hst === null && r.mat === null && r.taxes_total ? String(r.taxes_total) : '')
+    setTaxCollected(null); setShortMsg('')
   }
   async function save(r: any) {
     setSaving(true)
@@ -55,10 +58,11 @@ export default function IncomePage() {
   // back out tax from a tax-inclusive gross amount
   function absorb(r: any) {
     const g = Number(calcGross); if (!g) return
+    setForm((f: any) => ({ ...f, tax_collected: 0 }))
     const rate = RATES[r.property_id] || { hst: 0.13, mat: 0 }
     const combined = rate.hst + rate.mat
     const base = g / (1 + combined)
-    setForm((f: any) => ({ ...f, hst: r2(base * rate.hst), mat: rate.mat ? r2(base * rate.mat) : '' }))
+    setForm((f: any) => ({ ...f, hst: r2(base * rate.hst), mat: rate.mat ? r2(base * rate.mat) : '', tax_note: `No tax collected. Backed out of $${r2(g)} — absorbed $${r2(g - base)}.` }))
   }
   // tax added on top of a base amount
   function onTop(r: any) {
@@ -68,11 +72,11 @@ export default function IncomePage() {
   }
   // split one lumped tax amount into HST / MAT proportionally
   function splitLumped(r: any) {
-    const t = Number(calcGross); if (!t) return
+    const t = Number(lumpedTax); if (!t) return
     const rate = RATES[r.property_id] || { hst: 0.13, mat: 0 }
     const combined = rate.hst + rate.mat
     if (!combined) return
-    setForm((f: any) => ({ ...f, hst: r2(t * (rate.hst / combined)), mat: rate.mat ? r2(t * (rate.mat / combined)) : '' }))
+    setForm((f: any) => ({ ...f, hst: r2(t * (rate.hst / combined)), mat: rate.mat ? r2(t * (rate.mat / combined)) : '', tax_collected: r2(t), tax_note: `Split $${r2(t)} of collected tax into HST and MAT.` }))
   }
   // wrong rate charged on top of the base — you absorb the shortfall
   const [chargedPct, setChargedPct] = useState('')
@@ -82,10 +86,20 @@ export default function IncomePage() {
     const rate = RATES[r.property_id] || { hst: 0.13, mat: 0 }
     const owed = base * rate.hst
     const collected = base * (charged / 100)
-    setForm((f: any) => ({ ...f, hst: r2(owed), mat: rate.mat ? r2(base * rate.mat) : '' }))
-    setShortMsg(`On a base of $${r2(base)}: HST owed $${r2(owed)}, you collected $${r2(collected)} at ${charged}%, so you absorb $${r2(owed - collected)}.`)
+    setForm((f: any) => ({ ...f, hst: r2(owed), mat: rate.mat ? r2(base * rate.mat) : '', tax_collected: r2(collected), tax_note: `Undertaxed: charged ${charged}% instead of ${rate.hst * 100}%. Collected $${r2(collected)}, absorbed $${r2(owed - collected)}.` }))
+    setShortMsg(`On a base of $${r2(base)}: HST owed $${r2(owed)}, you collected $${r2(collected)} at ${charged}%, so you absorb $${r2(owed - collected)}. Payout below uses the $${r2(collected)} actually deposited.`)
   }
   const [shortMsg, setShortMsg] = useState('')
+  const [taxCollected, setTaxCollected] = useState<number | null>(null)
+
+  function computedPayout() {
+    const f = form
+    const base = (Number(f.accommodation) || 0) + (Number(f.cleaning_fee) || 0) + (Number(f.extras) || 0) - (Number(f.discount) || 0)
+    const taxInPayout = f.tax_collected === '' || f.tax_collected === null || f.tax_collected === undefined
+      ? (Number(f.hst) || 0) + (Number(f.mat) || 0)
+      : Number(f.tax_collected) || 0
+    return r2(base - (Number(f.host_fee) || 0) + taxInPayout)
+  }
 
   const sum = (list: any[], k: string) => list.reduce((s, x) => s + (Number(x[k]) || 0), 0)
   const inp: React.CSSProperties = { width: '100%', padding: '7px 9px', background: '#1E1E1C', border: '0.5px solid #4A4A48', color: '#F0EDE6', fontSize: '12px', borderRadius: '4px', boxSizing: 'border-box' }
@@ -103,10 +117,10 @@ export default function IncomePage() {
   )
 
   const Row = ({ r }: { r: any }) => (
-    <div>
+    <div key={r.id}>
       <div onClick={() => openEdit(r)} style={{ display: 'grid', gridTemplateColumns: GRID, gap: '8px', padding: '11px 14px', fontSize: '12px', color: '#AEAEA6', borderBottom: '0.5px solid #2A2A28', alignItems: 'center', cursor: 'pointer', background: editId === r.id ? '#2A2A28' : 'transparent' }}>
         <span style={{ color: '#F0EDE6' }}>{r.guest_name}{r.flags.length > 0 && <Info text={r.flags.map((f: string) => FLAG_TEXT[f]).join(' ')} />}{r.flags.length > 0 && <span style={{ marginLeft: '3px' }}>⚠️</span>}</span>
-        <span style={{ fontSize: '11px' }}>{r.check_in} → {r.check_out}</span>
+        <span style={{ fontSize: '11px' }}>{r.check_in} → {r.check_out}{r.tax_note ? <span style={{ display: 'block', fontSize: '9px', color: '#8A7A5A', marginTop: '2px' }}>{r.tax_note}</span> : null}</span>
         <span style={{ fontSize: '10px', textTransform: 'uppercase', color: r.source === 'direct' ? 'var(--amber)' : '#9A9A92' }}>{r.platform}</span>
         <span>{money(r.accommodation)}</span><span>{money(r.cleaning_fee)}</span>
         <span>{r.discount ? '-' + money(r.discount).slice(1) : '—'}</span>
@@ -117,13 +131,25 @@ export default function IncomePage() {
         <div style={{ padding: '16px', background: '#1E1E1C', borderBottom: '0.5px solid #2A2A28' }}>
           <div style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '.1em', color: 'var(--amber)', marginBottom: '10px' }}>Fix this booking</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', marginBottom: '14px' }}>
-            {([['accommodation','Accommodation'],['cleaning_fee','Cleaning'],['discount','Discount'],['host_fee','Host service fee'],['hst','HST / GST (13%)'],...(RATES[r.property_id]?.mat ? [['mat','MAT (4%)']] : []),['payout','Payout received']] as string[][]).map(([k, label]) => (
+            {([['accommodation','Accommodation'],['cleaning_fee','Cleaning'],['extras','Extras (pet fee etc)'],['discount','Discount'],['host_fee','Host service fee'],['tax_collected','Tax Airbnb collected'],['hst','HST / GST (13%)'],...(RATES[r.property_id]?.mat ? [['mat','MAT (4%)']] : []),['payout','Payout received']] as string[][]).map(([k, label]) => (
               <label key={k} style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
                 <span style={{ fontSize: '9px', color: '#9A9A92', textTransform: 'uppercase' }}>{label}</span>
                 <input value={form[k] ?? ''} onChange={e => setForm((f: any) => ({ ...f, [k]: e.target.value }))} style={inp} />
               </label>
             ))}
           </div>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: '3px', marginBottom: '14px' }}>
+            <span style={{ fontSize: '9px', color: '#9A9A92', textTransform: 'uppercase' }}>Note — why the numbers differ</span>
+            <input value={form.tax_note ?? ''} onChange={e => setForm((f: any) => ({ ...f, tax_note: e.target.value }))} placeholder="Filled automatically by the calculator" style={inp} />
+          </label>
+
+          {Math.abs((Number(form.payout) || 0) - computedPayout()) > 0.02 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: '11px', color: '#e6a86a' }}>These figures give a payout of <span style={{ color: '#F0EDE6' }}>{money(computedPayout())}</span></span>
+              <button onClick={() => setForm((f: any) => ({ ...f, payout: computedPayout() }))} style={{ padding: '5px 11px', background: '#363634', color: '#F0EDE6', border: 'none', fontSize: '10px', cursor: 'pointer', borderRadius: '5px' }}>Use this</button>
+            </div>
+          )}
+
           <div style={{ background: '#242422', border: '0.5px solid #363634', borderRadius: '6px', padding: '14px', marginBottom: '12px' }}>
             <div style={{ fontSize: '11px', color: '#F0EDE6', marginBottom: '3px' }}>Look at this booking on Airbnb. Does it show a tax line?</div>
             <div style={{ fontSize: '10px', color: '#666660', marginBottom: '12px' }}>{PROP_NAMES[r.property_id]} — {(RATES[r.property_id]?.hst ?? 0) * 100}% HST{RATES[r.property_id]?.mat ? ` + ${RATES[r.property_id].mat * 100}% MAT (both yours to remit)` : ' (Airbnb handles Toronto MAT)'}</div>
@@ -147,8 +173,11 @@ export default function IncomePage() {
               {RATES[r.property_id]?.mat ? (
                 <div style={{ borderLeft: '2px solid #4A4A48', paddingLeft: '10px' }}>
                   <div style={{ fontSize: '11px', color: '#F0EDE6', marginBottom: '5px' }}>One combined tax line (HST and MAT together)</div>
-                  <div style={{ fontSize: '10px', color: '#8A8A82', marginBottom: '6px' }}>Replace the amount below with that tax figure, then:</div>
-                  <button onClick={() => splitLumped(r)} style={{ padding: '7px 12px', background: '#363634', color: '#F0EDE6', border: 'none', fontSize: '11px', cursor: 'pointer', borderRadius: '5px' }}>Split it into HST and MAT</button>
+                  <div style={{ fontSize: '10px', color: '#8A8A82', marginBottom: '6px' }}>Enter the tax figure from the booking and it splits 13/17 to HST, 4/17 to MAT.</div>
+                  <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                    <input value={lumpedTax} onChange={e => setLumpedTax(e.target.value)} placeholder="total taxes, e.g. 564.23" style={{ ...inp, width: '170px' }} />
+                    <button onClick={() => splitLumped(r)} style={{ padding: '7px 12px', background: '#363634', color: '#F0EDE6', border: 'none', fontSize: '11px', cursor: 'pointer', borderRadius: '5px' }}>Split into HST and MAT</button>
+                  </div>
                 </div>
               ) : null}
 
@@ -162,7 +191,7 @@ export default function IncomePage() {
             <div style={{ marginTop: '14px', paddingTop: '12px', borderTop: '0.5px solid #363634' }}>
               <div style={{ fontSize: '9px', textTransform: 'uppercase', letterSpacing: '.1em', color: '#9A9A92', marginBottom: '5px' }}>Amount the buttons use</div>
               <input value={calcGross} onChange={e => setCalcGross(e.target.value)} style={{ ...inp, width: '160px' }} />
-              <div style={{ fontSize: '10px', color: '#666660', marginTop: '6px', lineHeight: 1.5 }}>Pre-filled with the taxable base: accommodation + cleaning + extras, less discount. Not your payout — the host service fee doesn't reduce it.</div>
+              <div style={{ fontSize: '10px', color: '#666660', marginTop: '6px', lineHeight: 1.5 }}>Pre-filled with the taxable base: accommodation + cleaning + extras (pet fee etc), less discount. Not your payout — the host service fee doesn't reduce it.</div>
             </div>
 
             {shortMsg && <div style={{ fontSize: '11px', color: '#e6c88a', marginTop: '10px', lineHeight: 1.5 }}>{shortMsg}</div>}
@@ -211,14 +240,14 @@ export default function IncomePage() {
         return (
           <div key={pid} style={{ background: '#242422', border: '0.5px solid #363634', borderRadius: '6px', marginBottom: '18px', overflowX: 'auto' }}>
             <div style={{ padding: '13px 14px', fontSize: '13px', color: '#F0EDE6', borderBottom: '0.5px solid #363634' }}>{PROP_NAMES[pid] || pid}</div>
-            <div style={{ minWidth: '860px' }}><Header />{list.map(r => <Row key={r.id} r={r} />)}<Totals list={list} /></div>
+            <div style={{ minWidth: '860px' }}><Header />{list.map(r => Row({ r }))}<Totals list={list} /></div>
           </div>
         )
       })}
 
       {!loading && !grouped && (
         <div style={{ background: '#242422', border: '0.5px solid #363634', borderRadius: '6px', overflowX: 'auto' }}>
-          <div style={{ minWidth: '860px' }}><Header />{rows.map(r => <Row key={r.id} r={r} />)}<Totals list={rows} /></div>
+          <div style={{ minWidth: '860px' }}><Header />{rows.map(r => Row({ r }))}<Totals list={rows} /></div>
         </div>
       )}
     </div>

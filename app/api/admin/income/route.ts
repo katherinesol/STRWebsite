@@ -9,12 +9,12 @@ export async function GET() {
 
   const { data: direct } = await supabase
     .from('bookings')
-    .select('id, property_id, check_in, check_out, accommodation, cleaning_fee, hst, mat, total, status, guest:guests(name)')
+    .select('id, property_id, check_in, check_out, accommodation, cleaning_fee, addon_fee, hst, mat, total, status, tax_note, guest:guests(name)')
     .neq('status', 'cancelled')
 
   const { data: platform } = await supabase
     .from('calendar_blocks')
-    .select('id, property_id, start_date, end_date, guest_name, platform, accommodation, cleaning_fee, taxes_collected, payout_amount, commission, discount, hst, mat')
+    .select('id, property_id, start_date, end_date, guest_name, platform, accommodation, cleaning_fee, taxes_collected, payout_amount, commission, discount, hst, mat, extras, tax_note')
     .eq('is_booking', true)
 
   const num = (v: any) => (v === null || v === undefined || v === '' ? null : Number(v))
@@ -30,10 +30,12 @@ export async function GET() {
       property_id: b.property_id, guest_name: b.guest?.name || 'Direct guest',
       check_in: b.check_in, check_out: b.check_out,
       accommodation: acc, cleaning_fee: clean,
-      hst, mat, taxes_total: (hst || 0) + (mat || 0) || null,
+      hst, mat, taxes_total: (hst || 0) + (mat || 0) || null, tax_collected: (hst || 0) + (mat || 0) || null,
       host_fee: null,
       discount: null,
+      extras: num(b.addon_fee),
       payout: num(b.total),
+      tax_note: b.tax_note || null,
       flags,
     }
   })
@@ -54,10 +56,12 @@ export async function GET() {
       property_id: b.property_id, guest_name: b.guest_name || 'Platform guest',
       check_in: b.start_date, check_out: b.end_date,
       accommodation: acc, cleaning_fee: clean,
-      hst, mat, taxes_total: taxes,
+      hst, mat, taxes_total: taxes, tax_collected: num(b.taxes_collected),
       host_fee: num(b.commission),
       discount: num(b.discount),
+      extras: num(b.extras),
       payout: num(b.payout_amount),
+      tax_note: b.tax_note || null,
       flags,
     }
   })
