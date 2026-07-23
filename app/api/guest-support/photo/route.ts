@@ -38,10 +38,7 @@ export async function POST(request: NextRequest) {
     const bytes = Buffer.from(imageBase64, 'base64')
     const path = `guest-photos/${booking_id}-${Date.now()}.jpg`
     const { error: upErr } = await supabase.storage.from('property-management').upload(path, bytes, { contentType: mediaType || 'image/jpeg' })
-    if (!upErr) {
-      const { data: pub } = supabase.storage.from('property-management').getPublicUrl(path)
-      photoUrl = pub?.publicUrl || null
-    }
+    if (!upErr) photoUrl = path
   } catch {}
 
   // knowledge base for this property

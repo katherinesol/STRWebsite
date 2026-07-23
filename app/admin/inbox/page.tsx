@@ -114,6 +114,10 @@ export default function InboxPage() {
             {/* messages */}
             <div style={{ flex: 1, overflowY: 'auto', padding: '20px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
               {messages.map(m => {
+                const photoMatch = String(m.body || '').match(/\[photo:\s*(\S+?)\]/)
+                const rawPhoto = photoMatch ? photoMatch[1] : null
+                const photoUrl = rawPhoto ? (rawPhoto.startsWith('http') ? rawPhoto : `/api/admin/photo?path=${encodeURIComponent(rawPhoto)}`) : null
+                const textPart = String(m.body || '').replace(/\[photo:[^\]]*\]/g, '').replace(/\[photo\]/g, '').trim()
                 const isGuest = m.sender === 'guest'
                 const isAI = m.sender === 'ai'
                 return (
@@ -123,7 +127,13 @@ export default function InboxPage() {
                       color: isGuest ? '#F0EDE6' : isAI ? '#F0EDE6' : '#242422',
                       borderBottomLeftRadius: isGuest ? '2px' : '10px',
                       borderBottomRightRadius: isGuest ? '10px' : '2px' }}>
-                      {m.body}
+                      {textPart && <div style={{ marginBottom: photoUrl ? '8px' : 0 }}>{textPart}</div>}
+                      {photoUrl && (
+                        <a href={photoUrl} target="_blank" rel="noopener noreferrer">
+                          <img src={photoUrl} alt="Guest photo" style={{ maxWidth: '100%', maxHeight: '260px', borderRadius: '6px', display: 'block' }} />
+                        </a>
+                      )}
+                      {!textPart && !photoUrl && m.body}
                     </div>
                     <div style={{ fontSize: '9px', color: '#666660', marginTop: '3px', textAlign: isGuest ? 'left' : 'right' }}>
                       {isAI ? 'AI · ' : ''}{new Date(m.created_at).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}

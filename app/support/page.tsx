@@ -109,6 +109,7 @@ export default function GuestSupport() {
     )
   }
   function renderContent(text: string) {
+    text = String(text).replace(/\[photo:[^\]]*\]/g, '📷 Photo sent').replace(/\[photo\]/g, '📷 Photo sent')
     const parts = String(text).split(/(\{\{copy:[^}]+\}\})/g)
     return parts.map((p, i) => {
       const m = p.match(/^\{\{copy:([^}]+)\}\}$/)
