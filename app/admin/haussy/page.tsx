@@ -18,6 +18,8 @@ export default function HaussyPage() {
   const [overlaps, setOverlaps] = useState<any[]>([])
   const [saving, setSaving] = useState(false)
   const [savedMsg, setSavedMsg] = useState('')
+  const [draftTask, setDraftTask] = useState<any>(null)
+  const [taskSaving, setTaskSaving] = useState(false)
   const endRef = useRef<HTMLDivElement>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
@@ -35,7 +37,11 @@ export default function HaussyPage() {
       })
       const d = await res.json()
       if (d.error) setMessages(m => [...m, { role: 'assistant', content: `⚠️ ${d.error}` }])
-      else setMessages(m => [...m, { role: 'assistant', content: d.answer || '(no response)', tools: d.tools }])
+      else {
+        setMessages(m => [...m, { role: 'assistant', content: d.answer || '(no response)', tools: d.tools }])
+        const t = (d.tools || []).find((x: any) => x.tool === 'propose_task')
+        if (t) setDraftTask({ ...t.input })
+      }
     } catch {
       setMessages(m => [...m, { role: 'assistant', content: '⚠️ Something went wrong.' }])
     } finally { setBusy(false) }
@@ -133,6 +139,33 @@ export default function HaussyPage() {
         {busy && <div style={{ alignSelf: 'flex-start', fontSize: '13px', color: '#9A9A92', padding: '8px 4px' }}>Haussy is thinking…</div>}
         <div ref={endRef} />
       </div>
+
+      {draftTask && (
+        <div style={{ background: '#242422', border: '0.5px solid #4a3f1f', borderRadius: '8px', padding: '16px', marginBottom: '10px' }}>
+          <div style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '.1em', color: 'var(--amber)', marginBottom: '12px' }}>New task — nothing saves until you confirm</div>
+          <div style={{ display: 'grid', gap: '8px', fontSize: '12px' }}>
+            {[['title','Title'],['description','Details'],['due_date','Due date'],['cadence','Repeats'],['priority','Priority']].map(([k, label]) => (
+              <label key={k} style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                <span style={{ fontSize: '9px', color: '#9A9A92', textTransform: 'uppercase' }}>{label}</span>
+                {k === 'description'
+                  ? <textarea value={draftTask[k] ?? ''} onChange={e => setDraftTask((t: any) => ({ ...t, [k]: e.target.value }))} rows={3} style={{ padding: '6px 8px', background: '#363634', border: '0.5px solid #4A4A48', color: '#F0EDE6', fontSize: '12px', borderRadius: '3px', resize: 'vertical', fontFamily: 'inherit' }} />
+                  : <input value={draftTask[k] ?? ''} onChange={e => setDraftTask((t: any) => ({ ...t, [k]: e.target.value }))} style={{ padding: '6px 8px', background: '#363634', border: '0.5px solid #4A4A48', color: '#F0EDE6', fontSize: '12px', borderRadius: '3px' }} />}
+              </label>
+            ))}
+          </div>
+          <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
+            <button onClick={async () => {
+              setTaskSaving(true)
+              const res = await fetch('/api/admin/haussy/create-task', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ task: draftTask }) })
+              const d = await res.json()
+              setTaskSaving(false)
+              setSavedMsg(d.error ? d.error : `\u2713 Task saved: ${d.task?.title}`)
+              if (!d.error) setDraftTask(null)
+            }} disabled={taskSaving} style={{ padding: '9px 18px', background: 'var(--amber)', color: '#242422', border: 'none', fontSize: '12px', fontWeight: 600, cursor: 'pointer', borderRadius: '6px' }}>{taskSaving ? 'Saving…' : 'Confirm & save'}</button>
+            <button onClick={() => setDraftTask(null)} style={{ padding: '9px 16px', background: '#363634', color: '#9A9A92', border: 'none', fontSize: '12px', cursor: 'pointer', borderRadius: '6px' }}>Cancel</button>
+          </div>
+        </div>
+      )}
 
       {/* booking draft confirmation card */}
       {draftBooking && (

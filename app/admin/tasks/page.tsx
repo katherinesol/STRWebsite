@@ -100,7 +100,12 @@ export default function TasksPage() {
     return true
   })
   // sort: overdue first, then never-done, then by priority
-  const order = (t: any) => t.dueStatus?.state === 'overdue' ? 0 : t.dueStatus?.state === 'never-done' ? 1 : t.priority === 'urgent' ? 2 : 3
+  const today = new Date().toISOString().split('T')[0]
+  const order = (t: any) => {
+    if (t.due_date && t.due_date < today) return -1
+    if (t.due_date) return 0
+    return t.dueStatus?.state === 'overdue' ? 1 : t.dueStatus?.state === 'never-done' ? 2 : t.priority === 'urgent' ? 3 : 4
+  }
   visible.sort((a, b) => order(a) - order(b))
 
   const inp: React.CSSProperties = { width: '100%', padding: '10px 12px', background: '#363634', border: '0.5px solid #4A4A48', color: '#F0EDE6', fontSize: '14px', boxSizing: 'border-box', outline: 'none', borderRadius: '2px' }
@@ -177,6 +182,14 @@ export default function TasksPage() {
                     </div>
                     <div style={{ fontSize: '11px', color: '#9A9A92', marginTop: '2px' }}>
                       {prop?.name || 'General'} · {t.type} · {t.cadence}
+                      {t.due_date && (() => {
+                        const today = new Date().toISOString().split('T')[0]
+                        const overdue = t.due_date < today
+                        const soon = !overdue && t.due_date <= new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0]
+                        return <span style={{ marginLeft: '8px', color: overdue ? '#e74c3c' : soon ? '#e6a86a' : '#8A8A82' }}>
+                          · due {new Date(t.due_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}{overdue ? ' (overdue)' : ''}
+                        </span>
+                      })()}
                       {t.lastCompletedAt && ` · last done ${new Date(t.lastCompletedAt).toLocaleDateString()}${t.lastCompletedBy ? ` by ${t.lastCompletedBy}` : ''}`}
                     </div>
                   </div>

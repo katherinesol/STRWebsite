@@ -27,6 +27,22 @@ const TABLE_ALLOWLIST: Record<string, { desc: string; ownerOnly?: boolean }> = {
 // A single, safe, read-only query tool. Claude picks a table + simple filters; the server builds the query.
 export const TOOL_DEFS = [
   {
+    name: 'propose_task',
+    description: `Propose a task or reminder for the owner. This does NOT create anything — it shows them a card to confirm. Use whenever they ask to be reminded of something, or to set up a recurring obligation. Work out the due date yourself from today's date. For recurring things, set cadence and use the NEXT occurrence as due_date.`,
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        title: { type: 'string', description: 'Short title, e.g. "File Q3 MAT return"' },
+        description: { type: 'string', description: 'What needs doing, including any figures or steps they will need' },
+        due_date: { type: 'string', description: 'YYYY-MM-DD' },
+        cadence: { type: 'string', description: 'e.g. quarterly, monthly, annual — omit for one-off' },
+        property_id: { type: 'string', enum: ['royal-york-east', 'royal-york-west', 'nickel-beach'], description: 'Omit if it is not property-specific' },
+        priority: { type: 'string', enum: ['low', 'normal', 'high'] },
+      },
+      required: ['title'],
+    },
+  },
+  {
     name: 'query_data',
     description: `Read the owner's business data to answer questions. Available tables:
 ${Object.entries(TABLE_ALLOWLIST).map(([t, m]) => `- ${t}: ${m.desc}${m.ownerOnly ? ' (owner only)' : ''}`).join('\n')}
@@ -62,6 +78,10 @@ Notes:
 ]
 
 export async function runTool(name: string, input: any, ctx: HaussyCtx): Promise<{ ok: boolean; data?: any; error?: string }> {
+  if (name === 'propose_task') {
+    if (ctx.role !== 'owner') return { ok: false, error: 'Only the owner can create tasks.' }
+    return { ok: true, data: { proposed: true, ...input } }
+  }
   if (name !== 'query_data') return { ok: false, error: `Unknown tool: ${name}` }
 
   const table = input.table
