@@ -117,10 +117,17 @@ export default function IncomePage() {
   function splitLumped(r: any) {
     const t = Number(lumpedTax); if (!t) return
     const rate = RATES[r.property_id] || { hst: 0.13, mat: 0 }
-    const combined = rate.hst + rate.mat
-    if (!combined) return
-    setForm((f: any) => ({ ...f, hst: r2(t * (rate.hst / combined)), mat: rate.mat ? r2(t * (rate.mat / combined)) : '', tax_collected: r2(t), tax_note: `Split $${r2(t)} of collected tax into HST and MAT.` }))
+    if (!rate.mat) { setForm((f: any) => ({ ...f, hst: r2(t), tax_collected: r2(t) })); return }
+    // MAT is knowable exactly: 4% of the room rate only, never on cleaning or extras
+    const room = (Number(form.accommodation) || 0) - (Number(form.discount) || 0)
+    const matOwed = r2(room * rate.mat)
+    const rest = r2(t - matOwed)
+    setForm((f: any) => ({
+      ...f, mat: matOwed, hst: rest, tax_collected: r2(t),
+      tax_note: `Collected $${r2(t)} tax. MAT is $${matOwed} (${rate.mat * 100}% of $${r2(room)} room rate). Remaining $${rest} treated as HST.`,
+    }))
   }
+
   // wrong rate charged on top of the base — you absorb the shortfall
   const [chargedPct, setChargedPct] = useState('')
   function shortfall(r: any) {

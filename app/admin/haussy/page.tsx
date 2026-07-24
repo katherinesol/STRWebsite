@@ -89,7 +89,8 @@ export default function HaussyPage() {
     if (d.error) { setSavedMsg(d.error); return }
     if (!commit) { setOverlaps(d.overlaps || []); if (!d.overlaps?.length) checkAndSave(true); return }
     setSavedMsg(d.merged ? `✓ Existing booking updated${d.guest_id ? ' + guest linked' : ''}` : `✓ Booking saved${d.guest_id ? ' + guest linked' : ''}`)
-    setDraftBooking(null); setOverlaps([])
+    setDraftBooking(null); setOverlaps([]); setPendingImages([]); setInput('')
+    setTimeout(() => { window.location.reload() }, 1200)
   }
   const bset = (patch: any) => setDraftBooking((p: any) => ({ ...p, ...patch }))
   function shiftYear(year: string) {

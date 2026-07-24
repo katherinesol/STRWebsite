@@ -43,6 +43,18 @@ export const TOOL_DEFS = [
     },
   },
   {
+    name: 'mat_report',
+    description: 'Municipal Accommodation Tax owed for Nickel Beach for a quarter. 4% on accommodation only, platform bookings only, stays over 29 nights exempt. Returns a monthly breakdown as ORHMA requires, plus per-booking detail. Quarters are due the 15th of the month after quarter end.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        year: { type: 'number' },
+        quarter: { type: 'string', enum: ['Q1', 'Q2', 'Q3', 'Q4'] },
+      },
+      required: ['year', 'quarter'],
+    },
+  },
+  {
     name: 'query_data',
     description: `Read the owner's business data to answer questions. Available tables:
 ${Object.entries(TABLE_ALLOWLIST).map(([t, m]) => `- ${t}: ${m.desc}${m.ownerOnly ? ' (owner only)' : ''}`).join('\n')}
@@ -81,6 +93,38 @@ export async function runTool(name: string, input: any, ctx: HaussyCtx): Promise
   if (name === 'propose_task') {
     if (ctx.role !== 'owner') return { ok: false, error: 'Only the owner can create tasks.' }
     return { ok: true, data: { proposed: true, ...input } }
+  }
+  if (name === 'mat_report') {
+    if (ctx.role !== 'owner') return { ok: false, error: 'MAT figures are restricted to owners.' }
+    const supabase = createAdminClient()
+    const RATE = 0.04, DAY = 86400000
+    const Q: Record<string, [number, number]> = { Q1: [0, 2], Q2: [3, 5], Q3: [6, 8], Q4: [9, 11] }
+    const [qs, qe] = Q[String(input.quarter).toUpperCase()] || Q.Q1
+    const year = Number(input.year)
+    const from = new Date(Date.UTC(year, qs, 1)).toISOString().split('T')[0]
+    const to = new Date(Date.UTC(year, qe + 1, 0)).toISOString().split('T')[0]
+    const { data: blocks } = await supabase.from('calendar_blocks')
+      .select('guest_name, platform, start_date, end_date, accommodation, discount')
+      .eq('property_id', 'nickel-beach').eq('is_booking', true)
+      .in('platform', ['airbnb', 'vrbo', 'houfy'])
+      .lte('start_date', to).gte('end_date', from)
+    let revenue = 0, nights = 0, exemptRevenue = 0, missing = 0
+    for (const b of blocks || []) {
+      const total = Math.max(0, Math.round((new Date(b.end_date + 'T00:00:00').getTime() - new Date(b.start_date + 'T00:00:00').getTime()) / DAY))
+      if (!total) continue
+      if (!b.accommodation) missing++
+      const nightly = ((Number(b.accommodation) || 0) - (Number(b.discount) || 0)) / total
+      let inQ = 0
+      for (let i = 0; i < total; i++) {
+        const d = new Date(new Date(b.start_date + 'T00:00:00').getTime() + i * DAY)
+        if (d.getFullYear() === year && d.getMonth() >= qs && d.getMonth() <= qe) inQ++
+      }
+      nights += inQ
+      if (total > 29) exemptRevenue += nightly * inQ
+      else revenue += nightly * inQ
+    }
+    const r2 = (n: number) => Math.round(n * 100) / 100
+    return { ok: true, data: { quarter: input.quarter, year, from, to, nights_occupied: nights, room_revenue: r2(revenue), exempt_revenue: r2(exemptRevenue), mat_owed: r2(revenue * RATE), bookings_missing_amounts: missing } }
   }
   if (name !== 'query_data') return { ok: false, error: `Unknown tool: ${name}` }
 
