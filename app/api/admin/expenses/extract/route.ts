@@ -79,9 +79,10 @@ export async function POST(request: NextRequest) {
   "hst": 0.00,
   "date": "YYYY-MM-DD",
   "description": "brief description of items",
+  "items": [{"name": "specific item as printed, e.g. 'Mainstays 12pc Dinnerware Set'", "amount": 0.00, "qty": 1}],
   "category": "one of: ${CATEGORIES.join(' | ')}"
 }
-Use null for any field you cannot determine. For date use today if not visible.`,
+Extract every distinct product line into items with its name exactly as printed and its price. Skip subtotals, tax, and discounts. Use null for any field you cannot determine, [] for items if none are legible. For date use today if not visible.`,
           },
         ],
       }],

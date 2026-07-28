@@ -48,6 +48,7 @@ export default function ExpensesManager({ expenses, vendors }: { expenses: Expen
     date: today,
     vendor: '',
     description: '',
+    line_items: [] as any[],
     amount: '',
     hst_paid: '',
     category: EXPENSE_CATEGORIES[0],
@@ -86,6 +87,8 @@ export default function ExpensesManager({ expenses, vendors }: { expenses: Expen
           date: data.date || f.date,
           category: data.category || f.category,
           description: data.description || f.description,
+          line_items: data.items || f.line_items,
+          receipt_path: data.receipt_path || (f as any).receipt_path || null,
           receipt_url: data.receipt_url || f.receipt_url,
           ai_extracted: true,
         }))
@@ -111,6 +114,7 @@ export default function ExpensesManager({ expenses, vendors }: { expenses: Expen
           date: data.date || f.date,
           category: data.category || f.category,
           description: data.description || f.description,
+          line_items: data.items || f.line_items,
           receipt_path: data.receipt_path || (f as any).receipt_path || null,
           ai_extracted: true,
         }))
@@ -144,7 +148,7 @@ export default function ExpensesManager({ expenses, vendors }: { expenses: Expen
         setSaving(false)
         return
       }
-      setForm({ date: today, vendor: '', description: '', amount: '', hst_paid: '', category: EXPENSE_CATEGORIES[0], property_id: '', notes: '', receipt_url: '', receipt_path: null, ai_extracted: false, confirmed: false })
+      setForm({ date: today, vendor: '', description: '', line_items: [], amount: '', hst_paid: '', category: EXPENSE_CATEGORIES[0], property_id: '', notes: '', receipt_url: '', receipt_path: null, ai_extracted: false, confirmed: false })
       setShowForm(false)
       router.refresh()
     } catch {}

@@ -55,6 +55,18 @@ export const TOOL_DEFS = [
     },
   },
   {
+    name: 'search_inventory',
+    description: 'Search items the host has bought, extracted from receipts. Use for questions like "what plates do we use", "where did we get the coffee maker", "what did the towels cost". Returns matching items with price, store, date, property, and whether a receipt is on file.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        query: { type: 'string', description: 'What to look for, e.g. "plates", "coffee", "towels"' },
+        property_id: { type: 'string', enum: ['royal-york-east', 'royal-york-west', 'nickel-beach'], description: 'Optional — limit to one property' },
+      },
+      required: ['query'],
+    },
+  },
+  {
     name: 'query_data',
     description: `Read the owner's business data to answer questions. Available tables:
 ${Object.entries(TABLE_ALLOWLIST).map(([t, m]) => `- ${t}: ${m.desc}${m.ownerOnly ? ' (owner only)' : ''}`).join('\n')}
@@ -125,6 +137,23 @@ export async function runTool(name: string, input: any, ctx: HaussyCtx): Promise
     }
     const r2 = (n: number) => Math.round(n * 100) / 100
     return { ok: true, data: { quarter: input.quarter, year, from, to, nights_occupied: nights, room_revenue: r2(revenue), exempt_revenue: r2(exemptRevenue), mat_owed: r2(revenue * RATE), bookings_missing_amounts: missing } }
+  }
+  if (name === 'search_inventory') {
+    const supabase = createAdminClient()
+    let qb = supabase.from('expenses').select('vendor, date, property_id, receipt_path, line_items').not('line_items', 'is', null)
+    if (input.property_id) qb = qb.eq('property_id', input.property_id)
+    const { data } = await qb
+    const term = String(input.query || '').toLowerCase()
+    const hits: any[] = []
+    for (const e of data || []) {
+      const li = Array.isArray(e.line_items) ? e.line_items : []
+      for (const it of li) {
+        if (it?.name && it.name.toLowerCase().includes(term)) {
+          hits.push({ name: it.name, price: it.amount ?? null, qty: it.qty ?? 1, store: e.vendor, date: e.date, property: e.property_id, has_receipt: !!e.receipt_path })
+        }
+      }
+    }
+    return { ok: true, data: { matches: hits.slice(0, 30), count: hits.length } }
   }
   if (name !== 'query_data') return { ok: false, error: `Unknown tool: ${name}` }
 
