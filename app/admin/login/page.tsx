@@ -1,6 +1,5 @@
 'use client'
 import { useState } from 'react'
-import { startAuthentication } from '@simplewebauthn/browser'
 import { useRouter } from 'next/navigation'
 
 export default function AdminLogin() {
@@ -8,27 +7,7 @@ export default function AdminLogin() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-  const [mfa, setMfa] = useState(false)
-  const [code, setCode] = useState('')
   const router = useRouter()
-
-  async function loginWithPasskey() {
-    setError(''); setLoading(true)
-    try {
-      const options = await fetch(`/api/admin/passkey/auth?email=${encodeURIComponent(username)}`).then(r => r.json())
-      if (options.error) { setError(options.error === 'No passkeys' ? 'No passkey on this account' : options.error); setLoading(false); return }
-      const assertion = await startAuthentication({ optionsJSON: options })
-      const res = await fetch('/api/admin/login', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: username, password, passkeyAssertion: assertion }),
-      })
-      const data = await res.json().catch(() => ({}))
-      if (res.ok && !data.mfaRequired) router.push('/admin')
-      else setError(data.error || 'Passkey sign-in failed')
-    } catch (e: any) {
-      setError(e?.name === 'NotAllowedError' ? 'Cancelled' : 'Passkey sign-in failed')
-    } finally { setLoading(false) }
-  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -38,14 +17,10 @@ export default function AdminLogin() {
       const res = await fetch('/api/admin/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: username, password, token: code }),
+        body: JSON.stringify({ username, password }),
       })
-      const data = await res.json().catch(() => ({}))
-      if (res.ok && !data.mfaRequired) {
+      if (res.ok) {
         router.push('/admin')
-      } else if (data.mfaRequired) {
-        setMfa(true)
-        setError(code ? 'That code is not valid' : '')
       } else {
         setError('Invalid username or password')
       }
@@ -102,17 +77,6 @@ export default function AdminLogin() {
               />
             </div>
           ))}
-          {mfa && (
-            <div>
-              <div style={{ fontSize: '10px', fontWeight: 500, letterSpacing: '.14em', textTransform: 'uppercase', color: '#AEAEA6', marginBottom: '6px' }}>Authenticator code</div>
-              <input type="text" inputMode="numeric" value={code} onChange={e => setCode(e.target.value)} autoFocus placeholder="6-digit code or backup code"
-                style={{ width: '100%', padding: '12px 14px', background: '#363634', border: '0.5px solid #4A4A48', color: '#F0EDE6', fontFamily: 'var(--sans)', fontSize: '14px', outline: 'none', borderRadius: '2px', boxSizing: 'border-box' }} />
-              <button type="button" onClick={loginWithPasskey} disabled={loading}
-                style={{ width: '100%', marginTop: '10px', padding: '11px', background: '#363634', color: '#F0EDE6', border: '0.5px solid #4A4A48', fontSize: '12px', letterSpacing: '.06em', cursor: 'pointer', borderRadius: '2px' }}>
-                Use a passkey instead
-              </button>
-            </div>
-          )}
           {error && (
             <div style={{ fontSize: '12px', color: '#e74c3c', textAlign: 'center' }}>
               {error}
