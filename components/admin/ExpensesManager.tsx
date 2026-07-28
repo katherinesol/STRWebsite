@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation'
 import { format, startOfMonth, endOfMonth, startOfYear } from 'date-fns'
 import { EXPENSE_CATEGORIES } from '@/lib/expense-categories'
 import { PROPERTY_OPTIONS } from '@/lib/property-options'
+import ReceiptQueue from '@/components/admin/ReceiptQueue'
 
 
 
@@ -36,6 +37,7 @@ export default function ExpensesManager({ expenses, vendors }: { expenses: Expen
   const today = new Date().toISOString().split('T')[0]
 
   const [showForm, setShowForm] = useState(false)
+  const [batchMode, setBatchMode] = useState(false)
   const [saving, setSaving] = useState(false)
   const [extracting, setExtracting] = useState(false)
   const [view, setView] = useState<'list' | 'category' | 'month'>('list')
@@ -232,11 +234,25 @@ export default function ExpensesManager({ expenses, vendors }: { expenses: Expen
 
       {/* add expense */}
       <div style={{ marginBottom: '24px' }}>
-        {!showForm ? (
-          <button onClick={() => setShowForm(true)}
-            style={{ padding: '10px 20px', background: 'var(--amber)', color: '#1A1A18', border: 'none', fontFamily: 'var(--sans)', fontSize: '11px', letterSpacing: '.1em', textTransform: 'uppercase', cursor: 'pointer', fontWeight: 500 }}>
-            + Add expense
-          </button>
+        {!showForm && !batchMode ? (
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <button onClick={() => setShowForm(true)}
+              style={{ padding: '10px 20px', background: 'var(--amber)', color: '#1A1A18', border: 'none', fontFamily: 'var(--sans)', fontSize: '11px', letterSpacing: '.1em', textTransform: 'uppercase', cursor: 'pointer', fontWeight: 500 }}>
+              + Add expense
+            </button>
+            <button onClick={() => setBatchMode(true)}
+              style={{ padding: '10px 20px', background: '#363634', color: '#AEAEA6', border: 'none', fontFamily: 'var(--sans)', fontSize: '11px', letterSpacing: '.1em', textTransform: 'uppercase', cursor: 'pointer', fontWeight: 500 }}>
+              Batch receipts
+            </button>
+          </div>
+        ) : batchMode ? (
+          <div style={{ background: '#242422', border: '0.5px solid #363634', padding: '24px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <div style={{ fontSize: '10px', fontWeight: 500, letterSpacing: '.14em', textTransform: 'uppercase', color: 'var(--amber)' }}>Batch receipts</div>
+              <button onClick={() => setBatchMode(false)} style={{ background: 'none', border: 'none', color: '#9A9A92', fontSize: '11px', cursor: 'pointer' }}>close</button>
+            </div>
+            <ReceiptQueue categories={EXPENSE_CATEGORIES as unknown as string[]} onAllSaved={() => router.refresh()} />
+          </div>
         ) : (
           <div style={{ background: '#242422', border: '0.5px solid #363634', padding: '24px' }}>
             <div style={{ fontSize: '10px', fontWeight: 500, letterSpacing: '.14em', textTransform: 'uppercase', color: 'var(--amber)', marginBottom: '16px' }}>New expense</div>
