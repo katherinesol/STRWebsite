@@ -2,6 +2,7 @@ import { createAdminClient } from '@/lib/supabase/server'
 import { getAuth } from '@/lib/auth'
 import { format, addDays } from 'date-fns'
 import CisternLevel from '@/components/admin/CisternLevel'
+import Link from 'next/link'
 
 const PROPERTY_NAMES: Record<string, string> = {
   'royal-york-east': 'Royal York East',
@@ -81,8 +82,9 @@ export default async function AdminDashboard() {
 
   const totalRevenue = allBookings?.filter(b => b.status === 'completed').reduce((sum, b) => sum + (b.total || 0), 0) || 0
   const activeBookings = (allBookings?.filter(b => ['confirmed', 'active'].includes(b.status) && b.check_out >= todayStr).length || 0) + (allPlatformBlocks?.length || 0)
-  const allCheckins = [...(upcomingCheckins || []).map(b => ({ name: (Array.isArray(b.guest_info) ? (b.guest_info as any[])[0] : b.guest_info as any)?.name, property: b.property_id, date: b.check_in, nights: b.nights, type: 'direct' })), ...(platformCheckins || []).map(b => ({ name: b.guest_name || b.platform, property: b.property_id, date: b.start_date, nights: null, type: b.platform }))]
-  const allCheckouts = [...(upcomingCheckouts || []).map(b => ({ name: (Array.isArray(b.guest_info) ? (b.guest_info as any[])[0] : b.guest_info as any)?.name, property: b.property_id, date: b.check_out, type: 'direct' })), ...(platformCheckouts || []).map(b => ({ name: b.guest_name || b.platform, property: b.property_id, date: b.end_date, type: b.platform }))]
+  const hrefFor = (b: any) => b.type === 'direct' ? `/admin/bookings/${b.id}` : `/admin/bookings/block/${b.id}`
+  const allCheckins = [...(upcomingCheckins || []).map(b => ({ id: b.id, name: (Array.isArray(b.guest_info) ? (b.guest_info as any[])[0] : b.guest_info as any)?.name, property: b.property_id, date: b.check_in, nights: b.nights, type: 'direct' })), ...(platformCheckins || []).map(b => ({ id: b.id, name: b.guest_name || b.platform, property: b.property_id, date: b.start_date, nights: null, type: b.platform }))]
+  const allCheckouts = [...(upcomingCheckouts || []).map(b => ({ id: b.id, name: (Array.isArray(b.guest_info) ? (b.guest_info as any[])[0] : b.guest_info as any)?.name, property: b.property_id, date: b.check_out, type: 'direct' })), ...(platformCheckouts || []).map(b => ({ id: b.id, name: b.guest_name || b.platform, property: b.property_id, date: b.end_date, type: b.platform }))]
 
   return (
     <div>
@@ -119,7 +121,7 @@ export default async function AdminDashboard() {
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
               {allCheckins.sort((a,b) => a.date > b.date ? 1 : -1).map((b, idx) => (
-                <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '0.5px solid #363634' }}>
+                <Link key={idx} href={hrefFor(b)} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '0.5px solid #363634', textDecoration: 'none', cursor: 'pointer' }}>
                   <div>
                     <div style={{ fontSize: '13px', color: '#F5F2EC', fontWeight: 500 }}>{b.name || '—'}</div>
                     <div style={{ fontSize: '11px', color: '#9A9A92', marginTop: '2px' }}>{PROPERTY_NAMES[b.property]} {b.type !== 'direct' ? '· ' + b.type : ''}</div>
@@ -128,7 +130,7 @@ export default async function AdminDashboard() {
                     <div style={{ fontSize: '13px', color: 'var(--amber)' }}>{format(new Date(b.date + 'T12:00:00'), 'MMM d')}</div>
                     {b.nights && <div style={{ fontSize: '11px', color: '#9A9A92' }}>{b.nights} nights</div>}
                   </div>
-                </div>
+                </Link>
               ))}
             </div>
           )}
@@ -144,7 +146,7 @@ export default async function AdminDashboard() {
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
               {allCheckouts.sort((a,b) => a.date > b.date ? 1 : -1).map((b, idx) => (
-                <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '0.5px solid #363634' }}>
+                <Link key={idx} href={hrefFor(b)} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '0.5px solid #363634', textDecoration: 'none', cursor: 'pointer' }}>
                   <div>
                     <div style={{ fontSize: '13px', color: '#F5F2EC', fontWeight: 500 }}>{b.name || '—'}</div>
                     <div style={{ fontSize: '11px', color: '#9A9A92', marginTop: '2px' }}>{PROPERTY_NAMES[b.property]} {b.type !== 'direct' ? '· ' + b.type : ''}</div>
@@ -152,7 +154,7 @@ export default async function AdminDashboard() {
                   <div style={{ textAlign: 'right' }}>
                     <div style={{ fontSize: '13px', color: '#F5F2EC' }}>{format(new Date(b.date + 'T12:00:00'), 'MMM d')}</div>
                   </div>
-                </div>
+                </Link>
               ))}
             </div>
           )}

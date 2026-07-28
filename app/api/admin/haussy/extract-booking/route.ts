@@ -4,7 +4,7 @@ import { hasRole } from '@/lib/auth'
 
 export async function POST(request: NextRequest) {
   if (!await hasRole('owner')) return NextResponse.json({ error: 'Not allowed' }, { status: 403 })
-  const { images } = await request.json()  // array of { data (base64), mediaType }
+  const { images, text } = await request.json()  // images: array of { data, mediaType }; text: optional pasted detail
   if (!Array.isArray(images) || !images.length) return NextResponse.json({ error: 'No images' }, { status: 400 })
 
   const imageBlocks = images.map((img: any) => ({
@@ -68,7 +68,7 @@ Rules:
     const msg = await client.messages.create({
       model: 'claude-opus-4-5',  // vision accuracy matters for pricing
       max_tokens: 1500,
-      messages: [{ role: 'user', content: [...imageBlocks, { type: 'text' as const, text: prompt }] as any }],
+      messages: [{ role: 'user', content: [...imageBlocks, { type: 'text' as const, text: prompt + (text && text.trim() ? `\n\nThe host also pasted these details — combine them with the screenshot, and prefer the pasted text where they conflict:\n${text.trim()}` : '') }] as any }],
     })
     const textBlock = msg.content.find((b: any) => b.type === 'text')
     const raw = (textBlock && 'text' in textBlock ? textBlock.text : '{}') || '{}'

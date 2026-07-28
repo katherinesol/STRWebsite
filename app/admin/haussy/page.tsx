@@ -28,7 +28,7 @@ export default function HaussyPage() {
   async function handleSend(text?: string) {
     const hasImages = pendingImages.length > 0
     const q = (text ?? input).trim()
-    if (hasImages) { await extractBooking(); if (!q) return }
+    if (hasImages) { await extractBooking(q); setInput(''); return }
     if (q) await send(text)
   }
 
@@ -74,11 +74,11 @@ export default function HaussyPage() {
       Promise.all(items.map(i => fileToImg(i.getAsFile()!))).then(imgs => setPendingImages(prev => [...prev, ...imgs]))
     }
   }
-  async function extractBooking() {
+  async function extractBooking(pastedText?: string) {
     if (!pendingImages.length) return
     setExtracting(true); setDraftBooking(null); setOverlaps([])
     try {
-      const res = await fetch('/api/admin/haussy/extract-booking', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ images: pendingImages }) })
+      const res = await fetch('/api/admin/haussy/extract-booking', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ images: pendingImages, text: pastedText || '' }) })
       const d = await res.json()
       if (d.error) { setSavedMsg(d.error); return }
       setDraftBooking({ ...d.extracted, property_id: d.extracted.property_id || '' })
