@@ -1,6 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { startAuthentication } from '@simplewebauthn/browser'
 
 export default function AdminLogin() {
   const [email, setEmail] = useState('')
@@ -10,6 +11,24 @@ export default function AdminLogin() {
   const [mfa, setMfa] = useState(false)
   const [token, setToken] = useState('')
   const router = useRouter()
+
+  async function loginWithPasskey() {
+    setError(''); setLoading(true)
+    try {
+      const options = await fetch(`/api/admin/passkey/auth?email=${encodeURIComponent(email)}`).then(r => r.json())
+      if (options.error) { setError(options.error === 'No passkeys' ? 'No passkey on this account' : options.error); setLoading(false); return }
+      const assertion = await startAuthentication({ optionsJSON: options })
+      const res = await fetch('/api/admin/login', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password, passkeyAssertion: assertion }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok && !data.mfaRequired) router.push('/admin')
+      else setError(data.error || 'Passkey sign-in failed')
+    } catch (e: any) {
+      setError(e?.name === 'NotAllowedError' ? 'Cancelled' : 'Passkey sign-in failed')
+    } finally { setLoading(false) }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -111,6 +130,10 @@ export default function AdminLogin() {
               <div style={{ fontSize: '10px', color: '#666660', marginTop: '6px' }}>
                 From your authenticator app, or one of your backup codes.
               </div>
+              <button type="button" onClick={loginWithPasskey} disabled={loading}
+                style={{ width: '100%', marginTop: '12px', padding: '11px', background: '#363634', color: '#F0EDE6', border: '0.5px solid #4A4A48', fontSize: '12px', letterSpacing: '.06em', cursor: 'pointer', borderRadius: '2px' }}>
+                Use a passkey instead
+              </button>
             </div>
           )}
 
