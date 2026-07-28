@@ -1,6 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import WaterUsageCard from '@/components/admin/WaterUsageCard'
 
 const inputStyle: React.CSSProperties = {
   width: '100%', padding: '10px 12px',
@@ -393,6 +394,9 @@ export default function PlatformBookingForm({ block }: { block: any }) {
         </button>
         {saved && <span style={{ fontSize: '11px', color: '#2ecc71', letterSpacing: '.1em', textTransform: 'uppercase' }}>Saved</span>}
       </div>
+      {block.start_date && block.end_date && (
+        <WaterUsageCard propertyId={block.property_id} checkIn={block.start_date} checkOut={block.end_date} />
+      )}
     </div>
   )
 }

@@ -5,7 +5,6 @@ import { createAdminClient } from '@/lib/supabase/server'
 
 const TOPICS = ['check-in', 'wifi', 'amenities', 'rules', 'local', 'troubleshooting', 'emergency', 'general']
 
-// Takes the owner's rough correction, polishes it into a clean concierge knowledge entry, saves it.
 export async function POST(request: NextRequest) {
   if (!await hasRole('owner')) return NextResponse.json({ error: 'Not allowed' }, { status: 403 })
   const { property_id, question, rough_answer } = await request.json()
@@ -13,31 +12,44 @@ export async function POST(request: NextRequest) {
 
   const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
   try {
+    // Only classify + title. Do NOT reword the host's answer — keep it as written.
     const msg = await client.messages.create({
       model: 'claude-sonnet-5',
-      max_tokens: 800,
+      max_tokens: 300,
       messages: [{
         role: 'user',
-        content: `A short-term rental host is teaching their guest concierge how to answer a question. Turn their rough notes into ONE clean knowledge base entry. Return ONLY valid JSON, no markdown:
-{"topic": "one of: ${TOPICS.join(', ')}", "title": "short label (e.g. 'Windows', 'Wifi', 'Parking')", "content": "clear, complete, guest-friendly wording of the info — keep every specific detail, but phrase it cleanly and warmly"}
+        content: `A rental host is saving an answer for their guest concierge. Give it a topic and a short title. Return ONLY JSON:
+{"topic": "one of: ${TOPICS.join(', ')}", "title": "short label, e.g. 'Mattresses', 'Wifi', 'Parking'"}
 
-Guest question (for context): ${question || '(general info)'}
-Host's rough notes: ${rough_answer}
-
-Keep all specifics (steps, directions, codes, names). Don't invent anything not in the notes. Make the content clear enough that the concierge can answer confidently.`,
+The answer being saved: ${rough_answer}
+Guest question for context: ${question || '(none)'}`,
       }],
     })
     const tb = msg.content.find((b: any) => b.type === 'text')
     const raw = (tb && 'text' in tb ? tb.text : '{}') || '{}'
-    const entry = JSON.parse(raw.replace(/```json|```/g, '').trim())
+    const meta = JSON.parse(raw.replace(/```json|```/g, '').trim())
+    const title = meta.title || 'Info'
+    const topic = meta.topic || 'general'
+    const content = rough_answer.trim()  // saved exactly as the host wrote it
 
-    // save it
     const supabase = createAdminClient()
-    const { data, error } = await supabase.from('knowledge_base').insert({
-      property_id, topic: entry.topic || 'general', title: entry.title || 'Info', content: entry.content, active: true,
-    }).select('id, topic, title, content, created_at').single()
+
+    // update an existing entry with the same title for this property, rather than adding a duplicate
+    const { data: existing } = await supabase.from('knowledge_base')
+      .select('id').eq('property_id', property_id).ilike('title', title).maybeSingle()
+
+    let data, error
+    if (existing) {
+      ({ data, error } = await supabase.from('knowledge_base')
+        .update({ topic, title, content, active: true, updated_at: new Date().toISOString() })
+        .eq('id', existing.id).select('id, topic, title, content').single())
+    } else {
+      ({ data, error } = await supabase.from('knowledge_base')
+        .insert({ property_id, topic, title, content, active: true })
+        .select('id, topic, title, content').single())
+    }
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-    return NextResponse.json({ ok: true, entry: data })
+    return NextResponse.json({ ok: true, entry: data, updated: !!existing })
   } catch (err: any) {
     return NextResponse.json({ error: 'Could not save: ' + (err?.message || 'unknown') }, { status: 500 })
   }
