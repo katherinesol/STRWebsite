@@ -25,6 +25,13 @@ export default function HaussyPage() {
 
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages, busy])
 
+  async function handleSend(text?: string) {
+    const hasImages = pendingImages.length > 0
+    const q = (text ?? input).trim()
+    if (hasImages) { await extractBooking(); if (!q) return }
+    if (q) await send(text)
+  }
+
   async function send(text?: string) {
     const q = (text ?? input).trim()
     if (!q || busy) return
@@ -219,8 +226,7 @@ export default function HaussyPage() {
       {/* pending images tray */}
       {pendingImages.length > 0 && (
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '8px', flexWrap: 'wrap' }}>
-          <span style={{ fontSize: '12px', color: '#9A9A92' }}>{pendingImages.length} screenshot(s) ready</span>
-          <button onClick={extractBooking} disabled={extracting} style={{ padding: '7px 14px', background: 'var(--amber)', color: '#242422', border: 'none', fontSize: '11px', fontWeight: 600, cursor: 'pointer', borderRadius: '6px' }}>{extracting ? 'Reading…' : '✦ Extract booking'}</button>
+          <span style={{ fontSize: '12px', color: '#9A9A92' }}>{pendingImages.length} screenshot(s) attached{extracting ? ' · reading…' : ' · extracts on send'}</span>
           <button onClick={() => setPendingImages([])} style={{ padding: '7px 12px', background: '#363634', color: '#9A9A92', border: 'none', fontSize: '11px', cursor: 'pointer', borderRadius: '6px' }}>Clear</button>
         </div>
       )}
@@ -231,10 +237,10 @@ export default function HaussyPage() {
         <input ref={fileRef} type="file" accept="image/*" multiple style={{ display: 'none' }} onChange={e => addFiles(e.target.files)} />
         <button onClick={() => fileRef.current?.click()} title="Attach booking screenshots" style={{ padding: '13px 14px', background: '#242422', color: '#AEAEA6', border: '0.5px solid #4A4A48', fontSize: '15px', cursor: 'pointer', borderRadius: '10px' }}>📷</button>
         <textarea value={input} onChange={e => setInput(e.target.value)} onPaste={onPaste}
-          onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
+          onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() } }}
           placeholder="Ask Haussy, or paste booking screenshots…" rows={1}
           style={{ flex: 1, minHeight: '46px', maxHeight: '140px', padding: '12px 15px', background: '#242422', border: '0.5px solid #4A4A48', color: '#F0EDE6', fontSize: '14px', outline: 'none', borderRadius: '10px', resize: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }} />
-        <button onClick={() => send()} disabled={busy || !input.trim()} style={{ padding: '13px 22px', background: 'var(--amber)', color: '#242422', border: 'none', fontSize: '14px', fontWeight: 600, cursor: 'pointer', borderRadius: '10px' }}>Send</button>
+        <button onClick={() => handleSend()} disabled={busy || extracting || (!input.trim() && !pendingImages.length)} style={{ padding: '13px 22px', background: 'var(--amber)', color: '#242422', border: 'none', fontSize: '14px', fontWeight: 600, cursor: 'pointer', borderRadius: '10px' }}>Send</button>
       </div>
     </div>
   )
