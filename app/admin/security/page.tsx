@@ -1,6 +1,8 @@
 'use client'
 import { useState, useEffect } from 'react'
 
+import { startRegistration } from '@simplewebauthn/browser'
+
 export default function SecurityPage() {
   const [enabled, setEnabled] = useState<boolean | null>(null)
   const [qr, setQr] = useState('')
@@ -9,6 +11,31 @@ export default function SecurityPage() {
   const [codes, setCodes] = useState<string[]>([])
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState(false)
+  const [passkeys, setPasskeys] = useState<any[]>([])
+  const [pkMsg, setPkMsg] = useState('')
+
+  function loadPasskeys() { fetch('/api/admin/passkey/list').then(r => r.json()).then(d => setPasskeys(d.passkeys || [])) }
+
+  async function addPasskey() {
+    setPkMsg('')
+    try {
+      const options = await fetch('/api/admin/passkey/register').then(r => r.json())
+      if (options.error) { setPkMsg(options.error); return }
+      const attResp = await startRegistration({ optionsJSON: options })
+      const name = window.prompt('Name this device (e.g. "iPhone", "MacBook")') || 'Passkey'
+      const res = await fetch('/api/admin/passkey/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ attResp, deviceName: name }) })
+      const d = await res.json()
+      setPkMsg(d.error ? d.error : '\u2713 Passkey added')
+      loadPasskeys()
+    } catch (e: any) {
+      setPkMsg(e?.name === 'NotAllowedError' ? 'Cancelled' : (e?.message || 'Could not add passkey'))
+    }
+  }
+  async function removePasskey(id: string) {
+    if (!window.confirm('Remove this passkey?')) return
+    await fetch('/api/admin/passkey/list', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) })
+    loadPasskeys()
+  }
   const [copied, setCopied] = useState(false)
 
   async function copyCodes(list: string[]) {
@@ -26,7 +53,7 @@ export default function SecurityPage() {
   }
 
   function load() { fetch('/api/admin/2fa').then(r => r.json()).then(d => setEnabled(!!d.enabled)) }
-  useEffect(() => { load() }, [])
+  useEffect(() => { load(); loadPasskeys() }, [])
 
   async function start() {
     setBusy(true); setErr(''); setCodes([])
@@ -104,6 +131,26 @@ export default function SecurityPage() {
         )}
 
         {err && <div style={{ fontSize: '12px', color: '#c47b7b', marginTop: '12px' }}>{err}</div>}
+      </div>
+
+      <div style={{ ...card, marginTop: '20px' }}>
+        <div style={{ fontSize: '13px', color: '#F0EDE6', marginBottom: '6px' }}>Passkeys</div>
+        <p style={{ fontSize: '12px', color: '#9A9A92', lineHeight: 1.6, marginBottom: '16px' }}>Sign in with Face ID, Touch ID, or a security key instead of typing a code. You can add more than one device.</p>
+        {passkeys.length > 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '16px' }}>
+            {passkeys.map(pk => (
+              <div key={pk.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#1E1E1C', padding: '8px 12px', borderRadius: '4px' }}>
+                <div>
+                  <span style={{ fontSize: '13px', color: '#F0EDE6' }}>{pk.device_name}</span>
+                  <span style={{ fontSize: '10px', color: '#666660', marginLeft: '8px' }}>added {new Date(pk.created_at).toLocaleDateString()}</span>
+                </div>
+                <button onClick={() => removePasskey(pk.id)} style={{ background: 'none', border: 'none', color: '#c47b7b', fontSize: '11px', cursor: 'pointer' }}>remove</button>
+              </div>
+            ))}
+          </div>
+        )}
+        <button onClick={addPasskey} style={btn}>Add a passkey</button>
+        {pkMsg && <div style={{ fontSize: '12px', color: pkMsg.startsWith('\u2713') ? '#7bc47b' : '#e6a86a', marginTop: '12px' }}>{pkMsg}</div>}
       </div>
     </div>
   )
