@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json()
-  const { email, password, token } = body
+  const { email, password, token, passkeyAssertion } = body
 
   // New path: Supabase Auth (email + password)
   if (email) {
@@ -45,6 +45,34 @@ export async function POST(request: NextRequest) {
         .maybeSingle()
 
       if (profile?.totp_enabled && profile.totp_secret) {
+        // passkey path — verify server-side against the stored challenge/credential
+        if (passkeyAssertion) {
+          const { origin } = { origin: `${request.headers.get('x-forwarded-proto') || 'http'}://${request.headers.get('host')}` }
+          const rpID = (request.headers.get('host') || 'localhost:3000').split(':')[0]
+          const { data: prof2 } = await admin.from('profiles').select('passkey_challenge').eq('id', userId).maybeSingle()
+          const { data: key } = await admin.from('passkeys').select('*').eq('credential_id', passkeyAssertion.id).eq('user_id', userId).maybeSingle()
+          if (!prof2?.passkey_challenge || !key) {
+            await supabase.auth.signOut()
+            return NextResponse.json({ error: 'Passkey not recognized', mfaRequired: true }, { status: 401 })
+          }
+          try {
+            const { verifyAuthenticationResponse } = await import('@simplewebauthn/server')
+            const v = await verifyAuthenticationResponse({
+              response: passkeyAssertion,
+              expectedChallenge: prof2.passkey_challenge,
+              expectedOrigin: origin,
+              expectedRPID: rpID,
+              credential: { id: key.credential_id, publicKey: Buffer.from(key.public_key, 'base64'), counter: Number(key.counter) },
+            })
+            if (!v.verified) throw new Error('unverified')
+            await admin.from('passkeys').update({ counter: v.authenticationInfo.newCounter, last_used_at: new Date().toISOString() }).eq('id', key.id)
+            await admin.from('profiles').update({ passkey_challenge: null }).eq('id', userId)
+            // verified — fall through to complete the session
+          } catch {
+            await supabase.auth.signOut()
+            return NextResponse.json({ error: 'Passkey verification failed', mfaRequired: true }, { status: 401 })
+          }
+        } else {
         const supplied = String(token || '').trim().toUpperCase()
         if (!supplied) {
           await supabase.auth.signOut()
@@ -64,6 +92,7 @@ export async function POST(request: NextRequest) {
         if (!codeOk && backupIdx > -1) {
           const remaining = backups.filter((_, i) => i !== backupIdx)
           await admin.from('profiles').update({ totp_backup_codes: remaining }).eq('id', userId)
+        }
         }
       }
     }
