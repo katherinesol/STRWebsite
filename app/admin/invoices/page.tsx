@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from 'react'
 import { EXPENSE_CATEGORIES } from '@/lib/expense-categories'
 
 const PROPERTIES = [
-  { id: 'royal-york', name: 'Royal York (both)' },
+  { id: 'royal-york', name: 'Royal York' },
   { id: 'royal-york-east', name: 'Royal York East' },
   { id: 'royal-york-west', name: 'Royal York West' },
   { id: 'nickel-beach', name: 'Nickel Beach' },

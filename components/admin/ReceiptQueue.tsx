@@ -9,7 +9,7 @@ if (typeof window !== 'undefined') {
 const PROPS = [
   { id: 'royal-york-east', name: 'Royal York East' },
   { id: 'royal-york-west', name: 'Royal York West' },
-  { id: 'royal-york-both', name: 'Royal York (both)' },
+  { id: 'royal-york-both', name: 'Royal York' },
   { id: 'nickel-beach', name: 'Nickel Beach' },
 ]
 
@@ -20,6 +20,8 @@ type Draft = {
   notes?: string; line_items?: any[]; receipt_path?: string | null
   _status?: 'extracting' | 'ready' | 'saving' | 'error'
   _error?: string
+  _dup?: string | null
+  _dupOk?: boolean
 }
 
 export default function ReceiptQueue({ categories, onAllSaved }: { categories: string[]; onAllSaved?: () => void }) {
@@ -67,6 +69,7 @@ export default function ReceiptQueue({ categories, onAllSaved }: { categories: s
     for (const d of drafts) {
       if (d._status === 'extracting') { remaining.push(d); continue }
       if (!d.description || !d.amount) { remaining.push({ ...d, _status: 'error', _error: 'Needs description and amount' }); continue }
+      if (d._dup && !d._dupOk) { remaining.push({ ...d, _status: 'error', _error: 'Possible duplicate — confirm on the card to save' }); continue }
       try {
         const res = await fetch('/api/admin/expenses', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -76,7 +79,7 @@ export default function ReceiptQueue({ categories, onAllSaved }: { categories: s
             date: d.date || null, category: d.category || categories[0],
             description: d.description, property_id: d.property_id || null,
             notes: d.notes || null, line_items: d.line_items || null,
-            receipt_path: d.receipt_path || null, ai_extracted: true, confirmed: true, force: true,
+            receipt_path: d.receipt_path || null, ai_extracted: true, confirmed: true, force: true, // user already reviewed dupes in-queue
           }),
         })
         if (!res.ok) { remaining.push({ ...d, _status: 'error', _error: 'Save failed' }); continue }
@@ -106,11 +109,19 @@ export default function ReceiptQueue({ categories, onAllSaved }: { categories: s
         description: data.description || '', line_items: data.items || [],
         receipt_path: data.receipt_path || null, _status: 'ready',
       } : { ...placeholder, _status: 'error', _error: data.error || 'Could not read receipt' }
+      let dupMsg: string | null = null
+      if (draft._status === 'ready' && draft.amount && draft.date) {
+        try {
+          const dr = await fetch('/api/admin/expenses/check-dup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ vendor: draft.vendor, amount: parseFloat(String(draft.amount)) || 0, date: draft.date }) })
+          const dd = await dr.json()
+          dupMsg = dd.message || null
+        } catch {}
+      }
       const id = draft._status === 'ready' ? await persist(draft) : undefined
       setDrafts(prev => {
         const copy = [...prev]
         const slot = copy.findIndex(x => x === placeholder)
-        if (slot >= 0) copy[slot] = { ...draft, id }
+        if (slot >= 0) copy[slot] = { ...draft, id, _dup: dupMsg }
         return copy
       })
     } catch {
@@ -207,6 +218,12 @@ export default function ReceiptQueue({ categories, onAllSaved }: { categories: s
             )}
             {d._status === 'extracting' && <div style={{ fontSize: '10px', color: '#8A8A82', marginTop: '6px' }}>Reading…</div>}
             {d._status === 'error' && <div style={{ fontSize: '10px', color: '#c47b7b', marginTop: '6px' }}>{d._error}</div>}
+            {d._dup && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '6px', fontSize: '10px', color: d._dupOk ? '#8A8A82' : '#e6a86a' }}>
+                <span>⚠️ {d._dup}</span>
+                <button onClick={() => edit(i, { _dupOk: !d._dupOk } as any)} style={{ background: 'none', border: '0.5px solid #4A4A48', color: d._dupOk ? '#7bc47b' : '#e6a86a', fontSize: '9px', padding: '2px 8px', borderRadius: '3px', cursor: 'pointer' }}>{d._dupOk ? 'will save' : 'save anyway'}</button>
+              </div>
+            )}
           </div>
         ))}
       </div>

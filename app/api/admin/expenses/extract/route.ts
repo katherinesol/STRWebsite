@@ -1,14 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { createAdminClient } from '@/lib/supabase/server'
+import { EXPENSE_CATEGORIES } from '@/lib/expense-categories'
 import { isAuthed } from '@/lib/auth'
 
 
-const CATEGORIES = [
-  'Platform Fees (Airbnb/VRBO)', 'Cleaning Fees', 'Utilities', 'Property Tax',
-  'Insurance', 'Repairs & Maintenance', 'Furnishings & Supplies', 'Internet & Cable',
-  'Vehicle (KM Method)', 'Meals', 'Materials', 'Labor', 'Renovation', 'Bank Fees', 'Other',
-]
+
 
 export async function POST(request: NextRequest) {
   if (!await isAuthed()) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -80,7 +77,7 @@ export async function POST(request: NextRequest) {
   "date": "YYYY-MM-DD",
   "description": "brief description of items",
   "items": [{"name": "specific item as printed, e.g. 'Mainstays 12pc Dinnerware Set'", "amount": 0.00, "qty": 1}],
-  "category": "one of: ${CATEGORIES.join(' | ')}"
+  "category": "one of: ${EXPENSE_CATEGORIES.join(' | ')}"
 }
 Extract every distinct product line into items with its name exactly as printed and its price. Skip subtotals, tax, and discounts. Use null for any field you cannot determine, [] for items if none are legible. For date use today if not visible.`,
           },

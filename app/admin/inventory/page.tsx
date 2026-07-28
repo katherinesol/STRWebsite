@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 
-const PROP_NAMES: Record<string, string> = { 'royal-york-east': 'Royal York East', 'royal-york-west': 'Royal York West', 'nickel-beach': 'Nickel Beach Retreat', 'royal-york-both': 'Royal York (East + West)' }
+const PROP_NAMES: Record<string, string> = { 'royal-york-east': 'Royal York East', 'royal-york-west': 'Royal York West', 'nickel-beach': 'Nickel Beach Retreat', 'royal-york-both': 'Royal York' }
 const money = (v: any) => v === null || v === undefined ? '—' : '$' + Number(v).toLocaleString('en-CA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
 export default function InventoryPage() {

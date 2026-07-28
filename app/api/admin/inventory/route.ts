@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { isAuthed } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/server'
+import { INVENTORY_CATEGORIES } from '@/lib/expense-categories'
 
 export async function GET() {
   if (!await isAuthed()) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -10,6 +11,7 @@ export async function GET() {
     .from('expenses')
     .select('id, vendor, date, property_id, category, receipt_path, line_items')
     .not('line_items', 'is', null)
+    .in('category', INVENTORY_CATEGORIES)
     .order('date', { ascending: false })
 
   const items: any[] = []

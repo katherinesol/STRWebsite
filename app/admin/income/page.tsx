@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 
-const PROP_NAMES: Record<string, string> = { 'royal-york-east': 'Royal York East', 'royal-york-west': 'Royal York West', 'nickel-beach': 'Nickel Beach Retreat', 'royal-york-both': 'Royal York (East + West)' }
+const PROP_NAMES: Record<string, string> = { 'royal-york-east': 'Royal York East', 'royal-york-west': 'Royal York West', 'nickel-beach': 'Nickel Beach Retreat', 'royal-york-both': 'Royal York' }
 const RATES: Record<string, { hst: number; mat: number }> = {
   'nickel-beach': { hst: 0.13, mat: 0.04 },
   'royal-york-east': { hst: 0.13, mat: 0 },
