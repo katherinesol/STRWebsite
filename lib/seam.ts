@@ -136,3 +136,79 @@ export async function programBookingLocks(opts: {
     mismatch,
   }
 }
+
+// ── reprogram a booking's code window after an edit (dates or times changed) ──
+// updates the existing code's starts_at/ends_at on all the booking's locks,
+// rather than creating a duplicate. Uses the code stored on the booking.
+export async function reprogramBookingWindow(opts: {
+  propertyId: string
+  code: string
+  startsAt: string
+  endsAt: string
+  platform: string
+}) {
+  if (!opts.code) return { updated: 0, note: 'no code on booking — nothing to reprogram' }
+  const seam = client()
+  const supabase = _admin()
+  const isAirbnb = opts.platform === 'airbnb'
+
+  const { data: locks } = await supabase.from('property_locks')
+    .select('seam_device_id, lock_name, airbnb_managed')
+    .eq('property_id', opts.propertyId).eq('active', true)
+
+  const results: any[] = []
+  for (const lock of locks || []) {
+    if (isAirbnb && lock.airbnb_managed) continue // airbnb owns it
+    try {
+      const codes = await seam.accessCodes.list({ device_id: lock.seam_device_id })
+      const existing = codes.find((c: any) => c.code === opts.code)
+      if (!existing) {
+        // no code on this lock yet — create it fresh with the new window
+        const ac = await seam.accessCodes.create({ device_id: lock.seam_device_id, name: `Reprogrammed · ${opts.code}`, code: opts.code, starts_at: opts.startsAt, ends_at: opts.endsAt })
+        results.push({ lock: lock.lock_name, action: 'created', status: ac.status })
+      } else {
+        await seam.accessCodes.update({ access_code_id: existing.access_code_id, starts_at: opts.startsAt, ends_at: opts.endsAt })
+        results.push({ lock: lock.lock_name, action: 'updated' })
+      }
+    } catch (e: any) {
+      results.push({ lock: lock.lock_name, ok: false, error: e?.message })
+    }
+  }
+  return { updated: results.length, results }
+}
+
+// convert a booking's date + optional time field into an ISO timestamp
+// timeStr like "4:00 PM" or "" → defaults to 4pm check-in / 11am checkout
+export function windowFromBooking(dateStr: string, timeStr: string | null, isCheckout: boolean): string {
+  let hour = isCheckout ? 11 : 16, min = 0
+  if (timeStr) {
+    const m = timeStr.match(/(\d{1,2}):(\d{2})\s*(AM|PM)?/i)
+    if (m) {
+      hour = parseInt(m[1]); min = parseInt(m[2])
+      const ap = (m[3] || '').toUpperCase()
+      if (ap === 'PM' && hour !== 12) hour += 12
+      if (ap === 'AM' && hour === 12) hour = 0
+    }
+  }
+  // build in Eastern time explicitly — don't rely on server local tz (Vercel is UTC)
+  // EDT is UTC-4 (Mar–Nov), EST is UTC-5. Determine which applies for this date.
+  const testDate = new Date(dateStr + 'T12:00:00Z')
+  const jan = new Date(testDate.getFullYear(), 0, 1).getTimezoneOffset()
+  const jul = new Date(testDate.getFullYear(), 6, 1).getTimezoneOffset()
+  // Use Intl to get the actual Eastern offset for this date, robust to DST
+  const easternOffsetHours = (() => {
+    const fmt = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Toronto', timeZoneName: 'shortOffset' })
+    const part = fmt.formatToParts(new Date(dateStr + 'T12:00:00Z')).find(p => p.type === 'timeZoneName')
+    const m = part?.value.match(/GMT([+-]\d+)/)
+    return m ? parseInt(m[1]) : -4
+  })()
+  // local Eastern hour:min → UTC by subtracting the offset
+  const utcHour = hour - easternOffsetHours
+  const d = new Date(Date.UTC(
+    parseInt(dateStr.slice(0, 4)),
+    parseInt(dateStr.slice(5, 7)) - 1,
+    parseInt(dateStr.slice(8, 10)),
+    utcHour, min, 0, 0
+  ))
+  return d.toISOString()
+}

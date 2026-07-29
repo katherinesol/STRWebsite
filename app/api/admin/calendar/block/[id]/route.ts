@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { isAuthed, getAuth } from '@/lib/auth'
+import { reprogramBookingWindow, windowFromBooking } from '@/lib/seam'
 
 
 export async function PATCH(
@@ -38,7 +39,31 @@ export async function PATCH(
 
   const { error } = await supabase.from('calendar_blocks').update(body).eq('id', id)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ ok: true })
+
+  // if this edit touched dates or times, move the door-code window to match
+  let lockUpdate: any = null
+  const touchedTiming = ['start_date', 'end_date', 'early_checkin_time', 'late_checkout_time'].some(k => k in body)
+  if (touchedTiming) {
+    try {
+      const { data: row } = await supabase.from('calendar_blocks')
+        .select('property_id, platform, start_date, end_date, early_checkin_time, late_checkout_time, door_code')
+        .eq('id', id).single()
+      const code = String(row?.door_code || '').replace(/\D/g, '').slice(-4)
+      if (row && code) {
+        lockUpdate = await reprogramBookingWindow({
+          propertyId: row.property_id,
+          platform: row.platform || 'direct',
+          code,
+          startsAt: windowFromBooking(row.start_date, row.early_checkin_time, false),
+          endsAt: windowFromBooking(row.end_date, row.late_checkout_time, true),
+        })
+      }
+    } catch (e: any) {
+      lockUpdate = { error: e?.message || 'reprogram failed' }
+    }
+  }
+
+  return NextResponse.json({ ok: true, lockUpdate })
 }
 
 export async function DELETE(
