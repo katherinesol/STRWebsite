@@ -27,6 +27,7 @@ const SECTIONS = [
     { href: '/admin/mat', label: 'MAT Return', icon: '⌗', ownerOnly: true },
     { href: '/admin/property-management/finance', label: 'Expenses', icon: '$' },
     { href: '/admin/inventory', label: 'Inventory', icon: '▤' },
+    { href: '/admin/locks', label: 'Locks', icon: '⚿', ownerOnly: true },
     { href: '/admin/invoices', label: 'Invoices', icon: '❋', staffOnly: true },
     { href: '/admin/damage', label: 'Damage', icon: '⚠' },
   ]},

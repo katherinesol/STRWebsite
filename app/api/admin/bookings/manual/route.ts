@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { programBookingLocks } from '@/lib/seam'
+import { chooseGuestCode } from '@/lib/lock-codes'
 import { createAdminClient } from '@/lib/supabase/server'
 import { differenceInDays } from 'date-fns'
 import { isAuthed } from '@/lib/auth'
@@ -56,5 +58,29 @@ export async function POST(request: NextRequest) {
   }).select('id').single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ ok: true, booking_id: booking?.id })
+
+  // program the door code onto every lock for this property
+  let lockResult: any = null
+  let doorCode: string | null = null
+  try {
+    doorCode = await chooseGuestCode(property_id, guest_phone)
+    lockResult = await programBookingLocks({
+      propertyId: property_id,
+      platform: platform || 'direct',
+      code: doorCode,
+      phone: guest_phone,
+      name: `${guest_name || 'Guest'} · ${bookingReference}`,
+      startsAt: new Date(check_in + 'T16:00:00').toISOString(),
+      endsAt: new Date(check_out + 'T11:00:00').toISOString(),
+    })
+    await supabase.from('bookings').update({
+      lock_code: doorCode,
+      lock_programming: lockResult,
+    }).eq('id', booking!.id)
+  } catch (e: any) {
+    lockResult = { error: e?.message || 'Lock programming failed', all_ok: false }
+    await supabase.from('bookings').update({ lock_programming: lockResult }).eq('id', booking!.id)
+  }
+
+  return NextResponse.json({ ok: true, booking_id: booking?.id, lock: lockResult })
 }
