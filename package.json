@@ -30,7 +30,8 @@
     "react-dom": "19.2.4",
     "react-map-gl": "^8.1.1",
     "resend": "^6.12.4",
-    "seam": "^1.230.2"
+    "seam": "^1.230.2",
+    "svix": "^1.99.1"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
