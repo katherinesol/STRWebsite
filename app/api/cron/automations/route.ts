@@ -86,13 +86,15 @@ export async function GET() {
         const code = String(b.door_code || '').replace(/\D/g, '').slice(-4)
         if (!code) { results.lockSweep.failures.push({ guest: b.guest_name, property: b.property_id, start: b.start_date, issue: 'no code on booking' }); continue }
         results.lockSweep.checked++
+        const hrsUntilStart = (new Date(b.start_date + 'T16:00:00Z').getTime() - now) / 3600000
+        const shouldBeReady = hrsUntilStart < 48
 
         for (const lock of locksFor(b.property_id)) {
           if (isAirbnb && lock.airbnb_managed) continue
           const codes = await codesOn(lock.seam_device_id)
           const match = codes.find((x: any) => x.code === code)
           const healthy = match && (match.status === 'set' || match.is_scheduled_on_device)
-          if (!healthy) {
+          if (!healthy && shouldBeReady) {
             // re-program this booking's window (creates or updates)
             try {
               await reprogramBookingWindow({
