@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server'
 import { getCisternLevel } from '@/lib/cistern'
 import { createAdminClient } from '@/lib/supabase/server'
+import { Seam } from 'seam'
+import { reprogramBookingWindow, windowFromBooking } from '@/lib/seam'
+import { Resend } from 'resend'
 
 export async function GET() {
   const supabase = createAdminClient()
@@ -53,44 +56,74 @@ export async function GET() {
     results.waterError = e?.message
   }
 
-  // 3. Check-ins 3 days out → "Add [last4] to Schlage lock" task per booking
+  // 3. Lock sweep — verify codes are set-or-scheduled for check-ins within 72h;
+  //    re-program gaps; email host about anything that still won't confirm.
+  results.lockSweep = { checked: 0, reprogrammed: 0, failures: [] as any[] }
   try {
-    const target = new Date()
-    target.setDate(target.getDate() + 3)
-    const targetDate = target.toISOString().split('T')[0]
+    const seam = process.env.SEAM_API_KEY ? new Seam({ apiKey: process.env.SEAM_API_KEY }) : null
+    if (seam) {
+      const sc = seam  // non-null binding for closures
+      const now = Date.now()
+      const horizon = new Date(now + 72 * 3600 * 1000).toISOString().split('T')[0]
+      const todayStr = new Date(now).toISOString().split('T')[0]
 
-    const { data: bookings } = await supabase
-      .from('bookings')
-      .select('id, property_id, check_in, lock_code, guest_id, guests:guest_id(name, phone)')
-      .eq('check_in', targetDate)
+      const { data: allLocks } = await supabase.from('property_locks').select('*').eq('active', true)
+      const locksFor = (pid: string) => (allLocks || []).filter((l: any) => l.property_id === pid)
+      const deviceCodes: Record<string, any[]> = {}
+      async function codesOn(devId: string) {
+        if (!deviceCodes[devId]) { try { deviceCodes[devId] = await sc.accessCodes.list({ device_id: devId }) } catch { deviceCodes[devId] = [] } }
+        return deviceCodes[devId]
+      }
 
-    for (const b of bookings || []) {
-      const guest = (b.guests as any) || {}
-      const phone = (guest.phone || '').replace(/\D/g, '')
-      const last4 = phone.length >= 4 ? phone.slice(-4) : null
-      // priority: phone last4 → manually entered lock_code → ask to retrieve
-      const code = last4 || (b.lock_code ? String(b.lock_code).replace(/\D/g, '').slice(-4) : null)
-      const title = code
-        ? `Add ${code} to Schlage lock — ${guest.name || 'guest'} checks in ${b.check_in}`
-        : `Retrieve lock code from platform + add to Schlage — ${guest.name || 'guest'} checks in ${b.check_in}`
+      // platform bookings checking in within the window
+      const { data: plat } = await supabase.from('calendar_blocks')
+        .select('id, property_id, platform, start_date, end_date, early_checkin_time, late_checkout_time, door_code, guest_name')
+        .eq('is_booking', true).gte('start_date', todayStr).lte('start_date', horizon)
 
-      // dedupe: one lock task per booking (match on title containing booking check-in + guest)
-      const { data: existing } = await supabase
-        .from('maintenance_tasks')
-        .select('id')
-        .eq('property_id', b.property_id)
-        .eq('title', title)
-        .maybeSingle()
+      for (const b of plat || []) {
+        const isAirbnb = b.platform === 'airbnb'
+        if (isAirbnb && b.property_id === 'nickel-beach') continue
+        const code = String(b.door_code || '').replace(/\D/g, '').slice(-4)
+        if (!code) { results.lockSweep.failures.push({ guest: b.guest_name, property: b.property_id, start: b.start_date, issue: 'no code on booking' }); continue }
+        results.lockSweep.checked++
 
-      if (!existing) {
-        await supabase.from('maintenance_tasks').insert({
-          title,
-          property_id: b.property_id,
-          type: 'maintenance',
-          cadence: 'one-time',
-          priority: 'urgent',
+        for (const lock of locksFor(b.property_id)) {
+          if (isAirbnb && lock.airbnb_managed) continue
+          const codes = await codesOn(lock.seam_device_id)
+          const match = codes.find((x: any) => x.code === code)
+          const healthy = match && (match.status === 'set' || match.is_scheduled_on_device)
+          if (!healthy) {
+            // re-program this booking's window (creates or updates)
+            try {
+              await reprogramBookingWindow({
+                propertyId: b.property_id, platform: b.platform || 'direct', code,
+                startsAt: windowFromBooking(b.start_date, b.early_checkin_time, false),
+                endsAt: windowFromBooking(b.end_date, b.late_checkout_time, true),
+              })
+              results.lockSweep.reprogrammed++
+              deviceCodes[lock.seam_device_id] = await sc.accessCodes.list({ device_id: lock.seam_device_id })
+              const recheck = deviceCodes[lock.seam_device_id].find((x: any) => x.code === code)
+              if (!recheck || (recheck.status !== 'set' && !recheck.is_scheduled_on_device)) {
+                results.lockSweep.failures.push({ guest: b.guest_name, property: b.property_id, lock: lock.lock_name, start: b.start_date, issue: 'still not confirmed after reprogram' })
+              }
+            } catch (e: any) {
+              results.lockSweep.failures.push({ guest: b.guest_name, lock: lock.lock_name, start: b.start_date, issue: e?.message || 'reprogram error' })
+            }
+          }
+        }
+      }
+
+      // email host if anything failed
+      if (results.lockSweep.failures.length && process.env.HOST_ALERT_EMAIL && process.env.RESEND_API_KEY) {
+        const resend = new Resend(process.env.RESEND_API_KEY)
+        const lines = results.lockSweep.failures.map((f: any) => `• ${f.guest || 'Guest'} (${f.property}${f.lock ? ' · ' + f.lock : ''}) checks in ${f.start} — ${f.issue}`).join('\n')
+        await resend.emails.send({
+          from: process.env.RESEND_FROM || 'alerts@rental-direct.com',
+          to: process.env.HOST_ALERT_EMAIL,
+          subject: `⚠ Lock codes need attention (${results.lockSweep.failures.length})`,
+          text: `The morning lock check found codes that could not be confirmed:\n\n${lines}\n\nCheck the Locks dashboard to resolve before check-in.`,
         })
-        results.lockTasks.push(title)
+        results.lockSweep.emailed = true
       }
     }
   } catch (e: any) {
