@@ -17,7 +17,10 @@ function Row({ b, codeInputs, setCodeInputs, setCode, savingId, msg }: any) {
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr auto', gap: '12px', alignItems: 'center', padding: '12px 14px', borderTop: '0.5px solid #2A2A28' }}>
       <div>
-        <div style={{ fontSize: '13px', color: '#F0EDE6' }}>{b.guest || 'Guest'}</div>
+        <div style={{ fontSize: '13px', color: '#F0EDE6' }}>
+          {b.guest || 'Guest'}
+          {b.checked_in_at && <span style={{ marginLeft: '8px', fontSize: '10px', padding: '2px 7px', borderRadius: '4px', background: '#1f2a1a', color: '#7bc47b' }}>✓ checked in {new Date(b.checked_in_at).toLocaleString('en-US', { timeZone: 'America/Toronto', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</span>}
+        </div>
         <div style={{ fontSize: '11px', color: '#8A8A82' }}>{PROP[b.property] || b.property} · {b.platform} · {b.start}</div>
       </div>
       <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>

@@ -32,7 +32,7 @@ export async function GET() {
 
   // platform bookings
   const { data: plat } = await supabase.from('calendar_blocks')
-    .select('id, property_id, platform, start_date, end_date, door_code, guest_name')
+    .select('id, property_id, platform, start_date, end_date, door_code, guest_name, checked_in_at')
     .eq('is_booking', true).gte('end_date', today).order('start_date')
 
   for (const b of plat || []) {
@@ -53,12 +53,12 @@ export async function GET() {
     const allReady = doors.length > 0 && doors.every(d => d.status === 'set' || d.scheduled)
     const status = { doors, all_set: allReady, needs_attention: anyBad, within72, checked_at: checkedAt }
     await supabase.from('calendar_blocks').update({ lock_status: status }).eq('id', b.id)
-    rows.push({ id: b.id, kind: 'platform', guest: b.guest_name, property: b.property_id, platform: b.platform, start: b.start_date, end: b.end_date, code: code || null, ...status })
+    rows.push({ id: b.id, kind: 'platform', guest: b.guest_name, property: b.property_id, platform: b.platform, start: b.start_date, end: b.end_date, code: code || null, checked_in_at: b.checked_in_at, ...status })
   }
 
   // direct bookings
   const { data: direct } = await supabase.from('bookings')
-    .select('id, property_id, check_in, check_out, lock_code, guest_id, guests:guest_id(name)')
+    .select('id, property_id, check_in, check_out, lock_code, guest_id, checked_in_at, guests:guest_id(name)')
     .gte('check_out', today).order('check_in')
 
   for (const b of direct || []) {
@@ -76,7 +76,7 @@ export async function GET() {
     const allReady = doors.length > 0 && doors.every(d => d.status === 'set' || d.scheduled)
     const status = { doors, all_set: allReady, needs_attention: anyBad, within72, checked_at: checkedAt }
     await supabase.from('bookings').update({ lock_status: status }).eq('id', b.id)
-    rows.push({ id: b.id, kind: 'direct', guest: (b.guests as any)?.name, property: b.property_id, platform: 'direct', start: b.check_in, end: b.check_out, code: code || null, ...status })
+    rows.push({ id: b.id, kind: 'direct', guest: (b.guests as any)?.name, property: b.property_id, platform: 'direct', start: b.check_in, end: b.check_out, code: code || null, checked_in_at: b.checked_in_at, ...status })
   }
 
   rows.sort((a, b) => a.start.localeCompare(b.start))
