@@ -1,5 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/server'
-import { revokeCodeFromProperty } from '@/lib/seam'
+import { revokeCodeFromProperty, reprogramBookingWindow, windowFromBooking } from '@/lib/seam'
 import { logSystem } from '@/lib/system-log'
 
 function parseICal(icalText: string): { start: string; end: string; summary: string }[] {
@@ -56,6 +56,7 @@ export async function syncICalToDB(propertyId: string): Promise<number> {
   // collect every date-range currently present across all feeds, keyed by platform
   const feedRanges = new Set<string>()          // "platform|start|end"
   const feedRangesByPlatform: Record<string, Set<string>> = {}
+  const feedStartMap: Record<string, Record<string, string>> = {}  // platform -> start -> end (for extension detection)
 
   await Promise.all(urls.map(async url => {
     const platform = detectPlatform(url)
@@ -68,6 +69,8 @@ export async function syncICalToDB(propertyId: string): Promise<number> {
       for (const event of events) {
         feedRanges.add(`${platform}|${event.start}|${event.end}`)
         feedRangesByPlatform[platform].add(`${event.start}|${event.end}`)
+        if (!feedStartMap[platform]) feedStartMap[platform] = {}
+        feedStartMap[platform][event.start] = event.end
         const { data: existing } = await supabase
           .from('calendar_blocks')
           .select('id, guest_name')
@@ -90,7 +93,7 @@ export async function syncICalToDB(propertyId: string): Promise<number> {
   const fetchedPlatforms = Object.keys(feedRangesByPlatform).filter(p => feedRangesByPlatform[p].size > 0)
   if (fetchedPlatforms.length) {
     const { data: synced } = await supabase.from('calendar_blocks')
-      .select('id, platform, start_date, end_date, guest_name, door_code, notes')
+      .select('id, platform, start_date, end_date, guest_name, door_code, notes, early_checkin_time, late_checkout_time')
       .eq('property_id', propertyId)
       .in('platform', fetchedPlatforms)
 
@@ -101,6 +104,25 @@ export async function syncICalToDB(propertyId: string): Promise<number> {
       const key = `${b.start_date}|${b.end_date}`
       const stillInFeed = feedRangesByPlatform[b.platform]?.has(key)
       if (stillInFeed) continue
+
+      // EXTENSION / SHORTENING: same start date exists in feed with a different end.
+      const newEnd = feedStartMap[b.platform] ? feedStartMap[b.platform][b.start_date] : undefined
+      if (newEnd && newEnd !== b.end_date) {
+        await supabase.from('calendar_blocks').update({ end_date: newEnd }).eq('id', b.id)
+        const exCode = String(b.door_code || '').replace(/[^0-9]/g, '').slice(-4)
+        if (exCode) {
+          try {
+            await reprogramBookingWindow({
+              propertyId, platform: b.platform, code: exCode,
+              startsAt: windowFromBooking(b.start_date, (b as any).early_checkin_time || null, false),
+              endsAt: windowFromBooking(newEnd, (b as any).late_checkout_time || null, true),
+            })
+          } catch {}
+        }
+        const dir = newEnd > b.end_date ? 'extended' : 'shortened'
+        await logSystem('booking.dates_changed', (b.guest_name || 'A booking') + ' ' + dir + ': ' + b.start_date + '\u2013' + b.end_date + ' \u2192 ' + b.start_date + '\u2013' + newEnd + '. Code window moved. REVIEW FINANCE (accommodation, tax, payout).', { booking_id: b.id, old_end: b.end_date, new_end: newEnd, code: exCode || null }, propertyId)
+        continue
+      }
 
       // vanished from feed = likely cancelled. Revoke any code first (security).
       const code = String(b.door_code || '').replace(/\D/g, '').slice(-4)
