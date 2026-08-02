@@ -34,6 +34,7 @@ export default async function PlatformBookingPage({ params }: { params: Promise<
             </div>
             <h1 style={{ fontFamily: 'var(--serif)', fontSize: '28px', fontWeight: 300, color: '#F5F2EC', lineHeight: 1 }}>
               {block.guest_name || 'Platform booking'}
+              {block.checked_in_at && <span style={{ marginLeft: '12px', fontSize: '11px', padding: '3px 9px', borderRadius: '4px', background: '#1f2a1a', color: '#7bc47b', verticalAlign: 'middle' }}>✓ checked in {new Date(block.checked_in_at).toLocaleString('en-US', { timeZone: 'America/Toronto', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</span>}
             </h1>
             <div style={{ fontSize: '12px', color: '#9A9A92', marginTop: '4px' }}>
               {format(new Date(block.start_date), 'MMMM d')} → {format(new Date(block.end_date), 'MMMM d, yyyy')}

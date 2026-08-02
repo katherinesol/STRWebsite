@@ -212,3 +212,24 @@ export function windowFromBooking(dateStr: string, timeStr: string | null, isChe
   ))
   return d.toISOString()
 }
+
+// revoke a code from every lock on a property (used on cancellation)
+export async function revokeCodeFromProperty(propertyId: string, code: string) {
+  if (!code) return { revoked: 0 }
+  const seam = client()
+  const supabase = _admin()
+  const { data: locks } = await supabase.from('property_locks')
+    .select('seam_device_id, lock_name').eq('property_id', propertyId).eq('active', true)
+  let revoked = 0
+  const results: any[] = []
+  for (const lock of locks || []) {
+    try {
+      const codes = await seam.accessCodes.list({ device_id: lock.seam_device_id })
+      const match = codes.find((c: any) => c.code === code)
+      if (match) { await seam.accessCodes.delete({ access_code_id: match.access_code_id }); revoked++; results.push({ lock: lock.lock_name, revoked: true }) }
+    } catch (e: any) {
+      results.push({ lock: lock.lock_name, error: e?.message })
+    }
+  }
+  return { revoked, results }
+}
