@@ -11,10 +11,12 @@ const SECTIONS = [
     { href: '/admin/bookings', label: 'Bookings', icon: '◈' },
     { href: '/admin/calendar', label: 'Calendar', icon: '▦' },
     { href: '/admin/tasks', label: 'Tasks', icon: '☑' },
+  ]},
+  { title: 'Locks & Access', items: [
     { href: '/admin/locks', label: 'Locks', icon: '⚿', ownerOnly: true },
-    { href: '/admin/system-log', label: 'System Activity', icon: '◷', ownerOnly: true },
     { href: '/admin/door-activity', label: 'Door Activity', icon: '⚿', ownerOnly: true },
     { href: '/admin/staff-access', label: 'Staff Access', icon: '⊙', ownerOnly: true },
+    { href: '/admin/system-log', label: 'System Activity', icon: '◷', ownerOnly: true },
   ]},
   { title: 'Assistant', items: [
     { href: '/admin/haussy', label: 'Haussy', icon: '✦', ownerOnly: false, staffOnly: true },
@@ -28,11 +30,15 @@ const SECTIONS = [
   ]},
   { title: 'Money', items: [
     { href: '/admin/income', label: 'Income', icon: '↑', staffOnly: true },
-    { href: '/admin/mat', label: 'MAT Return', icon: '⌗', ownerOnly: true },
     { href: '/admin/property-management/finance', label: 'Expenses', icon: '$' },
     { href: '/admin/inventory', label: 'Inventory', icon: '▤' },
     { href: '/admin/invoices', label: 'Invoices', icon: '❋', staffOnly: true },
     { href: '/admin/damage', label: 'Damage', icon: '⚠' },
+  ]},
+  { title: 'Tax & Filing', items: [
+    { href: '/admin/income', label: 'Income / Tax', icon: '↑', staffOnly: true },
+    { href: '/admin/mat', label: 'MAT — Port Colborne', icon: '⌗', ownerOnly: true },
+    { href: '/admin/toronto-mat', label: 'MAT — Toronto', icon: '⌗', ownerOnly: true },
   ]},
   { title: 'Property', items: [
     { href: '/admin/properties', label: 'Properties', icon: '⌂' },
@@ -136,7 +142,7 @@ export default function AdminNav({ role = 'cleaner' }: { role?: string }) {
         position: 'fixed', left: 0, top: 0, bottom: 0,
         width: '220px', background: '#1A1A18',
         borderRight: '0.5px solid #363634',
-        display: 'flex', flexDirection: 'column', overflow: 'hidden',
+        flexDirection: 'column', overflow: 'hidden',
       }}>
         <NavLinks pathname={pathname} onLogout={handleLogout}  role={role} />
       </div>
@@ -154,7 +160,7 @@ export default function AdminNav({ role = 'cleaner' }: { role?: string }) {
 
       {/* mobile drawer */}
       {open && <div className="admin-drawer-overlay" onClick={() => setOpen(false)} />}
-      <div className={`admin-drawer${open ? ' open' : ''}`} style={{ display: 'flex', flexDirection: 'column' }}>
+      <div className={`admin-drawer${open ? ' open' : ''}`} style={{ flexDirection: 'column' }}>
         <NavLinks pathname={pathname} onNavigate={() => setOpen(false)} onLogout={handleLogout} role={role} />
       </div>
     </>

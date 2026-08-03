@@ -132,5 +132,45 @@ export async function GET() {
     results.lockError = e?.message
   }
 
+  // 4. Toronto MAT filing reminders — 14 days before each deadline, per property (East + West file separately).
+  //    Deadlines: Apr 30 (Q1), Jul 30 (Q2), Oct 30 (Q3), Jan 30 (Q4 prior year). File even at zero.
+  results.matReminders = []
+  try {
+    const now = new Date()
+    const y = now.getUTCFullYear()
+    // deadline definitions: [month(0-idx), day, quarter label, quarter's year offset]
+    const deadlines = [
+      { m: 3, d: 30, q: 'Q1', qYear: y },        // Apr 30 -> Q1 this year
+      { m: 6, d: 30, q: 'Q2', qYear: y },        // Jul 30 -> Q2 this year
+      { m: 9, d: 30, q: 'Q3', qYear: y },        // Oct 30 -> Q3 this year
+      { m: 0, d: 30, q: 'Q4', qYear: y - 1 },    // Jan 30 -> Q4 prior year
+    ]
+    for (const dl of deadlines) {
+      const deadlineDate = new Date(Date.UTC(y, dl.m, dl.d))
+      const daysUntil = Math.round((deadlineDate.getTime() - now.getTime()) / 86400000)
+      if (daysUntil < 0 || daysUntil > 14) continue   // only within the 14-day window
+      for (const prop of ['royal-york-east', 'royal-york-west']) {
+        const propName = prop === 'royal-york-east' ? 'Royal York East' : 'Royal York West'
+        const title = `File Toronto MAT — ${dl.q} ${dl.qYear} — ${propName}`
+        const { data: existing } = await supabase.from('maintenance_tasks')
+          .select('id').eq('property_id', prop).eq('title', title).maybeSingle()
+        if (!existing) {
+          await supabase.from('maintenance_tasks').insert({
+            title,
+            description: `Toronto MAT report for ${dl.q} ${dl.qYear} is due ${deadlineDate.toISOString().split('T')[0]}. File even if zero. Record the confirmation in Toronto MAT.`,
+            property_id: prop,
+            type: 'admin',
+            cadence: 'one-time',
+            priority: 'urgent',
+            due_date: deadlineDate.toISOString().split('T')[0],
+          })
+          results.matReminders.push(title)
+        }
+      }
+    }
+  } catch (e: any) {
+    results.matError = e?.message
+  }
+
   return NextResponse.json({ ok: true, ...results })
 }
