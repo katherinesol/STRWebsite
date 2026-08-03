@@ -13,6 +13,7 @@ const SECTIONS = [
     { href: '/admin/tasks', label: 'Tasks', icon: '☑' },
     { href: '/admin/locks', label: 'Locks', icon: '⚿', ownerOnly: true },
     { href: '/admin/system-log', label: 'System Activity', icon: '◷', ownerOnly: true },
+    { href: '/admin/door-activity', label: 'Door Activity', icon: '⚿', ownerOnly: true },
     { href: '/admin/staff-access', label: 'Staff Access', icon: '⊙', ownerOnly: true },
   ]},
   { title: 'Assistant', items: [
