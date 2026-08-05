@@ -29,6 +29,7 @@ export default function ReceiptQueue({ categories, onAllSaved }: { categories: s
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
+  const cameraRef = useRef<HTMLInputElement>(null)
 
   // load any saved drafts on mount — survives refresh
   useEffect(() => {
@@ -176,8 +177,14 @@ export default function ReceiptQueue({ categories, onAllSaved }: { categories: s
         onClick={() => fileRef.current?.click()}>
         <input ref={fileRef} type="file" accept="image/*,application/pdf" multiple style={{ display: 'none' }}
           onChange={e => { if (e.target.files?.length) intake(e.target.files); e.target.value = '' }} />
-        <div style={{ fontSize: '13px', color: '#AEAEA6' }}>{busy ? 'Reading…' : 'Drop receipts, paste a screenshot, or click to choose'}</div>
+        <input ref={cameraRef} type="file" accept="image/*" capture="environment" style={{ display: 'none' }}
+          onChange={e => { if (e.target.files?.length) intake(e.target.files); e.target.value = '' }} />
+        <div style={{ fontSize: '13px', color: '#AEAEA6' }}>{busy ? 'Reading…' : 'Drop receipts, paste a screenshot, or tap to choose'}</div>
         <div style={{ fontSize: '11px', color: '#666660', marginTop: '4px' }}>Images or PDFs — a multi-page PDF splits into one card per page</div>
+        <button onClick={e => { e.stopPropagation(); cameraRef.current?.click() }}
+          style={{ marginTop: '12px', padding: '9px 18px', background: 'var(--amber)', color: '#242422', border: 'none', fontSize: '12px', fontWeight: 600, cursor: 'pointer', borderRadius: '6px' }}>
+          📷 Take photo
+        </button>
       </div>
 
       {drafts.length === 0 && (

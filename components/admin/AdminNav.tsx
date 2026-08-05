@@ -88,8 +88,11 @@ function NavLinks({ pathname, onNavigate, onLogout, role }: { pathname: string; 
 
   return (
     <>
-      <div style={{ padding: '24px 20px 12px', fontSize: '11px', fontWeight: 500, letterSpacing: '.16em', textTransform: 'uppercase', color: 'var(--amber)' }}>
-        Admin
+      <div style={{ padding: '24px 20px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span style={{ fontSize: '11px', fontWeight: 500, letterSpacing: '.16em', textTransform: 'uppercase', color: 'var(--amber)' }}>Admin</span>
+        <button onClick={() => { if (typeof document !== 'undefined') document.body.classList.add('sidebar-collapsed') }}
+          title="Hide sidebar" aria-label="Hide sidebar"
+          style={{ background: 'none', border: 'none', color: '#666660', fontSize: '15px', cursor: 'pointer', padding: '2px 4px' }}>«</button>
       </div>
       <nav style={{ flex: 1, display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
         <NavLink item={DASHBOARD} pathname={pathname} onNavigate={onNavigate} />
@@ -137,6 +140,8 @@ export default function AdminNav({ role = 'cleaner' }: { role?: string }) {
 
   return (
     <>
+      <button className="sidebar-reopen" aria-label="Show sidebar"
+        onClick={() => { if (typeof document !== 'undefined') document.body.classList.remove('sidebar-collapsed') }}>»</button>
       {/* desktop sidebar */}
       <div className="admin-sidebar" style={{
         position: 'fixed', left: 0, top: 0, bottom: 0,
