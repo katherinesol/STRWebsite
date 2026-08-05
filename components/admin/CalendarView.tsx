@@ -1,5 +1,6 @@
 'use client'
 import { useState } from 'react'
+import { getCheckInDisplay, getCheckOutDisplay } from '@/lib/checkin-times'
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isToday, parseISO, isBefore, isAfter, isSameDay, addMonths, subMonths } from 'date-fns'
 import { useRouter } from 'next/navigation'
 
@@ -131,6 +132,19 @@ export default function CalendarView({ bookings, blocks }: { bookings: Booking[]
     return blocks.filter(b =>
       b.property_id === propertyId && isDateInRange(date, b.start_date, b.end_date)
     )
+  }
+  // checkouts happen ON the end_date (not part of occupancy range)
+  function getCheckoutsForDay(date: Date, propertyId: string) {
+    const ds = format(date, 'yyyy-MM-dd')
+    const bk = bookings.filter(b => b.property_id === propertyId && (b as any).check_out === ds)
+    const bl = blocks.filter(b => b.property_id === propertyId && b.end_date === ds && !(isOneDayBlock(b.start_date, b.end_date) && !b.is_booking))
+    return { bookings: bk, blocks: bl }
+  }
+  function getCheckinsForDay(date: Date, propertyId: string) {
+    const ds = format(date, 'yyyy-MM-dd')
+    const bk = bookings.filter(b => b.property_id === propertyId && (b as any).check_in === ds)
+    const bl = blocks.filter(b => b.property_id === propertyId && b.start_date === ds && !(isOneDayBlock(b.start_date, b.end_date) && !b.is_booking))
+    return { bookings: bk, blocks: bl }
   }
 
   function openEditBlock(block: Block) {
@@ -318,74 +332,91 @@ export default function CalendarView({ bookings, blocks }: { bookings: Booking[]
               <div key={d} style={{ background: '#1E1E1C', padding: '4px 6px', fontSize: '9px', letterSpacing: '.1em', textTransform: 'uppercase', color: '#333330', textAlign: 'center' }}>{d}</div>
             ))}
             {paddedDays.map((day, i) => {
-              if (!day) return <div key={`pad-${i}`} style={{ background: '#1E1E1C', minHeight: '56px' }} />
+              if (!day) return <div key={`pad-${i}`} style={{ background: '#1E1E1C', minHeight: '84px' }} />
               const dayBookings = getBookingsForDay(day, prop.id)
               const dayBlocks = getBlocksForDay(day, prop.id)
               const isOccupied = dayBookings.length > 0
               const isBlocked = dayBlocks.length > 0
+              const dayStr = format(day, 'yyyy-MM-dd')
+              const checkouts = getCheckoutsForDay(day, prop.id)
+              const checkins = getCheckinsForDay(day, prop.id)
+              const outItems = [...checkouts.bookings, ...checkouts.blocks]
+              const inItems = [...checkins.bookings, ...checkins.blocks]
+              // occupancy = staying but NOT arriving/leaving today (avoid showing the name 3x)
+              const stayingBookings = dayBookings.filter((b: any) => b.check_in !== dayStr && b.check_out !== dayStr)
+              const stayingBlocks = dayBlocks.filter((b: any) => b.start_date !== dayStr && b.end_date !== dayStr)
+              // TURNOVER
+              let turnover: { hours: number; tight: boolean } | null = null
+              if (outItems.length && inItems.length) {
+                const outT = getCheckOutDisplay(outItems[0]).is24
+                const inT = getCheckInDisplay(inItems[0]).is24
+                const [oh, om] = outT.split(':').map(Number)
+                const [ih, im] = inT.split(':').map(Number)
+                const gap = (ih * 60 + im) - (oh * 60 + om)
+                if (gap > 0) turnover = { hours: Math.round(gap / 60 * 10) / 10, tight: gap < 300 }
+              }
               const today = isToday(day)
 
               return (
                 <div key={day.toISOString()} style={{
                   background: isOccupied ? '#0a1520' : isBlocked ? '#1f1a10' : '#242422',
-                  minHeight: '56px', padding: '4px 6px',
+                  minHeight: '84px', padding: '6px 8px',
                   borderTop: today ? `2px solid ${prop.color}` : '2px solid transparent',
                   position: 'relative',
                 }}>
-                  <div style={{ fontSize: '11px', color: today ? prop.color : isSameMonth(day, currentMonth) ? '#888880' : '#333330', marginBottom: '3px', fontWeight: today ? 600 : 400 }}>
+                  <div style={{ fontSize: '13px', color: today ? prop.color : isSameMonth(day, currentMonth) ? '#888880' : '#333330', marginBottom: '4px', fontWeight: today ? 600 : 400 }}>
                     {format(day, 'd')}
+                    {turnover && (
+                      <span style={{ display: 'block', marginTop: '2px', fontSize: '8px', fontWeight: 600, padding: '1px 4px', borderRadius: '3px', letterSpacing: '.02em',
+                        background: turnover.tight ? '#3a1a1a' : '#1a2a1a', color: turnover.tight ? '#e57373' : '#7bc47b' }}>
+                        {turnover.hours}h{turnover.tight ? ' · clean' : ' gap'}
+                      </span>
+                    )}
                   </div>
-                  {dayBookings.map(b => {
-                    const guestName = (Array.isArray(b.guest_info) ? (b.guest_info as any[])[0] : b.guest_info as any)?.name || 'Direct'
-                    const isCheckIn = (b as any).check_in === format(day, 'yyyy-MM-dd')
-                    const isCheckOut = (b as any).check_out === format(day, 'yyyy-MM-dd')
-                    const earlyGranted = (b as any).early_checkin_granted
-                    const lateGranted = (b as any).late_checkout_granted
-                    const checkInTime = earlyGranted && (b as any).early_checkin_time ? (b as any).early_checkin_time : '16:00'
-                    const checkOutTime = lateGranted && (b as any).late_checkout_time ? (b as any).late_checkout_time : '11:00'
+                  {outItems.map((b: any) => {
+                    const nm = (Array.isArray(b.guest_info) ? (b.guest_info as any[])[0]?.name : b.guest_info?.name) || b.guest_name || (b.platform ? 'Guest' : 'Direct')
+                    const d = getCheckOutDisplay(b)
+                    const isBlk = 'start_date' in b && !('check_out' in b && (b as any).check_out)
                     return (
-                      <div
-                        key={b.id}
-                        onClick={() => openEditBooking(b)}
-                        style={{
-                          fontSize: '9px', color: STATUS_COLORS[b.status] || '#888880',
-                          letterSpacing: '.04em', lineHeight: 1.4, marginBottom: '1px',
-                          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                          cursor: 'pointer', textDecoration: 'underline',
-                        }}
-                      >
-                        {guestName}
-                        {isCheckIn && <span style={{ color: '#888880' }}> in {checkInTime}{earlyGranted ? '★' : ''}</span>}
-                        {isCheckOut && <span style={{ color: '#888880' }}> out {checkOutTime}{lateGranted ? '★' : ''}</span>}
+                      <div key={'out-' + b.id} onClick={() => isBlk ? openEditBlock(b) : openEditBooking(b)}
+                        style={{ fontSize: '11px', lineHeight: 1.45, marginBottom: '2px', cursor: 'pointer', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        <span style={{ color: '#c98a3a' }}>← {d.time}{d.state === 'pending' ? ' req' : ''}</span>{' '}
+                        <span style={{ color: '#888880', textDecoration: 'underline' }}>{nm}</span>
                       </div>
                     )
                   })}
-                  {dayBlocks.map(b => {
-                      const isPrep = isOneDayBlock(b.start_date, b.end_date) && !b.is_booking
-                      const color = isPrep ? '#555550' : (PLATFORM_COLORS[b.platform || 'manual'] || '#f39c12')
-                      const bCheckIn = b.early_checkin_time ? (() => { const [h,m]=b.early_checkin_time.split(':'); const hr=parseInt(h); return `${hr%12||12}:${parseInt(m)>=30?'30':'00'}${hr>=12?'PM':'AM'}` })() : null
-                      const bCheckOut = b.late_checkout_time ? (() => { const [h,m]=b.late_checkout_time.split(':'); const hr=parseInt(h); return `${hr%12||12}:${parseInt(m)>=30?'30':'00'}${hr>=12?'PM':'AM'}` })() : null
-                      const isCheckInDay = b.start_date === format(day, 'yyyy-MM-dd')
-                      const isCheckOutDay = b.end_date === format(day, 'yyyy-MM-dd')
-                      return (
-                      <div key={b.id} style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <div
-                        onClick={() => openEditBlock(b)}
-                        style={{ fontSize: '9px', color, letterSpacing: '.04em', cursor: 'pointer', textDecoration: isPrep ? 'none' : 'underline', fontStyle: isPrep ? 'italic' : 'normal', opacity: isPrep ? 0.6 : 1, lineHeight: 1.4 }}
-                      >
-                        {isPrep ? 'Prep day' : (b.guest_name || b.platform || BLOCK_REASONS[b.reason])}
-                        {!isPrep && isCheckInDay && bCheckIn && <span style={{ color: '#888880' }}> {bCheckIn}★</span>}
-                        {!isPrep && isCheckInDay && !bCheckIn && <span style={{ color: '#888880' }}> 4:00PM</span>}
-                        {!isPrep && isCheckOutDay && bCheckOut && <span style={{ color: '#888880' }}> out {bCheckOut}★</span>}
-                        {!isPrep && isCheckOutDay && !bCheckOut && <span style={{ color: '#888880' }}> out 11AM</span>}
-                      </div>
-                      <button
-                        onClick={() => handleRemoveBlock(b.id)}
-                        style={{ background: 'none', border: 'none', color: '#9A9A92', fontSize: '10px', cursor: 'pointer', padding: 0, lineHeight: 1 }}
-                        title="Remove block"
-                      >×</button>
+                  {turnover && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '3px', margin: '3px 0', fontSize: '10px', fontWeight: 600 }}>
+                      <span style={{ color: turnover.tight ? '#e57373' : '#7bc47b' }}>↕ {turnover.hours}h{turnover.tight ? ' · same-day clean' : ' turnover'}</span>
                     </div>
-                      )
+                  )}
+                  {stayingBookings.map((b: any) => {
+                    const nm = (Array.isArray(b.guest_info) ? (b.guest_info as any[])[0]?.name : b.guest_info?.name) || 'Direct'
+                    return (<div key={'stay-' + b.id} onClick={() => openEditBooking(b)} style={{ fontSize: '11px', color: STATUS_COLORS[b.status] || '#888880', lineHeight: 1.45, marginBottom: '2px', cursor: 'pointer', textDecoration: 'underline', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{nm}</div>)
+                  })}
+                  {stayingBlocks.map((b: any) => {
+                    const isPrep = isOneDayBlock(b.start_date, b.end_date) && !b.is_booking
+                    const color = isPrep ? '#555550' : (PLATFORM_COLORS[b.platform || 'manual'] || '#f39c12')
+                    return (
+                      <div key={'stayb-' + b.id} style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <div onClick={() => openEditBlock(b)} style={{ fontSize: '11px', color, cursor: 'pointer', textDecoration: isPrep ? 'none' : 'underline', fontStyle: isPrep ? 'italic' : 'normal', opacity: isPrep ? 0.6 : 1, lineHeight: 1.45, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {isPrep ? 'Prep day' : (b.guest_name || (b.platform ? 'Guest' : BLOCK_REASONS[b.reason]))}
+                        </div>
+                        <button onClick={() => handleRemoveBlock(b.id)} style={{ background: 'none', border: 'none', color: '#9A9A92', fontSize: '10px', cursor: 'pointer', padding: 0, lineHeight: 1 }} title="Remove block">×</button>
+                      </div>
+                    )
+                  })}
+                  {inItems.map((b: any) => {
+                    const nm = (Array.isArray(b.guest_info) ? (b.guest_info as any[])[0]?.name : b.guest_info?.name) || b.guest_name || (b.platform ? 'Guest' : 'Direct')
+                    const d = getCheckInDisplay(b)
+                    const isBlk = 'start_date' in b && !('check_in' in b && (b as any).check_in)
+                    return (
+                      <div key={'in-' + b.id} onClick={() => isBlk ? openEditBlock(b) : openEditBooking(b)}
+                        style={{ fontSize: '11px', lineHeight: 1.45, marginBottom: '2px', cursor: 'pointer', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        <span style={{ color: '#888880', textDecoration: 'underline' }}>{nm}</span>{' '}
+                        <span style={{ color: '#7bc47b' }}>→ {d.time}{d.state === 'pending' ? ' req' : ''}</span>
+                      </div>
+                    )
                   })}
                 </div>
               )
