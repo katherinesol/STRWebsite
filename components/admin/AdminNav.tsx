@@ -11,6 +11,7 @@ const SECTIONS = [
     { href: '/admin/bookings', label: 'Bookings', icon: '◈' },
     { href: '/admin/calendar', label: 'Calendar', icon: '▦' },
     { href: '/admin/tasks', label: 'Tasks', icon: '☑' },
+    { href: '/admin/parking', label: 'Parking', icon: '⛛' },
   ]},
   { title: 'Locks & Access', items: [
     { href: '/admin/locks', label: 'Locks', icon: '⚿', ownerOnly: true },

@@ -1,5 +1,6 @@
 'use client'
 import { useState } from 'react'
+import ParkingControl from '@/components/admin/ParkingControl'
 import { getCheckInDisplay, getCheckOutDisplay } from '@/lib/checkin-times'
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isToday, parseISO, isBefore, isAfter, isSameDay, addMonths, subMonths } from 'date-fns'
 import { useRouter } from 'next/navigation'
@@ -721,6 +722,7 @@ export default function CalendarView({ bookings, blocks }: { bookings: Booking[]
             </>}
             </div>
 
+            {editingBlock && <ParkingControl bookingId={editingBlock.id} bookingKind="platform" propertyId={editingBlock.property_id} guestName={editForm.guest_name || editingBlock.guest_name || undefined} startDate={editingBlock.start_date} endDate={editingBlock.end_date} />}
             <div style={{ display: 'flex', gap: '8px', marginTop: '24px' }}>
               <button onClick={() => setEditingBlock(null)}
                 style={{ flex: 1, padding: '12px', background: '#363634', color: '#9A9A92', border: 'none', fontFamily: 'var(--sans)', fontSize: '11px', cursor: 'pointer', letterSpacing: '.08em', textTransform: 'uppercase' }}>

@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
+import ParkingControl from '@/components/admin/ParkingControl'
 import { useRouter } from 'next/navigation'
 import { addDays, format } from 'date-fns'
 
@@ -204,6 +205,7 @@ export default function BookingEditForm({ booking }: { booking: any }) {
       ))}
       {field('Instacart', <Toggle value={instacart} onChange={setInstacart} />)}
       {field('Vehicles', <input type="number" value={vehicleCount} onChange={e => setVehicleCount(parseInt(e.target.value)||0)} min={0} style={{ ...inputStyle, maxWidth: '80px' }} />)}
+      <ParkingControl bookingId={booking.id} bookingKind="direct" propertyId={booking.property_id} guestName={booking.guest_info?.name || booking.guest?.name} startDate={checkIn} endDate={checkOut} />
 
       {sectionLabel('Pricing calculator')}
       <div style={{ background: '#1E1E1C', border: '0.5px solid #363634', padding: '16px', marginBottom: '8px' }}>
