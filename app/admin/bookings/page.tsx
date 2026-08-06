@@ -1,5 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/server'
 import { format } from 'date-fns'
+import { getCheckInDisplay, getCheckOutDisplay } from '@/lib/checkin-times'
 import Link from 'next/link'
 
 const PROPERTY_NAMES: Record<string, string> = {
@@ -162,12 +163,10 @@ export default async function BookingsPage({
             const b = row.data
             const s = getAutoStatus(b.check_in, b.check_out, b.early_checkin_granted ? b.early_checkin_time : null, b.late_checkout_granted ? b.late_checkout_time : null)
             const guest = Array.isArray(b.guest_info) ? b.guest_info[0] : b.guest_info
-            const checkInTime = b.early_checkin_granted && b.early_checkin_time
-              ? formatTime(b.early_checkin_time, '4:00 PM')
-              : '4:00 PM'
-            const checkOutTime = b.late_checkout_granted && b.late_checkout_time
-              ? formatTime(b.late_checkout_time, '11:00 AM')
-              : '11:00 AM'
+            const inDisp = getCheckInDisplay(b)
+            const outDisp = getCheckOutDisplay(b)
+            const checkInTime = inDisp.time + (inDisp.state === 'pending' ? ' (req)' : '')
+            const checkOutTime = outDisp.time + (outDisp.state === 'pending' ? ' (req)' : '')
             return (
               <div key={row.id} className="row-grid" style={{ display: 'grid', gridTemplateColumns: '100px 1fr 160px 180px 100px 80px', padding: '14px 20px', borderBottom: '0.5px solid #363634', alignItems: 'center' }}>
                 <div>
@@ -194,8 +193,10 @@ export default async function BookingsPage({
             )
           } else {
             const b = row.data
-            const checkInTime = b.early_checkin_time ? formatTime(b.early_checkin_time, '4:00 PM') : '4:00 PM'
-            const checkOutTime = b.late_checkout_time ? formatTime(b.late_checkout_time, '11:00 AM') : '11:00 AM'
+            const inDisp2 = getCheckInDisplay(b)
+            const outDisp2 = getCheckOutDisplay(b)
+            const checkInTime = inDisp2.time + (inDisp2.state === 'pending' ? ' (req)' : '')
+            const checkOutTime = outDisp2.time + (outDisp2.state === 'pending' ? ' (req)' : '')
             return (
               <div key={row.id} className="row-grid" style={{ display: 'grid', gridTemplateColumns: '100px 1fr 160px 180px 100px 80px', padding: '14px 20px', borderBottom: '0.5px solid #363634', alignItems: 'center' }}>
                 <div>

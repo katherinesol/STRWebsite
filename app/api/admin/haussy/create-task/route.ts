@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
     description: task.description || null,
     property_id: task.property_id || null,
     type: task.type || 'admin',
-    cadence: task.cadence || null,
+    cadence: task.cadence || 'one-time',
     due_date: task.due_date || null,
     priority: task.priority || 'normal',
     notes: task.notes || null,

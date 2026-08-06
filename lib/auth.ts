@@ -2,7 +2,7 @@ import { createAuthClient } from '@/lib/supabase/auth-server'
 import { createAdminClient } from '@/lib/supabase/server'
 
 export type AuthResult =
-  | { ok: true; userId: string | null; role: string; name?: string }
+  | { ok: true; userId: string | null; role: string; name?: string; isSuperadmin?: boolean; permissions?: Record<string, any> }
   | { ok: false }
 
 // Checks Supabase Auth session first; falls back to legacy ADMIN_SECRET cookie
@@ -17,11 +17,11 @@ export async function getAuth(): Promise<AuthResult> {
       const admin = createAdminClient()
       const { data: profile } = await admin
         .from('profiles')
-        .select('role, name, active')
+        .select('role, name, active, is_superadmin, permissions')
         .eq('id', user.id)
         .maybeSingle()
       if (profile && profile.active !== false) {
-        return { ok: true, userId: user.id, role: profile.role || 'cleaner', name: profile.name }
+        return { ok: true, userId: user.id, role: profile.role || 'cleaner', name: profile.name, isSuperadmin: profile.is_superadmin || false, permissions: profile.permissions || {} }
       }
     }
   } catch {
@@ -42,4 +42,36 @@ export async function hasRole(...roles: string[]): Promise<boolean> {
   if (!a.ok) return false
   if (a.role === 'owner') return true  // owner can do anything
   return roles.includes(a.role)
+}
+
+// Only the superadmin (Katherine) can change permissions.
+export async function isSuperadmin(): Promise<boolean> {
+  const a = await getAuth()
+  return a.ok && a.isSuperadmin === true
+}
+
+// Granular permission check. category e.g. 'money', level 'view' | 'edit'.
+// Owners get everything. Others checked against their stored permissions.
+export async function hasPermission(category: string, level: 'view' | 'edit' = 'view'): Promise<boolean> {
+  const a = await getAuth()
+  if (!a.ok) return false
+  if (a.role === 'owner' || a.isSuperadmin) return true
+  const p = (a.permissions || {})[category]
+  if (!p || p === 'none') return false
+  if (level === 'view') return p === 'view' || p === 'edit'
+  return p === 'edit'
+}
+
+// Calendar-specific granular checks.
+export async function canAddBlocks(): Promise<boolean> {
+  const a = await getAuth()
+  if (!a.ok) return false
+  if (a.role === 'owner' || a.isSuperadmin) return true
+  return !!(a.permissions?.calendar?.addBlocks)
+}
+export async function canDeleteOwnBlocks(): Promise<boolean> {
+  const a = await getAuth()
+  if (!a.ok) return false
+  if (a.role === 'owner' || a.isSuperadmin) return true
+  return !!(a.permissions?.calendar?.deleteOwn)
 }

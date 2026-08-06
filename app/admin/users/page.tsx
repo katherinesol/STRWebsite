@@ -5,11 +5,15 @@ const ROLES = ['owner', 'co-owner', 'cleaner']
 
 export default function UsersPage() {
   const [users, setUsers] = useState<any[]>([])
+  const [viewerIsSuper, setViewerIsSuper] = useState(false)
+  const [permOpen, setPermOpen] = useState<string | null>(null)
+  const [permDraft, setPermDraft] = useState<any>({})
+  const [permSaving, setPermSaving] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [denied, setDenied] = useState(false)
   const [showAdd, setShowAdd] = useState(false)
-  const [form, setForm] = useState({ name: '', email: '', password: '', role: 'cleaner' })
+  const [form, setForm] = useState({ name: '', email: '', role: 'cleaner' })
   const [saving, setSaving] = useState(false)
   const [editNameId, setEditNameId] = useState<string | null>(null)
   const [nameVal, setNameVal] = useState('')
@@ -20,7 +24,7 @@ export default function UsersPage() {
   function load() {
     fetch('/api/admin/users')
       .then(r => r.json())
-      .then(d => { if (d.error) { setError(d.error); setDenied(true) } else setUsers(d.users || []) })
+      .then(d => { if (d.error) { setError(d.error); setDenied(true) } else { setUsers(d.users || []); setViewerIsSuper(!!d.viewerIsSuper) } })
       .finally(() => setLoading(false))
     fetch('/api/admin/assignments').then(r => r.json()).then(d => { if (d.assignments) setAssignments(d.assignments) })
   }
@@ -43,6 +47,33 @@ export default function UsersPage() {
     { id: 'nickel-beach', name: 'Nickel Beach' },
   ]
 
+  const PERM_CATS = [
+    { key: 'bookings', label: 'Bookings' },
+    { key: 'money', label: 'Money & Tax' },
+    { key: 'locks', label: 'Locks & Access' },
+    { key: 'guests', label: 'Guests' },
+    { key: 'damage', label: 'Damage' },
+    { key: 'property', label: 'Property' },
+  ]
+  function openPerms(u: any) {
+    if (permOpen === u.id) { setPermOpen(null); return }
+    const base: any = { calendar: {}, ...(u.permissions || {}) }
+    for (const cat of PERM_CATS) if (!base[cat.key]) base[cat.key] = 'none'
+    if (!base.calendar) base.calendar = {}
+    setPermDraft(base)
+    setPermOpen(u.id)
+  }
+  async function savePermissions(id: string) {
+    setPermSaving(true)
+    const res = await fetch('/api/admin/users', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, permissions: permDraft }),
+    })
+    const d = await res.json()
+    setPermSaving(false)
+    if (d.error) { setError(d.error); return }
+    setPermOpen(null); load()
+  }
   async function addUser() {
     setSaving(true); setError('')
     const res = await fetch('/api/admin/users', {
@@ -52,7 +83,7 @@ export default function UsersPage() {
     const d = await res.json()
     setSaving(false)
     if (d.error) { setError(d.error); return }
-    setForm({ name: '', email: '', password: '', role: 'cleaner' })
+    setForm({ name: '', email: '', role: 'cleaner' })
     setShowAdd(false)
     load()
   }
@@ -104,7 +135,6 @@ export default function UsersPage() {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
             <div><div style={lbl}>Name</div><input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} style={inp} /></div>
             <div><div style={lbl}>Email</div><input type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} style={inp} /></div>
-            <div><div style={lbl}>Temporary password</div><input type="text" value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} placeholder="min 8 characters" style={inp} /></div>
             <div><div style={lbl}>Role</div>
               <select value={form.role} onChange={e => setForm(f => ({ ...f, role: e.target.value }))} style={inp}>
                 {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
@@ -112,10 +142,10 @@ export default function UsersPage() {
             </div>
           </div>
           <div style={{ fontSize: '11px', color: '#9A9A92', marginBottom: '12px' }}>
-            They log in with this email + password. Owner sees everything; cleaner sees cleaning tasks only.
+            They'll get an email invite to set their own password. You control what they can access with the Permissions button after they're added.
           </div>
           <button onClick={addUser} disabled={saving} style={{ padding: '10px 18px', background: 'var(--amber)', color: '#242422', border: 'none', fontSize: '11px', fontWeight: 600, letterSpacing: '.08em', textTransform: 'uppercase', cursor: 'pointer', borderRadius: '2px' }}>
-            {saving ? 'Creating…' : 'Create account'}
+            {saving ? 'Sending…' : 'Send invite'}
           </button>
         </div>
       )}
@@ -125,7 +155,8 @@ export default function UsersPage() {
           <span>Name</span><span>Email</span><span>Role</span><span>Status</span>
         </div>
         {users.map(u => (
-          <div key={u.id} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 120px 110px', padding: '14px 16px', borderBottom: '0.5px solid #2A2A28', fontSize: '13px', alignItems: 'center', opacity: u.active ? 1 : 0.5 }}>
+          <div key={u.id}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 120px 110px', padding: '14px 16px', borderBottom: permOpen === u.id ? 'none' : '0.5px solid #2A2A28', fontSize: '13px', alignItems: 'center', opacity: u.active ? 1 : 0.5 }}>
             {editNameId === u.id ? (
               <input autoFocus value={nameVal} onChange={e => setNameVal(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') saveName(u.id); if (e.key === 'Escape') setEditNameId(null) }} onBlur={() => saveName(u.id)} style={{ ...inp, padding: '4px 8px', fontSize: '13px', width: '90%' }} />
             ) : (
@@ -135,9 +166,49 @@ export default function UsersPage() {
             <select value={u.role} onChange={e => changeRole(u.id, e.target.value)} style={{ ...inp, padding: '5px 8px', fontSize: '12px', width: 'auto' }}>
               {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
             </select>
-            <button onClick={() => toggleActive(u.id, !u.active)} style={{ padding: '5px 10px', background: u.active ? '#2a1518' : '#1f2a1a', color: u.active ? '#e74c3c' : '#2ecc71', border: 'none', fontSize: '11px', cursor: 'pointer', borderRadius: '2px', width: 'fit-content' }}>
-              {u.active ? 'Deactivate' : 'Reactivate'}
-            </button>
+            <div style={{ display: 'flex', gap: '6px', flexDirection: 'column', alignItems: 'flex-start' }}>
+              <button onClick={() => toggleActive(u.id, !u.active)} style={{ padding: '5px 10px', background: u.active ? '#2a1518' : '#1f2a1a', color: u.active ? '#e74c3c' : '#2ecc71', border: 'none', fontSize: '11px', cursor: 'pointer', borderRadius: '2px', width: 'fit-content' }}>
+                {u.active ? 'Deactivate' : 'Reactivate'}
+              </button>
+              {viewerIsSuper && u.role !== 'owner' && (
+                <button onClick={() => openPerms(u)} style={{ padding: '4px 9px', background: '#242422', color: '#c9a24a', border: '0.5px solid #4a3a1f', fontSize: '10px', cursor: 'pointer', borderRadius: '2px' }}>
+                  {permOpen === u.id ? 'Close' : 'Permissions'}
+                </button>
+              )}
+            </div>
+          </div>
+          {viewerIsSuper && permOpen === u.id && (
+            <div style={{ padding: '14px 20px 18px', borderBottom: '0.5px solid #2A2A28', background: '#1E1E1C' }}>
+              <div style={{ fontSize: '11px', color: '#9A9A92', marginBottom: '10px' }}>What {u.name} can access:</div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '8px', marginBottom: '14px' }}>
+                {PERM_CATS.map(cat => (
+                  <div key={cat.key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontSize: '12px', color: '#F0EDE6' }}>{cat.label}</span>
+                    <select value={permDraft[cat.key] || 'none'} onChange={e => setPermDraft((d: any) => ({ ...d, [cat.key]: e.target.value }))}
+                      style={{ ...inp, padding: '4px 8px', fontSize: '11px', width: 'auto' }}>
+                      <option value="none">None</option>
+                      <option value="view">View only</option>
+                      <option value="edit">View + edit</option>
+                    </select>
+                  </div>
+                ))}
+              </div>
+              <div style={{ fontSize: '11px', color: '#9A9A92', marginBottom: '8px', paddingTop: '8px', borderTop: '0.5px solid #2A2A28' }}>Calendar</div>
+              <div style={{ display: 'flex', gap: '18px', marginBottom: '14px', flexWrap: 'wrap' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#F0EDE6', cursor: 'pointer' }}>
+                  <input type="checkbox" checked={!!permDraft.calendar?.addBlocks} onChange={e => setPermDraft((d: any) => ({ ...d, calendar: { ...d.calendar, addBlocks: e.target.checked } }))} />
+                  Can add blocks
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#F0EDE6', cursor: 'pointer' }}>
+                  <input type="checkbox" checked={!!permDraft.calendar?.deleteOwn} onChange={e => setPermDraft((d: any) => ({ ...d, calendar: { ...d.calendar, deleteOwn: e.target.checked } }))} />
+                  Can delete own blocks (not others')
+                </label>
+              </div>
+              <button onClick={() => savePermissions(u.id)} disabled={permSaving} style={{ padding: '8px 18px', background: 'var(--amber)', color: '#242422', border: 'none', fontSize: '12px', fontWeight: 600, cursor: 'pointer', borderRadius: '4px' }}>
+                {permSaving ? 'Saving…' : 'Save permissions'}
+              </button>
+            </div>
+          )}
           </div>
         ))}
       </div>
