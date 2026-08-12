@@ -13,6 +13,10 @@ const channelBadge = (c: string) => {
     whatsapp: { label: 'WhatsApp', color: '#25D366' },
     email: { label: 'Email', color: '#9A9A92' },
     houfy: { label: 'Houfy', color: '#e67e22' },
+    airbnb: { label: 'Airbnb', color: '#FF5A5F' },
+    vrbo: { label: 'VRBO', color: '#3D67FF' },
+    booking: { label: 'Booking.com', color: '#003580' },
+    concierge: { label: 'Concierge', color: '#a78bfa' },
   }
   return map[c] || { label: c, color: '#9A9A92' }
 }
@@ -31,6 +35,17 @@ export default function InboxPage() {
   const [sending, setSending] = useState(false)
   const threadEndRef = useRef<HTMLDivElement>(null)
 
+  const [syncing, setSyncing] = useState(false)
+  const [syncMsg, setSyncMsg] = useState('')
+  async function syncPlatforms() {
+    setSyncing(true); setSyncMsg('')
+    try {
+      const d = await fetch('/api/admin/inbox/sync', { method: 'POST' }).then(r => r.json())
+      if (d.error) setSyncMsg('Error: ' + d.error)
+      else { setSyncMsg(`Pulled ${d.threads} threads, ${d.messages} messages` + (d.errors?.length ? ` (${d.errors.length} issues)` : '')); loadConversations() }
+    } catch (e: any) { setSyncMsg('Error: ' + e.message) }
+    setSyncing(false)
+  }
   function loadConversations() {
     fetch('/api/admin/inbox').then(r => r.json()).then(d => { if (d.conversations) setConversations(d.conversations) }).finally(() => setLoading(false))
   }
@@ -84,7 +99,13 @@ export default function InboxPage() {
       {/* conversation list */}
       <div style={{ width: '300px', borderRight: '0.5px solid #363634', overflowY: 'auto', flexShrink: 0, background: '#1E1E1C' }}>
         <div style={{ padding: '16px 18px', borderBottom: '0.5px solid #363634' }}>
-          <h1 style={{ fontFamily: 'var(--serif)', fontWeight: 300, fontSize: '20px', color: '#F0EDE6', margin: 0 }}>Inbox</h1>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <h1 style={{ fontFamily: 'var(--serif)', fontWeight: 300, fontSize: '20px', color: '#F0EDE6', margin: 0 }}>Inbox</h1>
+            <button onClick={syncPlatforms} disabled={syncing} style={{ padding: '5px 10px', background: '#242422', color: '#c9a24a', border: '0.5px solid #4a3a1f', fontSize: '10px', cursor: 'pointer', borderRadius: '4px' }}>
+              {syncing ? 'Syncing…' : '↻ Sync'}
+            </button>
+          </div>
+          {syncMsg && <div style={{ fontSize: '10px', color: syncMsg.startsWith('Error') ? '#e57373' : '#7bc47b', marginTop: '6px' }}>{syncMsg}</div>}
         </div>
         {!conversations.length ? <div style={{ padding: '20px', color: '#666660', fontSize: '13px' }}>No conversations yet.</div> :
           conversations.map(c => {

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { hasRole, getAuth } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/server'
+import { deliverMessage } from '@/lib/message-adapters'
 
 // send a reply into a conversation (host or ai-authored, but sent by host action)
 export async function POST(request: NextRequest) {
@@ -10,7 +11,7 @@ export async function POST(request: NextRequest) {
   if (!conversation_id || !body) return NextResponse.json({ error: 'conversation and body required' }, { status: 400 })
   const supabase = createAdminClient()
 
-  const { data: conv } = await supabase.from('conversations').select('channel').eq('id', conversation_id).maybeSingle()
+  const { data: conv } = await supabase.from('conversations').select('channel, external_thread_id, ai_paused').eq('id', conversation_id).maybeSingle()
 
   const { error } = await supabase.from('messages').insert({
     conversation_id, sender: sender || 'host', body,
@@ -24,6 +25,12 @@ export async function POST(request: NextRequest) {
     last_message_preview: body.slice(0, 100),
   }).eq('id', conversation_id)
 
-  // NOTE: actually delivering to the guest (SMS/email/Houfy) happens in the channel connector — phase 2
-  return NextResponse.json({ ok: true })
+  // deliver to the platform if this is a host reply on an external channel
+  let delivery: any = { ok: true }
+  if ((sender || 'host') === 'host') {
+    delivery = await deliverMessage(conv?.channel || 'direct', conv?.external_thread_id || null, body)
+    // taking over a bot thread: pause the AI
+    await supabase.from('conversations').update({ ai_paused: true }).eq('id', conversation_id)
+  }
+  return NextResponse.json({ ok: true, delivery })
 }

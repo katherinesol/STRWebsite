@@ -1,6 +1,7 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import ParkingControl from '@/components/admin/ParkingControl'
+import StayLinkControl from '@/components/admin/StayLinkControl'
 import { getCheckInDisplay, getCheckOutDisplay } from '@/lib/checkin-times'
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isToday, parseISO, isBefore, isAfter, isSameDay, addMonths, subMonths } from 'date-fns'
 import { useRouter } from 'next/navigation'
@@ -74,6 +75,20 @@ function isDateInRange(date: Date, start: string, end: string): boolean {
 }
 
 export default function CalendarView({ bookings, blocks }: { bookings: Booking[]; blocks: Block[] }) {
+  // linked stays: map of booking_id -> group_id, so we can suppress turnover at continuation boundaries
+  const [linkedGroups, setLinkedGroups] = useState<Record<string, string>>({})
+  useEffect(() => {
+    fetch('/api/admin/stay-groups/all').then(r => r.json()).then(d => {
+      const map: Record<string, string> = {}
+      for (const m of d.members || []) map[m.booking_id] = m.group_id
+      setLinkedGroups(map)
+    }).catch(() => {})
+  }, [])
+  // are these two items members of the same stay group? (a continuation, not a real turnover)
+  function sameStayGroup(a: any, b: any): boolean {
+    const ga = linkedGroups[a?.id]; const gb = linkedGroups[b?.id]
+    return !!ga && !!gb && ga === gb
+  }
   const router = useRouter()
   const [currentMonth, setCurrentMonth] = useState(new Date())
   const [selectedProperty, setSelectedProperty] = useState<string | null>(null)
@@ -347,8 +362,10 @@ export default function CalendarView({ bookings, blocks }: { bookings: Booking[]
               const stayingBookings = dayBookings.filter((b: any) => b.check_in !== dayStr && b.check_out !== dayStr)
               const stayingBlocks = dayBlocks.filter((b: any) => b.start_date !== dayStr && b.end_date !== dayStr)
               // TURNOVER
+              // is this a linked-stay continuation? (same guest continuing, not a turnover)
+              const isContinuation = outItems.length && inItems.length && sameStayGroup(outItems[0], inItems[0])
               let turnover: { hours: number; tight: boolean } | null = null
-              if (outItems.length && inItems.length) {
+              if (outItems.length && inItems.length && !isContinuation) {
                 const outT = getCheckOutDisplay(outItems[0]).is24
                 const inT = getCheckInDisplay(inItems[0]).is24
                 const [oh, om] = outT.split(':').map(Number)
@@ -378,11 +395,15 @@ export default function CalendarView({ bookings, blocks }: { bookings: Booking[]
                     const nm = (Array.isArray(b.guest_info) ? (b.guest_info as any[])[0]?.name : b.guest_info?.name) || b.guest_name || (b.platform ? 'Guest' : 'Direct')
                     const d = getCheckOutDisplay(b)
                     const isBlk = 'start_date' in b && !('check_out' in b && (b as any).check_out)
+                    // if this checkout continues into a linked extension, show as continuing (no checkout arrow)
+                    const continues = isContinuation && inItems.some((x: any) => sameStayGroup(b, x))
                     return (
                       <div key={'out-' + b.id} onClick={() => isBlk ? openEditBlock(b) : openEditBooking(b)}
                         style={{ fontSize: '11px', lineHeight: 1.45, marginBottom: '2px', cursor: 'pointer', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        <span style={{ color: '#c98a3a' }}>← {d.time}{d.state === 'pending' ? ' req' : ''}</span>{' '}
-                        <span style={{ color: '#888880', textDecoration: 'underline' }}>{nm}</span>
+                        {continues
+                          ? <span style={{ color: '#888880', textDecoration: 'underline' }}>{nm} <span style={{ color: '#6a9fd8', fontSize: '9px' }}>· staying</span></span>
+                          : <><span style={{ color: '#c98a3a' }}>← {d.time}{d.state === 'pending' ? ' req' : ''}</span>{' '}<span style={{ color: '#888880', textDecoration: 'underline' }}>{nm}</span></>
+                        }
                       </div>
                     )
                   })}
@@ -408,6 +429,9 @@ export default function CalendarView({ bookings, blocks }: { bookings: Booking[]
                     )
                   })}
                   {inItems.map((b: any) => {
+                    // if this arrival is the continuation of a linked stay, the checkout side already showed
+                    // the guest as "staying" — skip rendering a separate arrival to avoid doubling.
+                    if (isContinuation && outItems.some((x: any) => sameStayGroup(b, x))) return null
                     const nm = (Array.isArray(b.guest_info) ? (b.guest_info as any[])[0]?.name : b.guest_info?.name) || b.guest_name || (b.platform ? 'Guest' : 'Direct')
                     const d = getCheckInDisplay(b)
                     const isBlk = 'start_date' in b && !('check_in' in b && (b as any).check_in)
@@ -723,6 +747,7 @@ export default function CalendarView({ bookings, blocks }: { bookings: Booking[]
             </div>
 
             {editingBlock && <ParkingControl bookingId={editingBlock.id} bookingKind="platform" propertyId={editingBlock.property_id} guestName={editForm.guest_name || editingBlock.guest_name || undefined} startDate={editingBlock.start_date} endDate={editingBlock.end_date} />}
+            {editingBlock && <StayLinkControl bookingId={editingBlock.id} bookingKind="platform" propertyId={editingBlock.property_id} guestName={editForm.guest_name || editingBlock.guest_name || undefined} startDate={editingBlock.start_date} endDate={editingBlock.end_date} />}
             <div style={{ display: 'flex', gap: '8px', marginTop: '24px' }}>
               <button onClick={() => setEditingBlock(null)}
                 style={{ flex: 1, padding: '12px', background: '#363634', color: '#9A9A92', border: 'none', fontFamily: 'var(--sans)', fontSize: '11px', cursor: 'pointer', letterSpacing: '.08em', textTransform: 'uppercase' }}>

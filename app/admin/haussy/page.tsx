@@ -20,10 +20,33 @@ export default function HaussyPage() {
   const [savedMsg, setSavedMsg] = useState('')
   const [draftTask, setDraftTask] = useState<any>(null)
   const [taskSaving, setTaskSaving] = useState(false)
+  const [sessionId, setSessionId] = useState<string | null>(null)
   const endRef = useRef<HTMLDivElement>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages, busy])
+  // load saved chat history on mount
+  useEffect(() => {
+    fetch('/api/admin/haussy/history').then(r => r.json()).then(d => {
+      if (d.session_id) setSessionId(d.session_id)
+      if (d.messages?.length) {
+        setMessages(d.messages.map((m: any) => ({ role: m.role, content: m.content, image_urls: m.image_urls || [] })))
+      }
+    }).catch(() => {})
+  }, [])
+  // persist a message (and any images) to history
+  async function saveMessage(role: string, content: string, images?: any[]) {
+    try {
+      const d = await fetch('/api/admin/haussy/history', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session_id: sessionId, role, content, images: images || [] }),
+      }).then(r => r.json())
+      if (d.session_id && !sessionId) setSessionId(d.session_id)
+    } catch {}
+  }
+  function newChat() {
+    setSessionId(null); setMessages([]); setDraftBooking(null); setDraftTask(null); setPendingImages([])
+  }
 
   async function handleSend(text?: string) {
     const hasImages = pendingImages.length > 0
@@ -37,6 +60,7 @@ export default function HaussyPage() {
     if (!q || busy) return
     const newMessages = [...messages, { role: 'user', content: q }]
     setMessages(newMessages); setInput(''); setBusy(true)
+    saveMessage('user', q)
     try {
       const res = await fetch('/api/admin/haussy', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -46,6 +70,7 @@ export default function HaussyPage() {
       if (d.error) setMessages(m => [...m, { role: 'assistant', content: `⚠️ ${d.error}` }])
       else {
         setMessages(m => [...m, { role: 'assistant', content: d.answer || '(no response)', tools: d.tools }])
+        saveMessage('assistant', d.answer || '(no response)')
         const t = (d.tools || []).find((x: any) => x.tool === 'propose_task')
         if (t) setDraftTask({ ...t.input })
       }
@@ -77,6 +102,10 @@ export default function HaussyPage() {
   async function extractBooking(pastedText?: string) {
     if (!pendingImages.length) return
     setExtracting(true); setDraftBooking(null); setOverlaps([])
+    // persist the submitted screenshots + any text into the chat record
+    const imgCount = pendingImages.length
+    setMessages(m => [...m, { role: 'user', content: (pastedText || '') + (imgCount ? ` [${imgCount} screenshot${imgCount>1?'s':''}]` : ''), image_urls: pendingImages.map((i: any) => `data:${i.mediaType};base64,${i.data}`) }])
+    await saveMessage('user', (pastedText || '') + (imgCount ? ` [${imgCount} screenshot${imgCount>1?'s':''}]` : ''), pendingImages)
     try {
       const res = await fetch('/api/admin/haussy/extract-booking', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ images: pendingImages, text: pastedText || '' }) })
       const d = await res.json()
@@ -111,7 +140,10 @@ export default function HaussyPage() {
   return (
     <div style={{ maxWidth: '760px', margin: '0 auto', display: 'flex', flexDirection: 'column', height: 'calc(100vh - 100px)' }}>
       <div style={{ marginBottom: '4px' }}>
-        <h1 style={{ fontFamily: 'var(--serif)', fontWeight: 300, fontSize: '30px', color: '#F0EDE6', margin: 0 }}>Haussy</h1>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <h1 style={{ fontFamily: 'var(--serif)', fontWeight: 300, fontSize: '30px', color: '#F0EDE6', margin: 0 }}>Haussy</h1>
+          <button onClick={newChat} style={{ padding: '6px 12px', background: '#242422', color: '#c9a24a', border: '0.5px solid #4a3a1f', fontSize: '11px', cursor: 'pointer', borderRadius: '5px' }}>+ New chat</button>
+        </div>
         <p style={{ fontSize: '12px', color: '#9A9A92', marginTop: '2px' }}>Your private business assistant. Reads your data — never changes it.</p>
       </div>
 
@@ -137,6 +169,15 @@ export default function HaussyPage() {
               borderBottomLeftRadius: m.role === 'user' ? '12px' : '3px' }}>
               {m.content}
             </div>
+            {m.image_urls?.length > 0 && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '6px', justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start' }}>
+                {m.image_urls.map((url: string, j: number) => (
+                  <a key={j} href={url} target="_blank" rel="noopener noreferrer">
+                    <img src={url} alt="screenshot" style={{ maxWidth: '140px', maxHeight: '140px', borderRadius: '8px', border: '0.5px solid #363634', objectFit: 'cover', cursor: 'pointer' }} />
+                  </a>
+                ))}
+              </div>
+            )}
             {m.tools?.length > 0 && (
               <div style={{ fontSize: '9px', color: '#555550', marginTop: '4px', paddingLeft: '4px' }}>
                 {m.tools.map((t: any) => t.tool).join(' · ')}

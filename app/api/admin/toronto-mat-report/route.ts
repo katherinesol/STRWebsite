@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
   const supabase = createAdminClient()
   const { data: blocks } = await supabase
     .from('calendar_blocks')
-    .select('guest_name, platform, start_date, end_date, accommodation, discount, mat, taxes_collected, confirmation_code')
+    .select('id, guest_name, platform, start_date, end_date, accommodation, discount, mat, taxes_collected, confirmation_code')
     .eq('property_id', property)
     .eq('is_booking', true)
     .in('platform', platforms)
@@ -43,13 +43,19 @@ export async function GET(request: NextRequest) {
     monthIndex: m, nights_occupied: 0, room_revenue: 0, mat_due: 0, exempt_revenue: 0,
   }))
 
+  // linked-stay MAT exemptions: bookings marked MAT-exempt via stay linking
+  const { data: sgMembers } = await supabase.from('stay_group_members')
+    .select('booking_id, mat_treatment').eq('mat_treatment', 'exempt')
+  const linkedMatExempt = new Set((sgMembers || []).map(m => m.booking_id))
+
   const rows: any[] = []
   let totalNightsInQuarter = 0
 
   for (const b of blocks || []) {
     const total = nights(b.start_date, b.end_date)
     if (total <= 0) continue
-    const exempt = total >= 28   // Toronto: 28+ consecutive days exempt
+    const linkExempt = linkedMatExempt.has(b.id)
+    const exempt = total >= 28 || linkExempt   // 28+ days OR marked MAT-exempt via stay linking
     const nightly = ((Number(b.accommodation) || 0) - (Number(b.discount) || 0)) / total
 
     let bookingNights = 0, bookingRevenue = 0, bookingMat = 0
@@ -82,6 +88,7 @@ export async function GET(request: NextRequest) {
         mat_due: exempt ? 0 : Math.round(bookingMat * 100) / 100,
         mat_recorded: Number(b.mat) || 0,
         exempt,
+        exempt_reason: total >= 28 ? '28+ days' : (linkExempt ? 'linked stay (MAT-exempt)' : null),
         missing_accommodation: !b.accommodation,
       })
     }
