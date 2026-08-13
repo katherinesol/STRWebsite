@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { rollingAverage, stayUsage } from '@/lib/water-usage'
+import { fullStayRange } from '@/lib/stay-groups'
 import { getCisternLevel } from '@/lib/cistern'
 import { isAuthed } from '@/lib/auth'
 
@@ -13,8 +14,16 @@ export async function GET(request: NextRequest) {
 
   // per-stay mode
   if (checkIn && checkOut) {
-    const stay = await stayUsage(propertyId, checkIn, checkOut)
-    return NextResponse.json({ stay })
+    // if this booking is part of a linked stay, measure across the WHOLE occupancy
+    const bookingId = sp.get('bookingId')
+    const bookingKind = sp.get('bookingKind') || 'platform'
+    let rangeIn = checkIn, rangeOut = checkOut, linked = false
+    if (bookingId) {
+      const full = await fullStayRange(bookingId, bookingKind).catch(() => null)
+      if (full) { rangeIn = full.start; rangeOut = full.end; linked = true }
+    }
+    const stay = await stayUsage(propertyId, rangeIn, rangeOut)
+    return NextResponse.json({ stay, linked, range: { start: rangeIn, end: rangeOut } })
   }
 
   // dashboard mode: rolling avg + forecast from current level

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { hasRole } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/server'
-import { extendCodeForStayGroup } from '@/lib/stay-groups'
+import { extendCodeForStayGroup, extendParkingForStayGroup } from '@/lib/stay-groups'
 
 // GET ?booking_id=&booking_kind=  → the stay group this booking belongs to (if any)
 export async function GET(request: NextRequest) {
@@ -56,8 +56,10 @@ export async function POST(request: NextRequest) {
 
   // extend the door code to cover the full linked stay (no lockout at original checkout)
   const codeResult = await extendCodeForStayGroup(groupId).catch((e: any) => ({ ok: false, note: e.message }))
+  // extend parking lane (if any) to the full stay
+  const parkingResult = await extendParkingForStayGroup(groupId).catch((e: any) => ({ ok: false, note: e.message }))
 
-  return NextResponse.json({ ok: true, group_id: groupId, code: codeResult })
+  return NextResponse.json({ ok: true, group_id: groupId, code: codeResult, parking: parkingResult })
 }
 
 // PATCH update a member's tax treatment: { member_id, mat_treatment?, hst_treatment? }

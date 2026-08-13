@@ -63,3 +63,40 @@ export async function extendCodeForStayGroup(groupId: string): Promise<{ ok: boo
 
   return { ok: true, note: `Code ${original.code} extended to ${latestEnd}`, range: { start: earliestStart, end: latestEnd } }
 }
+
+
+// Given a booking, if it's part of a linked stay, return the full occupancy range
+// (earliest check-in → latest checkout across all members). Null if not linked.
+export async function fullStayRange(bookingId: string, bookingKind: string): Promise<{ start: string; end: string } | null> {
+  const supabase = createAdminClient()
+  const { data: member } = await supabase.from('stay_group_members')
+    .select('group_id').eq('booking_id', bookingId).eq('booking_kind', bookingKind).maybeSingle()
+  if (!member) return null
+  const bookings = await loadGroupBookings(member.group_id)
+  if (!bookings.length) return null
+  const starts = bookings.map(b => b.start).filter(Boolean).sort()
+  const ends = bookings.map(b => b.end).filter(Boolean).sort()
+  return { start: starts[0], end: ends[ends.length - 1] }
+}
+
+
+// If any booking in a linked stay holds a parking lane, extend that lane's dates
+// to cover the full occupancy (so it isn't released at the original checkout).
+export async function extendParkingForStayGroup(groupId: string): Promise<{ ok: boolean; note: string }> {
+  const supabase = createAdminClient()
+  const bookings = await loadGroupBookings(groupId)
+  if (!bookings.length) return { ok: false, note: 'no bookings' }
+  const starts = bookings.map(b => b.start).filter(Boolean).sort()
+  const ends = bookings.map(b => b.end).filter(Boolean).sort()
+  const fullStart = starts[0], fullEnd = ends[ends.length - 1]
+
+  // find any parking assignment tied to a member booking
+  const ids = bookings.map(b => b.member.booking_id)
+  const { data: assigns } = await supabase.from('parking_assignments').select('*').in('booking_id', ids)
+  if (!assigns?.length) return { ok: true, note: 'no parking to extend' }
+
+  // extend the (first) assignment to cover the full stay; keep its lane
+  const a = assigns[0]
+  await supabase.from('parking_assignments').update({ start_date: fullStart, end_date: fullEnd }).eq('id', a.id)
+  return { ok: true, note: `Parking lane ${a.lane} extended to ${fullEnd}` }
+}
