@@ -99,12 +99,36 @@ Notes:
       required: ['table'],
     },
   },
+  {
+    name: 'propose_change',
+    description: `Propose a change to a booking or its finances. This does NOT write anything — it shows the owner a before/after card to confirm. Use when the owner wants to fix financial data, change dates, record a payment, or handle a platform switch (e.g. guest cancelled on VRBO and rebooked on Houfy). ALWAYS look up the current booking first (via query_data) so the "before" values are real. NEVER guess the before values. Verify you have the right booking (guest name + property + dates) before proposing.`,
+    input_schema: {
+      type: 'object',
+      properties: {
+        change_type: { type: 'string', enum: ['financial', 'dates', 'record_payment', 'platform_switch'], description: 'What kind of change' },
+        booking_id: { type: 'string', description: 'The booking being changed (from query_data)' },
+        booking_kind: { type: 'string', enum: ['direct', 'platform'], description: 'direct = your bookings table, platform = calendar_blocks' },
+        guest_name: { type: 'string', description: 'Guest name, for the confirmation header' },
+        property_id: { type: 'string', enum: ['royal-york-east', 'royal-york-west', 'nickel-beach'] },
+        summary: { type: 'string', description: 'One plain-English sentence of what will happen, shown on the card' },
+        before: { type: 'object', description: 'Current values (label -> value), e.g. {"Platform":"VRBO · cancelled","Amount":"$980 · card","Dates":"Aug 10 → 13"}' },
+        after: { type: 'object', description: 'New values (same labels), e.g. {"Platform":"Houfy · confirmed","Amount":"$980 · e-transfer","Dates":"Aug 10 → 13"}' },
+        changes: { type: 'object', description: 'The actual field updates to apply on confirm, e.g. {"platform":"houfy","status":"confirmed"}. Use real column names.' },
+      },
+      required: ['change_type', 'booking_id', 'booking_kind', 'summary', 'before', 'after', 'changes'],
+    },
+  },
 ]
 
 export async function runTool(name: string, input: any, ctx: HaussyCtx): Promise<{ ok: boolean; data?: any; error?: string }> {
   if (name === 'propose_task') {
     if (ctx.role !== 'owner') return { ok: false, error: 'Only the owner can create tasks.' }
     return { ok: true, data: { proposed: true, ...input } }
+  }
+  if (name === 'propose_change') {
+    if (ctx.role !== 'owner') return { ok: false, error: 'Only the owner can change bookings or finances.' }
+    // does NOT write — returns a proposal the owner confirms via /api/admin/haussy/apply-change
+    return { ok: true, data: { proposed_change: true, ...input } }
   }
   if (name === 'mat_report') {
     if (ctx.role !== 'owner') return { ok: false, error: 'MAT figures are restricted to owners.' }
