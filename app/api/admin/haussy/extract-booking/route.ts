@@ -53,6 +53,9 @@ Rules:
 - extras = additional guest-charged fees such as pet fee, extra guest fee, or resort fee. Add them together if there are several.
 - discount = any negative rate adjustment or discount (store as a positive number). E.g. "Nightly rate adjustment -$125.10" means discount: 125.10.
 - commission = the fee the platform charges the host. Airbnb calls it "Host service fee", VRBO calls it "Vrbo commission".
+- "Airbnb extended cancellation" (also "extended cancellation" or "cancellation insurance") is a GUEST-side charge Airbnb keeps. It is NOT host income and NOT a host fee. Exclude it entirely — never add it to accommodation, extras, payout_amount, guest_total sums you compute, or any host total. Ignore it.
+- Airbnb now uses the HOST-ONLY fee model: the guest service fee is typically $0, and the host pays the full service fee (~15.5%) shown as "Host service fee" — put that in commission. Do not treat a $0 guest service fee as meaningful.
+- Host GROSS INCOME = accommodation + cleaning_fee only. Taxes are collected/remitted separately. The host service fee (commission) is a deductible expense tracked separately — do NOT subtract it from accommodation, and do NOT reduce income by it.
 - payment_processing_fee = VRBO's payment processing fee, if shown. Airbnb and Houfy have none.
 - HOUFY takes NO commission — set commission to 0, never guess one. Its "Reservation Code" is the confirmation_code. "Special Discount" is the discount. "houfyProtect" is an extra charged to the guest. Its single "Tax 17%" line is the total tax collected. Its Total is what the guest paid; use that as payout_amount.
 - VRBO shows TWO tax lines. "Lodging taxes you remit" is the host's and goes in occupancy_taxes. "Lodging taxes we remit" is the platform's own and goes in taxes_platform_remits — never combine them.

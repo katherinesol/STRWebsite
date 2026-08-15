@@ -2,6 +2,7 @@ import { createAdminClient } from '@/lib/supabase/server'
 import { getAuth } from '@/lib/auth'
 import { format, addDays } from 'date-fns'
 import CisternLevel from '@/components/admin/CisternLevel'
+import WindowAiringCard from '@/components/admin/WindowAiringCard'
 import Link from 'next/link'
 
 const PROPERTY_NAMES: Record<string, string> = {
@@ -108,6 +109,9 @@ export default async function AdminDashboard() {
 
       <div style={{ marginBottom: '32px' }}>
         <CisternLevel />
+      </div>
+      <div style={{ marginBottom: '32px' }}>
+        <WindowAiringCard />
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
 
