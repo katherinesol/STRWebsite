@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react'
 import ParkingControl from '@/components/admin/ParkingControl'
 import StayLinkControl from '@/components/admin/StayLinkControl'
+import PropertyChangeBar from '@/components/admin/PropertyChangeBar'
 import { getCheckInDisplay, getCheckOutDisplay } from '@/lib/checkin-times'
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isToday, parseISO, isBefore, isAfter, isSameDay, addMonths, subMonths } from 'date-fns'
 import { useRouter } from 'next/navigation'
@@ -343,6 +344,7 @@ export default function CalendarView({ bookings, blocks }: { bookings: Booking[]
             {prop.id === 'royal-york-east' ? 'Royal York East Suite' :
              prop.id === 'royal-york-west' ? 'Royal York West Suite' : 'Nickel Beach Retreat'}
           </div>
+          <PropertyChangeBar propertyId={prop.id} />
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '1px', background: '#363634' }}>
             {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => (
               <div key={d} style={{ background: '#1E1E1C', padding: '4px 6px', fontSize: '9px', letterSpacing: '.1em', textTransform: 'uppercase', color: '#333330', textAlign: 'center' }}>{d}</div>

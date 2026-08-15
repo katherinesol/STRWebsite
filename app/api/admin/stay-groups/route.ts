@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { hasRole } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/server'
 import { extendCodeForStayGroup, extendParkingForStayGroup } from '@/lib/stay-groups'
+import { logCalendarActivity } from '@/lib/calendar-activity'
 
 // GET ?booking_id=&booking_kind=  → the stay group this booking belongs to (if any)
 export async function GET(request: NextRequest) {
@@ -76,6 +77,17 @@ export async function POST(request: NextRequest) {
   const codeResult = await extendCodeForStayGroup(groupId).catch((e: any) => ({ ok: false, note: e.message }))
   // extend parking lane (if any) to the full stay
   const parkingResult = await extendParkingForStayGroup(groupId).catch((e: any) => ({ ok: false, note: e.message }))
+
+  // log the extension for the calendar change-feed
+  const auth = await (await import('@/lib/auth')).getAuth()
+  await logCalendarActivity({
+    propertyId: property_id || '',
+    eventType: 'extended',
+    description: `${guest_name || 'Guest'} prolonged their stay` + ((codeResult as any)?.range?.end ? ` (→ ${(codeResult as any).range.end})` : ''),
+    bookingId: extension_id, bookingKind: extension_kind,
+    guestName: guest_name || null,
+    actorId: auth.ok ? auth.userId : null, actorName: auth.ok ? auth.name : null,
+  })
 
   return NextResponse.json({ ok: true, group_id: groupId, code: codeResult, parking: parkingResult })
 }

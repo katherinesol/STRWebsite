@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { hasRole, getAuth } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/server'
+import { logCalendarActivity } from '@/lib/calendar-activity'
 
 // STEP 1 (check): POST with { booking, check: true } → returns overlap warnings, does NOT write.
 // STEP 2 (commit): POST with { booking } → writes guest + calendar_blocks row.
@@ -112,6 +113,13 @@ export async function POST(request: NextRequest) {
     const { error: uerr } = await supabase.from('calendar_blocks').update(upd).eq('id', update_id)
     if (uerr) return NextResponse.json({ error: uerr.message }, { status: 500 })
     await logHostFeeExpense(supabase, booking, update_id)
+    await logCalendarActivity({
+      propertyId: booking.property_id,
+      eventType: 'new_booking',
+      description: `Booking details added · ${booking.guest_name || 'Guest'} · ${booking.check_in} → ${booking.check_out}` + (booking.platform ? ` (${booking.platform})` : ''),
+      bookingId: update_id, bookingKind: 'platform', guestName: booking.guest_name || null,
+      actorId: auth.ok ? auth.userId : null, actorName: auth.ok ? auth.name : null,
+    })
     try {
       await supabase.from('haussy_log').insert({
         user_id: auth.ok ? auth.userId : null, user_role: auth.ok ? auth.role : 'owner',
@@ -144,6 +152,13 @@ export async function POST(request: NextRequest) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   await logHostFeeExpense(supabase, booking, created?.id || '')
+  await logCalendarActivity({
+    propertyId: booking.property_id,
+    eventType: 'new_booking',
+    description: `New booking · ${booking.guest_name || 'Guest'} · ${booking.check_in} → ${booking.check_out}` + (booking.platform ? ` (${booking.platform})` : ''),
+    bookingId: created?.id, bookingKind: 'platform', guestName: booking.guest_name || null,
+    actorId: auth.ok ? auth.userId : null, actorName: auth.ok ? auth.name : null,
+  })
 
   // audit
   try {

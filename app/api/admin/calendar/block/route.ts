@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
+import { logCalendarActivity } from '@/lib/calendar-activity'
 import { getAuth, hasRole } from '@/lib/auth'
 
 export async function POST(request: NextRequest) {
@@ -49,5 +50,13 @@ export async function POST(request: NextRequest) {
     notes: notes || null,
   })
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  await logCalendarActivity({
+    propertyId: property_id,
+    eventType: 'block_added',
+    description: `Dates blocked ${start_date} → ${end_date}` + (block_for === 'friends-family' && block_for_name ? ` (${block_for_name})` : ''),
+    actorId: auth.ok ? auth.userId : null, actorName: auth.ok ? auth.name : null,
+  })
+
   return NextResponse.json({ ok: true })
 }

@@ -4,6 +4,7 @@ import { chooseGuestCode } from '@/lib/lock-codes'
 import { createAdminClient } from '@/lib/supabase/server'
 import { differenceInDays } from 'date-fns'
 import { isAuthed } from '@/lib/auth'
+import { logCalendarActivity } from '@/lib/calendar-activity'
 
 
 export async function POST(request: NextRequest) {
@@ -58,6 +59,14 @@ export async function POST(request: NextRequest) {
   }).select('id').single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  await logCalendarActivity({
+    propertyId: property_id,
+    eventType: 'new_booking',
+    description: `New booking · ${guest_name || 'Guest'} · ${check_in} → ${check_out}` + (platform ? ` (${platform})` : ''),
+    bookingId: booking?.id, bookingKind: 'direct',
+    guestName: guest_name || null,
+  })
 
   // program the door code onto every lock for this property
   let lockResult: any = null
