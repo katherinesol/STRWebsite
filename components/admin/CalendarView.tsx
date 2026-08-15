@@ -377,13 +377,15 @@ export default function CalendarView({ bookings, blocks }: { bookings: Booking[]
 
               return (
                 <div key={day.toISOString()} style={{
-                  background: today ? '#2a2416' : isOccupied ? '#0a1520' : isBlocked ? '#1f1a10' : '#242422',
+                  background: isOccupied ? '#0a1520' : isBlocked ? '#1f1a10' : '#242422',
                   minHeight: '84px', padding: '6px 8px',
-                  border: today ? '1.5px solid var(--amber)' : '1.5px solid transparent',
+                  border: '1.5px solid transparent',
                   position: 'relative',
                 }}>
-                  <div style={{ fontSize: '13px', color: today ? prop.color : isSameMonth(day, currentMonth) ? '#888880' : '#333330', marginBottom: '4px', fontWeight: today ? 600 : 400 }}>
-                    {format(day, 'd')}
+                  <div style={{ fontSize: '13px', color: today ? '#242422' : isSameMonth(day, currentMonth) ? '#888880' : '#333330', marginBottom: '4px', fontWeight: today ? 600 : 400 }}>
+                    {today
+                      ? <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '22px', height: '22px', borderRadius: '50%', background: 'var(--amber)', color: '#242422', fontWeight: 700 }}>{format(day, 'd')}</span>
+                      : format(day, 'd')}
                     {turnover && (
                       <span style={{ display: 'block', marginTop: '2px', fontSize: '8px', fontWeight: 600, padding: '1px 4px', borderRadius: '3px', letterSpacing: '.02em',
                         background: turnover.tight ? '#3a1a1a' : '#1a2a1a', color: turnover.tight ? '#e57373' : '#7bc47b' }}>

@@ -42,7 +42,11 @@ export async function POST(request: NextRequest) {
   "commission": number or null,
   "payment_processing_fee": number or null,
   "taxes_platform_remits": number or null,
-  "confirmation_code": "or null"
+  "confirmation_code": "or null",
+  "completeness": {
+    "missing": ["list of important things NOT visible that you'd need for a full record — e.g. 'host payout screenshot (to get the host service fee)', 'tax line', 'payment amount'"],
+    "warnings": ["list of things that look off or inconsistent — e.g. 'nights x rate does not equal accommodation', 'guest total does not match line items'"]
+  }
 }
 Rules:
 - Today's date is ${new Date().toISOString().split('T')[0]}. If a screenshot shows dates WITHOUT a year, assume the current year or the nearest UPCOMING occurrence — never a past year. A booking should almost never be in the past.
@@ -64,7 +68,15 @@ Rules:
 - occupancy_taxes = occupancy/lodging taxes collected from the guest (this is taxes_collected too if not separately shown).
 - accommodation = subtotal for the stay before fees/taxes.
 - guest_total = what the guest paid total. payout_amount = what the host receives.
-- Use null for anything not visible. Do not guess or invent numbers.`
+- Use null for anything not visible. Do not guess or invent numbers.
+
+COMPLETENESS CHECK (fill the "completeness" field):
+- If this is an AIRBNB booking and you only see the GUEST total (with "Airbnb extended cancellation" or guest-side view) but NOT the host payout view showing "Host service fee", add to missing: "host payout screenshot — needed for the real host service fee (15.5%)".
+- If accommodation is present but nights x nightly_rate does NOT roughly equal it (within a dollar), add to warnings: "nights x rate does not match accommodation — check for a misread".
+- If a payout_amount or guest_total is given but the line items (accommodation + cleaning + taxes - commission) don't reconcile to it, add to warnings describing the mismatch.
+- If check-in/out dates are present but nights is null or inconsistent with the date range, add a warning.
+- If a tax amount is expected (Airbnb/VRBO usually collect tax) but none is visible, add to missing: "tax line".
+- If nothing is missing or off, return empty arrays for both. Be genuinely helpful — flag real gaps, don't nitpick.`
 
   try {
     const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })

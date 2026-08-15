@@ -220,6 +220,17 @@ export default function HaussyPage() {
       {draftBooking && (
         <div style={{ background: '#242422', border: '0.5px solid #4a3f1f', borderRadius: '8px', padding: '16px', marginBottom: '10px' }}>
           <div style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '.1em', color: 'var(--amber)', marginBottom: '12px' }}>Review booking — nothing saves until you confirm</div>
+          {(draftBooking.completeness?.missing?.length > 0 || draftBooking.completeness?.warnings?.length > 0) && (
+            <div style={{ background: '#2a2416', border: '0.5px solid #4a3f1f', borderRadius: '6px', padding: '10px 12px', marginBottom: '12px' }}>
+              <div style={{ fontSize: '11px', color: '#e6a86a', fontWeight: 600, marginBottom: '6px' }}>⚠ Heads up before you save</div>
+              {(draftBooking.completeness?.missing || []).map((m: string, i: number) => (
+                <div key={'m'+i} style={{ fontSize: '11px', color: '#c9a24a', lineHeight: 1.5 }}>• Missing: {m}</div>
+              ))}
+              {(draftBooking.completeness?.warnings || []).map((w: string, i: number) => (
+                <div key={'w'+i} style={{ fontSize: '11px', color: '#e57373', lineHeight: 1.5 }}>• {w}</div>
+              ))}
+            </div>
+          )}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', fontSize: '12px' }}>
             <select value={draftBooking.property_id} onChange={e => bset({ property_id: e.target.value })} style={{ gridColumn: '1 / -1', padding: '8px', background: '#363634', border: '0.5px solid #4A4A48', color: '#F0EDE6', borderRadius: '3px' }}>
               <option value="">Select property…</option>
