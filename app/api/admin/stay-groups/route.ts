@@ -18,7 +18,25 @@ export async function GET(request: NextRequest) {
 
   const { data: group } = await supabase.from('stay_groups').select('*').eq('id', member.group_id).maybeSingle()
   const { data: members } = await supabase.from('stay_group_members').select('*').eq('group_id', member.group_id)
-  return NextResponse.json({ group, members: members || [] })
+
+  // enrich each member with its booking's dates/platform/guest so the UI can show each portion
+  const enriched = []
+  for (const m of members || []) {
+    let start = null, end = null, platform = null, guest = null
+    if (m.booking_kind === 'direct') {
+      const { data: b } = await supabase.from('bookings').select('check_in, check_out, guest_info').eq('id', m.booking_id).maybeSingle()
+      if (b) { start = b.check_in; end = b.check_out; platform = 'direct'; guest = Array.isArray(b.guest_info) ? b.guest_info[0]?.name : b.guest_info?.name }
+    } else {
+      const { data: b } = await supabase.from('calendar_blocks').select('start_date, end_date, platform, guest_name').eq('id', m.booking_id).maybeSingle()
+      if (b) { start = b.start_date; end = b.end_date; platform = b.platform; guest = b.guest_name }
+    }
+    enriched.push({ ...m, start, end, platform, guest })
+  }
+  // auto-label by date: earliest = original, later = extension (display role, overridable)
+  const sorted = [...enriched].sort((a, b) => (a.start || '').localeCompare(b.start || ''))
+  sorted.forEach((m, i) => { (m as any).auto_role = i === 0 ? 'original' : 'extension' })
+
+  return NextResponse.json({ group, members: enriched, ordered: sorted })
 }
 
 // POST link an extension to an original: { original_id, original_kind, extension_id, extension_kind, property_id, guest_name }

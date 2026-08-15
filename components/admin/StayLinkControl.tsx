@@ -6,6 +6,7 @@ export default function StayLinkControl({ bookingId, bookingKind, propertyId, gu
 }) {
   const [group, setGroup] = useState<any>(null)
   const [members, setMembers] = useState<any[]>([])
+  const [swapped, setSwapped] = useState(false)
   const [candidates, setCandidates] = useState<any[]>([])
   const [picking, setPicking] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -13,7 +14,7 @@ export default function StayLinkControl({ bookingId, bookingKind, propertyId, gu
 
   function loadGroup() {
     fetch(`/api/admin/stay-groups?booking_id=${bookingId}&booking_kind=${bookingKind}`)
-      .then(r => r.json()).then(d => { setGroup(d.group || null); setMembers(d.members || []) }).catch(() => {})
+      .then(r => r.json()).then(d => { setGroup(d.group || null); setMembers(d.ordered || d.members || []) }).catch(() => {})
   }
   useEffect(() => { loadGroup() }, [bookingId])
 
@@ -76,23 +77,37 @@ export default function StayLinkControl({ bookingId, bookingKind, propertyId, gu
         )
       ) : (
         <div>
-          <p style={{ fontSize: '11px', color: '#7bc47b', margin: '0 0 10px' }}>Linked ({members.length} bookings, one occupancy).</p>
-          <div style={{ fontSize: '10px', color: '#9A9A92', marginBottom: '6px' }}>Tax treatment per booking:</div>
-          {members.map((m: any) => (
-            <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px', fontSize: '11px' }}>
-              <span style={{ color: '#888880', minWidth: '60px' }}>{m.role}</span>
-              <label style={{ color: '#F0EDE6' }}>MAT
-                <select value={m.mat_treatment || 'include'} onChange={e => setTax(m.id, 'mat_treatment', e.target.value)} style={{ marginLeft: '4px', padding: '2px 6px', background: '#242422', border: '0.5px solid #4A4A48', color: '#F0EDE6', fontSize: '11px', borderRadius: '4px' }}>
-                  <option value="include">include</option><option value="exempt">exempt</option>
-                </select>
-              </label>
-              <label style={{ color: '#F0EDE6' }}>HST
-                <select value={m.hst_treatment || 'include'} onChange={e => setTax(m.id, 'hst_treatment', e.target.value)} style={{ marginLeft: '4px', padding: '2px 6px', background: '#242422', border: '0.5px solid #4A4A48', color: '#F0EDE6', fontSize: '11px', borderRadius: '4px' }}>
-                  <option value="include">include</option><option value="exempt">exempt</option>
-                </select>
-              </label>
-            </div>
-          ))}
+          {(() => {
+            const range = members.length ? `${members[0]?.start} → ${members[members.length-1]?.end}` : ''
+            return <p style={{ fontSize: '11px', color: '#7bc47b', margin: '0 0 10px' }}>Linked · {members.length} bookings, one continuous occupancy · {range}</p>
+          })()}
+          <div style={{ fontSize: '10px', color: '#9A9A92', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '.04em' }}>Tax treatment per portion</div>
+          {members.map((m: any, idx: number) => {
+            const role = swapped ? (m.auto_role === 'original' ? 'extension' : 'original') : (m.auto_role || m.role)
+            const isOrig = role === 'original'
+            return (
+              <div key={m.id} style={{ background: '#242422', borderRadius: '8px', padding: '10px 12px', marginBottom: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                  <span style={{ fontSize: '10px', fontWeight: 600, color: isOrig ? '#c9a24a' : '#7bc47b', background: isOrig ? '#2a2416' : '#16281a', padding: '2px 7px', borderRadius: '4px' }}>{isOrig ? 'ORIGINAL' : 'EXTENSION'}</span>
+                  <span style={{ fontSize: '12px', color: '#F0EDE6' }}>{m.guest || 'Guest'} · {m.start} → {m.end}</span>
+                  <span style={{ fontSize: '11px', color: '#888880' }}>{m.platform || 'direct'}</span>
+                  {members.length === 2 && idx === 0 && <span onClick={() => setSwapped(s => !s)} style={{ fontSize: '10px', color: '#9A9A92', cursor: 'pointer', marginLeft: 'auto' }}>↔ swap</span>}
+                </div>
+                <div style={{ display: 'flex', gap: '14px', fontSize: '11px' }}>
+                  <label style={{ color: '#9A9A92' }}>MAT
+                    <select value={m.mat_treatment || 'include'} onChange={e => setTax(m.id, 'mat_treatment', e.target.value)} style={{ marginLeft: '4px', padding: '2px 6px', background: '#1E1E1C', border: '0.5px solid #4A4A48', color: '#F0EDE6', fontSize: '11px', borderRadius: '4px' }}>
+                      <option value="include">include</option><option value="exempt">exempt</option>
+                    </select>
+                  </label>
+                  <label style={{ color: '#9A9A92' }}>HST
+                    <select value={m.hst_treatment || 'include'} onChange={e => setTax(m.id, 'hst_treatment', e.target.value)} style={{ marginLeft: '4px', padding: '2px 6px', background: '#1E1E1C', border: '0.5px solid #4A4A48', color: '#F0EDE6', fontSize: '11px', borderRadius: '4px' }}>
+                      <option value="include">include</option><option value="exempt">exempt</option>
+                    </select>
+                  </label>
+                </div>
+              </div>
+            )
+          })}
         </div>
       )}
       {msg && <div style={{ fontSize: '11px', color: msg.includes('Linked') ? '#7bc47b' : '#e6a86a', marginTop: '8px' }}>{msg}</div>}
