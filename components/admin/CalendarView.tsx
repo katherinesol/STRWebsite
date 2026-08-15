@@ -377,9 +377,9 @@ export default function CalendarView({ bookings, blocks }: { bookings: Booking[]
 
               return (
                 <div key={day.toISOString()} style={{
-                  background: isOccupied ? '#0a1520' : isBlocked ? '#1f1a10' : '#242422',
+                  background: today ? '#2a2416' : isOccupied ? '#0a1520' : isBlocked ? '#1f1a10' : '#242422',
                   minHeight: '84px', padding: '6px 8px',
-                  borderTop: today ? `2px solid ${prop.color}` : '2px solid transparent',
+                  border: today ? '1.5px solid var(--amber)' : '1.5px solid transparent',
                   position: 'relative',
                 }}>
                   <div style={{ fontSize: '13px', color: today ? prop.color : isSameMonth(day, currentMonth) ? '#888880' : '#333330', marginBottom: '4px', fontWeight: today ? 600 : 400 }}>

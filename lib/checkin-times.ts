@@ -54,8 +54,11 @@ function to24(t: string): string {
 }
 
 function resolve(flag: boolean, time: string | null, granted: boolean | null, def: string): TimeDisplay {
+  // compare in 24h so a standard time stored as "11:00 AM" isn't mistaken for a request vs "11:00"
+  const isNonStandard = time ? to24(time) !== def : false
   if (time && granted) return { time: fmt(time), raw: time, state: 'granted', is24: to24(time) }
-  if (time && (flag || time !== def)) return { time: fmt(time), raw: time, state: 'pending', is24: to24(time) }
+  // only "pending" (shows "req") when it's genuinely a non-standard time AND not yet granted
+  if (time && (flag || isNonStandard) && isNonStandard) return { time: fmt(time), raw: time, state: 'pending', is24: to24(time) }
   return { time: fmt(def), raw: def, state: 'default', is24: def }
 }
 
