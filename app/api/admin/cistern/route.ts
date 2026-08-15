@@ -6,47 +6,22 @@ import { isAuthed } from '@/lib/auth'
 
 export async function GET() {
   if (!await isAuthed()) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
-  const token = process.env.PTDEVICES_TOKEN
-  const deviceId = process.env.PTDEVICES_CISTERN_DEVICE_ID
-  if (!token || !deviceId) {
-    return NextResponse.json({ error: 'Cistern monitoring not configured' }, { status: 503 })
+  // Shared getCisternLevel runs auto-delivery detection on this dashboard fetch too.
+  const level = await getCisternLevel(false)
+  if (!level || (level.percent == null && level.rawPercent == null)) {
+    return NextResponse.json({ error: 'Cistern unreachable' }, { status: 502 })
   }
-
-  const supabase = createAdminClient()
-  const { data: cal } = await supabase.from('cistern_calibration').select('*').eq('id', 'default').maybeSingle()
-  const fullPoint = Number(cal?.full_point ?? 100)
-  const emptyPoint = Number(cal?.empty_point ?? 0)
-  const lowThreshold = Number(cal?.low_threshold ?? 25)
-
-  try {
-    const res = await fetch(
-      `https://api.ptdevices.com/token/v1/device/${deviceId}?api_token=${token}`,
-      { next: { revalidate: 300 } }
-    )
-    if (!res.ok) return NextResponse.json({ error: 'PTDevices unreachable' }, { status: 502 })
-    const json = await res.json()
-    const d = json.data
-    const raw = d?.device_data?.percent_level ?? null
-
-    // apply calibration
-    let calibrated: number | null = null
-    if (raw != null && fullPoint > emptyPoint) {
-      calibrated = Math.round(Math.max(0, Math.min(100, ((raw - emptyPoint) / (fullPoint - emptyPoint)) * 100)))
-    }
-
-    return NextResponse.json({
-      rawPercent: raw,
-      percent: calibrated,
-      fullPoint, emptyPoint, lowThreshold,
-      battery: d?.device_data?.battery_status ?? null,
-      status: d?.status ?? null,
-      reported: d?.reported ?? null,
-      title: d?.title ?? 'Cistern',
-    })
-  } catch {
-    return NextResponse.json({ error: 'Fetch failed' }, { status: 500 })
-  }
+  return NextResponse.json({
+    rawPercent: level.rawPercent,
+    percent: level.percent,
+    fullPoint: level.fullPoint,
+    emptyPoint: level.emptyPoint,
+    lowThreshold: level.lowThreshold,
+    battery: level.battery ?? null,
+    status: level.status ?? null,
+    reported: level.reported ?? null,
+    title: level.title ?? 'Cistern',
+  })
 }
 
 // save calibration
