@@ -47,7 +47,7 @@ export default function GuestHub({ propertyId, propertyName, data }: { propertyI
           </>
         )}
 
-        {view === 'guide' && <SubPage title="House Guide" onBack={() => setView('home')}><p style={placeholder}>House guide content coming soon — Wi-Fi, check-out instructions, and how everything works.</p></SubPage>}
+        {view === 'guide' && <SubPage title="House Guide" onBack={() => setView('home')}><GuideViewer propertyId={propertyId} /></SubPage>}
         {view === 'recs' && <SubPage title="Local Recommendations" onBack={() => setView('home')}><p style={placeholder}>Local recommendations coming soon — dining, coffee, and things to do nearby.</p></SubPage>}
       </div>
     </div>
