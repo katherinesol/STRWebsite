@@ -8,15 +8,18 @@ async function loadGroupBookings(groupId: string) {
   const out: any[] = []
   for (const m of members || []) {
     if (m.booking_kind === 'direct') {
+      // note: `bookings` has the early_checkin/late_checkout flags; calendar_blocks does not
       const { data: b } = await supabase.from('bookings')
-        .select('id, property_id, check_in, check_out, lock_code, early_checkin_time, late_checkout_time, guest_info')
+        .select('id, property_id, check_in, check_out, lock_code, early_checkin, early_checkin_time, early_checkin_granted, late_checkout, late_checkout_time, late_checkout_granted')
         .eq('id', m.booking_id).maybeSingle()
-      if (b) out.push({ member: m, start: b.check_in, end: b.check_out, code: b.lock_code, property_id: b.property_id, platform: 'direct', inTime: b.early_checkin_time, outTime: b.late_checkout_time })
+      if (b) out.push({ member: m, start: b.check_in, end: b.check_out, code: b.lock_code, property_id: b.property_id, platform: 'direct', inTime: b.early_checkin_time, outTime: b.late_checkout_time, raw: b })
     } else {
+      // calendar_blocks stores the code as door_code (bookings uses lock_code) — selecting
+      // lock_code here made this whole query error out, so platform stay groups loaded as empty.
       const { data: b } = await supabase.from('calendar_blocks')
-        .select('id, property_id, start_date, end_date, lock_code, platform, early_checkin_time, late_checkout_time, guest_name')
+        .select('id, property_id, start_date, end_date, door_code, platform, early_checkin_time, early_checkin_granted, late_checkout_time, late_checkout_granted, guest_name')
         .eq('id', m.booking_id).maybeSingle()
-      if (b) out.push({ member: m, start: b.start_date, end: b.end_date, code: b.lock_code, property_id: b.property_id, platform: b.platform || 'manual', inTime: b.early_checkin_time, outTime: b.late_checkout_time })
+      if (b) out.push({ member: m, start: b.start_date, end: b.end_date, code: b.door_code, property_id: b.property_id, platform: b.platform || 'manual', inTime: b.early_checkin_time, outTime: b.late_checkout_time, raw: b })
     }
   }
   return out
@@ -77,6 +80,46 @@ export async function fullStayRange(bookingId: string, bookingKind: string): Pro
   const starts = bookings.map(b => b.start).filter(Boolean).sort()
   const ends = bookings.map(b => b.end).filter(Boolean).sort()
   return { start: starts[0], end: ends[ends.length - 1] }
+}
+
+
+export function nightsBetween(start: string, end: string): number {
+  const a = Date.parse(`${start}T00:00:00Z`), b = Date.parse(`${end}T00:00:00Z`)
+  if (isNaN(a) || isNaN(b)) return 0
+  return Math.max(0, Math.round((b - a) / 86400000))
+}
+
+// Like fullStayRange, but also returns the boundary bookings so callers can read the
+// real check-in / checkout TIMES for a linked stay: check-in comes from the segment that
+// starts first, checkout from the segment that ends last. Null if the booking isn't linked.
+export type StayBookingRow = Record<string, unknown>
+
+export async function fullStayContext(bookingId: string, bookingKind: string): Promise<{
+  start: string; end: string; nights: number
+  firstBooking: StayBookingRow; lastBooking: StayBookingRow
+  segments: { platform: string; start: string; end: string }[]
+} | null> {
+  const supabase = createAdminClient()
+  const { data: member } = await supabase.from('stay_group_members')
+    .select('group_id').eq('booking_id', bookingId).eq('booking_kind', bookingKind).maybeSingle()
+  if (!member) return null
+  const bookings = await loadGroupBookings(member.group_id)
+  if (bookings.length < 2) return null   // a group of one is not a linked stay
+
+  const byStart = [...bookings].filter(b => b.start).sort((a, b) => a.start.localeCompare(b.start))
+  const byEnd = [...bookings].filter(b => b.end).sort((a, b) => a.end.localeCompare(b.end))
+  if (!byStart.length || !byEnd.length) return null
+
+  const first = byStart[0]
+  const last = byEnd[byEnd.length - 1]
+  return {
+    start: first.start,
+    end: last.end,
+    nights: nightsBetween(first.start, last.end),
+    firstBooking: first.raw,
+    lastBooking: last.raw,
+    segments: byStart.map(b => ({ platform: b.platform, start: b.start, end: b.end })),
+  }
 }
 
 

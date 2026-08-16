@@ -162,3 +162,18 @@ alter table reviews enable row level security;
 alter table access_codes enable row level security;
 alter table referrals enable row level security;
 alter table admin_settings enable row level security;
+
+-- Direct-booking leads captured from the guest hub ("Until next time" form).
+create table direct_booking_leads (
+  id uuid primary key default gen_random_uuid(),
+  property_id text not null,
+  name text,
+  email text not null,
+  phone text,
+  created_at timestamptz default now(),
+  unique (property_id, email)
+);
+
+create index on direct_booking_leads (property_id, created_at desc);
+
+alter table direct_booking_leads enable row level security;

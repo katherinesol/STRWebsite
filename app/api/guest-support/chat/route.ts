@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { createAdminClient } from '@/lib/supabase/server'
 import { sendEscalationAlert } from '@/lib/email'
+import { fullStayContext, nightsBetween } from '@/lib/stay-groups'
+import { getCheckInDisplay, getCheckOutDisplay } from '@/lib/checkin-times'
+import { PROPERTIES } from '@/lib/properties'
 
 const BRAND = 'Zuhaus'  // guest-facing concierge brand — change here when finalized
 
@@ -19,24 +22,44 @@ export async function POST(request: NextRequest) {
   let booking: any = null
   if (source === 'direct') {
     const { data } = await supabase.from('bookings')
-      .select('id, property_id, check_in, check_out, confirmation_code, lock_code, total, deposit_amount, deposit_paid_at, final_payment_amount, final_paid_at, guest:guests(name)')
+      .select('id, property_id, check_in, check_out, confirmation_code, lock_code, total, deposit_amount, deposit_paid_at, final_payment_amount, final_paid_at, early_checkin, early_checkin_time, early_checkin_granted, late_checkout, late_checkout_time, late_checkout_granted, guest:guests(name)')
       .eq('id', booking_id).ilike('confirmation_code', codeUp).maybeSingle()
     if (data) booking = {
       property_id: data.property_id, guest_name: (data.guest as any)?.name,
       check_in: data.check_in, check_out: data.check_out, door_code: data.lock_code,
       payment: `Total $${data.total ?? '?'}. Deposit ${data.deposit_paid_at ? 'paid' : 'pending'}. Final payment ${data.final_paid_at ? 'paid' : 'pending'}.`,
+      row: data,
     }
   } else {
     const { data } = await supabase.from('calendar_blocks')
-      .select('id, property_id, start_date, end_date, confirmation_code, door_code, guest_name, guest_total')
+      .select('id, property_id, start_date, end_date, confirmation_code, door_code, guest_name, guest_total, early_checkin_time, early_checkin_granted, late_checkout_time, late_checkout_granted')
       .eq('id', booking_id).ilike('confirmation_code', codeUp).maybeSingle()
     if (data) booking = {
       property_id: data.property_id, guest_name: data.guest_name,
       check_in: data.start_date, check_out: data.end_date, door_code: data.door_code,
       payment: 'Your booking was made and paid through the platform (Airbnb/VRBO).',
+      row: data,
     }
   }
   if (!booking) return NextResponse.json({ error: 'Verification expired. Please re-enter your code.' }, { status: 403 })
+
+  // LINKED STAYS: an extension is a separate booking row, so a guest who extended would
+  // otherwise be told the ORIGINAL booking's checkout date — sending them home early.
+  // When linked, report the full occupancy: earliest check-in → latest checkout.
+  const linked = await fullStayContext(booking_id, source === 'direct' ? 'direct' : 'platform').catch(() => null)
+
+  const stayStart = linked?.start || booking.check_in
+  const stayEnd = linked?.end || booking.check_out
+  const stayNights = linked?.nights ?? nightsBetween(booking.check_in, booking.check_out)
+  // check-in time comes from the segment that starts first, checkout from the one that ends last
+  const inRow = linked?.firstBooking || booking.row
+  const outRow = linked?.lastBooking || booking.row
+  const checkInTime = getCheckInDisplay(inRow)
+  const checkOutTime = getCheckOutDisplay(outRow)
+
+  const stayLine = linked
+    ? `${stayStart} → ${stayEnd} (${stayNights} night${stayNights === 1 ? '' : 's'}) — ONE CONTINUOUS STAY spanning ${linked.segments.length} linked bookings: ${linked.segments.map(s => `${s.platform} ${s.start}→${s.end}`).join(', ')}. Treat this as a single stay. Their real checkout is ${stayEnd}.`
+    : `${stayStart} → ${stayEnd} (${stayNights} night${stayNights === 1 ? '' : 's'})`
 
   // RATE LIMIT: cap guest messages per hour per booking (abuse/cost protection)
   const HOUR_LIMIT = 40
@@ -56,6 +79,23 @@ export async function POST(request: NextRequest) {
     .or(`property_id.eq.${booking.property_id},property_id.eq.general`)
   const knowledge = (kb || []).map(k => `[${k.topic}] ${k.title}: ${k.content}`).join('\n')
 
+  // Static property profile — the knowledge base is thin for some properties, so this
+  // makes address-adjacent basics, amenities, rules and FAQ answerable without escalating.
+  const prop = PROPERTIES[booking.property_id]
+  const profile = prop ? [
+    `Name: ${prop.name} — ${prop.neighbourhood}, ${prop.city}`,
+    prop.address ? `Address: ${prop.address}` : `Address: not on file — if they ask for the street address, escalate rather than guessing.`,
+    `Layout: ${prop.beds} bedrooms, ${prop.baths} bath, sleeps up to ${prop.guests}`,
+    `Standard times: check-in ${prop.checkIn}, check-out ${prop.checkOut}`,
+    `Parking spots: ${prop.parkingSpots}`,
+    `About: ${prop.description}`,
+    `Amenities: ${prop.amenities.join(', ')}`,
+    `Highlights: ${prop.highlights.join(', ')}`,
+    `House rules: ${prop.houseRules.join('; ')}`,
+    `The area: ${prop.areaDescription}`,
+    ...prop.faq.map(f => `FAQ — Q: ${f.q} A: ${f.a}`),
+  ].join('\n') : ''
+
   const PROP_NAMES: Record<string, string> = { 'royal-york-east': 'Royal York East', 'royal-york-west': 'Royal York West', 'nickel-beach': 'Nickel Beach Retreat' }
   const first = (booking.guest_name || '').split(' ')[0]
 
@@ -63,16 +103,23 @@ export async function POST(request: NextRequest) {
 
 THEIR BOOKING:
 - Guest: ${booking.guest_name || 'Guest'}
-- Check-in: ${booking.check_in} / Check-out: ${booking.check_out}
+- Stay: ${stayLine}
+- Check-in time: ${checkInTime.time}${checkInTime.state === 'granted' ? ' (custom early check-in — confirmed for them)' : checkInTime.state === 'pending' ? ' (requested, NOT yet confirmed — do not promise it)' : ' (standard)'}
+- Check-out time: ${checkOutTime.time}${checkOutTime.state === 'granted' ? ' (custom late check-out — confirmed for them)' : checkOutTime.state === 'pending' ? ' (requested, NOT yet confirmed — do not promise it)' : ' (standard)'}
 - Door code: ${booking.door_code || 'not yet set — let them know it will be provided closer to check-in'}
 - Payment: ${booking.payment}
 
-PROPERTY INFO (your knowledge base — the ONLY source for property facts):
+When they ask what day or time they check out, answer with the stay dates and times above — they are already correct for linked/extended stays. Never quote a checkout date from a single booking segment.
+
+PROPERTY PROFILE (authoritative — use freely for address-adjacent basics, amenities, layout, rules and FAQ):
+${profile || '(no property profile available)'}
+
+PROPERTY INFO (knowledge base — authoritative, and takes precedence over the profile above if they disagree):
 ${knowledge || '(no knowledge base entries yet)'}
 
 VOICE — Warm. Polished. Effortless:
 - Deliver facts as written in the property info — do not embellish, expand, or add descriptive colour to a factual answer. If the info says the mattresses are medium-firm, say exactly that and stop.
-- Lead with warmth, then function. ${first ? `Address them as ${first} naturally, once or twice — not every line.` : ''}
+- Lead with warmth, then function. ${first ? `NAME USE — be sparing: use ${first}'s name in your first greeting and then almost never again. Never more than once in a reply, never in consecutive replies, and never as a way to open a sentence mid-conversation. A reply with no name at all is the normal case.` : ''}
 
 SCOPE — you help ONLY with: the stay, the suite/property, and the local area. Nothing else. Always stay warm, calm, and gracious (never robotic, defensive, or scolding):
 - OFF-TOPIC (poems, trivia, homework, jokes, opinions, "write me X"): do NOT answer it, not even once. One warm brief redirect, then hold the boundary and keep replies SHORT.
@@ -98,7 +145,7 @@ REPLY IN THE SAME LANGUAGE THE GUEST WRITES IN. All the rules above apply in any
 
 RULES:
 - Share their own booking details freely (dates, door code, payment) — they are verified.
-- For property facts, use ONLY the knowledge base. If something is NOT in it, do NOT guess. Instead, tell them gracefully that you have passed it to the host who will follow up, and begin that exact sentence with the token [[ESCALATE]] (the system removes this token before the guest sees it). Example: "[[ESCALATE]]Let me check with your host on that and they will be in touch shortly."
+- For property facts, use ONLY the property profile and knowledge base above — but do use them fully, including the address, amenities, house rules and FAQ. Escalate only when the answer is genuinely absent from both. If something is NOT in either, do NOT guess. Instead, tell them gracefully that you have passed it to the host who will follow up, and begin that exact sentence with the token [[ESCALATE]] (the system removes this token before the guest sees it). Example: "[[ESCALATE]]Let me check with your host on that and they will be in touch shortly."
 - For urgent or safety issues (gas smell, leak, lockout, injury), tell them to contact the host immediately, and also begin with [[ESCALATE]].
 - Never reveal other guests' or other bookings' information.`
 
