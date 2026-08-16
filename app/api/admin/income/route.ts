@@ -14,7 +14,7 @@ export async function GET() {
 
   const { data: platform } = await supabase
     .from('calendar_blocks')
-    .select('id, property_id, start_date, end_date, guest_name, platform, accommodation, cleaning_fee, taxes_collected, payout_amount, commission, discount, hst, mat, extras, tax_note, payment_processing_fee')
+    .select('id, property_id, start_date, end_date, guest_name, platform, accommodation, cleaning_fee, taxes_collected, taxes_you_remit, taxes_platform_remits, payout_amount, commission, discount, hst, mat, extras, tax_note, payment_processing_fee')
     .eq('is_booking', true)
 
   const num = (v: any) => (v === null || v === undefined || v === '' ? null : Number(v))
@@ -57,6 +57,7 @@ export async function GET() {
       check_in: b.start_date, check_out: b.end_date,
       accommodation: acc, cleaning_fee: clean,
       hst, mat, taxes_total: taxes, tax_collected: num(b.taxes_collected),
+      taxes_you_remit: num(b.taxes_you_remit), taxes_platform_remits: num(b.taxes_platform_remits),
       host_fee: num(b.commission),
       processing_fee: num(b.payment_processing_fee),
       discount: num(b.discount),

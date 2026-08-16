@@ -87,7 +87,7 @@ export default function IncomePage() {
 
   function openEdit(r: any) {
     setEditId(editId === r.id ? null : r.id)
-    setForm({ tax_note: r.tax_note ?? '', tax_collected: r.tax_collected ?? '', processing_fee: r.processing_fee ?? '', accommodation: r.accommodation ?? '', cleaning_fee: r.cleaning_fee ?? '', extras: r.extras ?? '', discount: r.discount ?? '', hst: r.hst ?? '', mat: r.mat ?? '', host_fee: r.host_fee ?? '', payout: r.payout ?? '' })
+    setForm({ tax_note: r.tax_note ?? '', tax_collected: r.tax_collected ?? '', taxes_you_remit: r.taxes_you_remit ?? '', taxes_platform_remits: r.taxes_platform_remits ?? '', processing_fee: r.processing_fee ?? '', accommodation: r.accommodation ?? '', cleaning_fee: r.cleaning_fee ?? '', extras: r.extras ?? '', discount: r.discount ?? '', hst: r.hst ?? '', mat: r.mat ?? '', host_fee: r.host_fee ?? '', payout: r.payout ?? '' })
     const base = (Number(r.accommodation) || 0) + (Number(r.cleaning_fee) || 0) + (Number(r.extras) || 0) - (Number(r.discount) || 0)
     setCalcGross(base > 0 ? String(r2(base)) : (r.payout ?? ''))
     setLumpedTax(r.hst === null && r.mat === null && r.taxes_total ? String(r.taxes_total) : '')
@@ -145,9 +145,13 @@ export default function IncomePage() {
   function computedPayout() {
     const f = form
     const base = (Number(f.accommodation) || 0) + (Number(f.cleaning_fee) || 0) + (Number(f.extras) || 0) - (Number(f.discount) || 0)
-    const taxInPayout = f.tax_collected === '' || f.tax_collected === null || f.tax_collected === undefined
-      ? (Number(f.hst) || 0) + (Number(f.mat) || 0)
-      : Number(f.tax_collected) || 0
+    // The tax that lands in YOUR payout is the "taxes you remit" portion (not guest-side total,
+    // and not the platform-remitted portion which never touches your payout).
+    const taxInPayout = (Number(f.taxes_you_remit) || 0) > 0
+      ? Number(f.taxes_you_remit)
+      : (f.tax_collected === '' || f.tax_collected === null || f.tax_collected === undefined
+          ? (Number(f.hst) || 0) + (Number(f.mat) || 0)
+          : Number(f.tax_collected) || 0)
     return r2(base - (Number(f.host_fee) || 0) - (Number(f.processing_fee) || 0) + taxInPayout)
   }
 
