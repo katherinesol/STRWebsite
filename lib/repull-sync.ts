@@ -12,9 +12,9 @@ async function repullGet(path: string) {
 
 // map a Repull propertyId to your internal property_id (fill in as you connect listings)
 const PROPERTY_MAP: Record<string, string> = {
-  '23920': 'royal-york-east',
+  '23920': 'royal-york-west',   // Unit 2 — the operating suite
   '23919': 'nickel-beach',
-  // '?????': 'royal-york-west',  // connect West in Repull, then add its id here
+  // '?????': 'royal-york-east',  // Unit 1 — connect in Repull once it goes live, then add its id here
 }
 
 // pull all Repull conversations + their messages into conversations/messages

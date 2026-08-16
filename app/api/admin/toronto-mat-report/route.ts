@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
   const sp = request.nextUrl.searchParams
   const year = Number(sp.get('year')) || new Date().getFullYear()
   const quarter = (sp.get('quarter') || 'Q1').toUpperCase()
-  const property = sp.get('property') || 'royal-york-east'   // East or West — separate filings
+  const property = sp.get('property') || 'royal-york-west'   // Unit 2 (operating) by default — separate filings per unit
   // platform filter: comma list, e.g. "airbnb,vrbo" — default all three
   const platforms = (sp.get('platforms') || 'airbnb,vrbo,houfy').split(',').map(s => s.trim()).filter(Boolean)
 

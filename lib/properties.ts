@@ -15,6 +15,9 @@ export type Property = {
   name: string
   neighbourhood: string
   city: string
+  /** Full street address. Given to VERIFIED guests only (guest-support concierge);
+   *  never rendered on public marketing pages. Fill in per property. */
+  address?: string
   tagline: string
   description: string
   areaDescription: string
@@ -59,20 +62,20 @@ export const PROPERTIES: Record<string, Property> = {
     name: 'Royal York East Suite',
     neighbourhood: 'Mimico',
     city: 'Toronto, ON',
-    tagline: 'A beautifully appointed two-bedroom suite steps from the waterfront.',
-    description: "The Royal York East Suite is a thoughtfully designed two-bedroom retreat in the heart of Mimico. Fully stocked kitchen, high-speed WiFi, in-suite laundry, and keyless entry. Everything you need — nothing you don't.",
+    // Unit 1 — not yet operating. Address to be filled in when it goes live.
+    tagline: 'Spacious, stylish, and steps from the waterfront.',
+    description: "The Royal York East Suite mirrors its West counterpart in quality and design — a two-bedroom suite with everything thoughtfully stocked. In the same building as West, making it ideal for groups travelling together.",
     areaDescription: 'Mimico sits on the western waterfront of Toronto — walkable to the lake, Royal York GO Station, and a strong local dining scene. Easy access to downtown and the airport.',
     beds: 2, baths: 1, guests: 4,
     checkIn: '4:00 PM', checkOut: '11:00 AM', minStay: 2,
     nightly: 180, cleaningFee: 120, depositPercent: 10, securityDeposit: 500,
     amenities: ['High-speed WiFi', 'Fully stocked kitchen', 'In-suite washer & dryer', 'Keyless entry', 'Smart TV', 'Air conditioning', 'Heating', 'Iron & ironing board', 'Hair dryer', 'Workspace', 'Coffee maker', 'Dishwasher'],
-    highlights: ['2 min walk to Royal York GO Station', '5 min walk to Lake Ontario waterfront', 'Steps from local cafés and restaurants', 'Easy airport access via GO or QEW'],
+    highlights: ['2 min walk to Royal York GO Station', '5 min walk to Lake Ontario waterfront', 'Same building as Royal York West', 'Easy airport access via GO or QEW'],
     houseRules: ['No smoking on premises', 'No parties or events', 'Pets considered on request', 'Quiet hours 10pm – 8am', 'Guests must be 25 or older to book'],
     faq: [
-      { q: 'Is parking available?', a: 'One parking spot is included with this unit. Additional spots may be available on request.' },
+      { q: 'Is parking available?', a: 'One parking spot is included with this unit.' },
       { q: 'Can I check in early?', a: "Early check-in from 1pm is available when the unit is ready. Request at booking and we'll confirm the day before." },
-      { q: 'Is the suite suitable for infants?', a: 'Yes. A travel cot and high chair are available on request at no charge.' },
-      { q: 'Can I book the East and West suite together?', a: "Absolutely — they're in the same building. Book both for groups up to 8 guests." },
+      { q: 'Can I book East and West together?', a: "Yes — they're in the same building. Book both for groups up to 8 guests." },
     ],
     parkingSpots: 1, earlyCheckinAvailable: true, earliestCheckinTime: '10:00', latestCheckoutTime: '14:00', bagDropAvailable: true, instacartAvailable: true, instacartCutoffHours: 24,
     icalUrls: { airbnb: '', vrbo: '', houfy: '' },
@@ -96,19 +99,22 @@ export const PROPERTIES: Record<string, Property> = {
     name: 'Royal York West Suite',
     neighbourhood: 'Mimico',
     city: 'Toronto, ON',
-    tagline: 'Spacious, stylish, and steps from the waterfront.',
-    description: "The Royal York West Suite mirrors its East counterpart in quality and design — a two-bedroom suite with everything thoughtfully stocked. In the same building as East, making it ideal for groups travelling together.",
+    // Unit 2 — the operating suite.
+    address: '426 Royal York Rd, Unit 2, Etobicoke, ON M8Y 2R9',
+    tagline: 'A beautifully appointed two-bedroom suite steps from the waterfront.',
+    description: "The Royal York West Suite is a thoughtfully designed two-bedroom retreat in the heart of Mimico. Fully stocked kitchen, high-speed WiFi, in-suite laundry, and keyless entry. Everything you need — nothing you don't.",
     areaDescription: 'Mimico sits on the western waterfront of Toronto — walkable to the lake, Royal York GO Station, and a strong local dining scene. Easy access to downtown and the airport.',
     beds: 2, baths: 1, guests: 4,
     checkIn: '4:00 PM', checkOut: '11:00 AM', minStay: 2,
     nightly: 180, cleaningFee: 120, depositPercent: 10, securityDeposit: 500,
     amenities: ['High-speed WiFi', 'Fully stocked kitchen', 'In-suite washer & dryer', 'Keyless entry', 'Smart TV', 'Air conditioning', 'Heating', 'Iron & ironing board', 'Hair dryer', 'Workspace', 'Coffee maker', 'Dishwasher'],
-    highlights: ['2 min walk to Royal York GO Station', '5 min walk to Lake Ontario waterfront', 'Same building as Royal York East', 'Easy airport access via GO or QEW'],
+    highlights: ['2 min walk to Royal York GO Station', '5 min walk to Lake Ontario waterfront', 'Steps from local cafés and restaurants', 'Easy airport access via GO or QEW'],
     houseRules: ['No smoking on premises', 'No parties or events', 'Pets considered on request', 'Quiet hours 10pm – 8am', 'Guests must be 25 or older to book'],
     faq: [
-      { q: 'Is parking available?', a: 'One parking spot is included with this unit.' },
+      { q: 'Is parking available?', a: 'One parking spot is included with this unit. Additional spots may be available on request.' },
       { q: 'Can I check in early?', a: "Early check-in from 1pm is available when the unit is ready. Request at booking and we'll confirm the day before." },
-      { q: 'Can I book East and West together?', a: "Yes — they're in the same building. Book both for groups up to 8 guests." },
+      { q: 'Is the suite suitable for infants?', a: 'Yes. A travel cot and high chair are available on request at no charge.' },
+      { q: 'Can I book the East and West suite together?', a: "Absolutely — they're in the same building. Book both for groups up to 8 guests." },
     ],
     parkingSpots: 1, earlyCheckinAvailable: true, earliestCheckinTime: '10:00', latestCheckoutTime: '14:00', bagDropAvailable: true, instacartAvailable: true, instacartCutoffHours: 24,
     icalUrls: { airbnb: '', vrbo: '', houfy: '' },

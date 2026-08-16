@@ -7,6 +7,20 @@ const PROPERTY_NAMES: Record<string, string> = {
   'nickel-beach':    'Nickel Beach Retreat',
 }
 
+// LEGACY ALIAS — unit relabel migration, 2026-08-16.
+// Airbnb/VRBO/Houfy are still subscribed to the /royal-york-east feed URL, which
+// before the migration served the OPERATING suite. That suite is now royal-york-west.
+// We resolve the alias server-side and return 200 with the correct calendar rather
+// than issuing a 3xx: a platform that did not follow the redirect would silently
+// stop importing blocked dates and cause double bookings.
+//
+// REMOVE once all three platforms are re-registered on the -west URL, and in any
+// case BEFORE Unit 1 (royal-york-east) goes live — while this alias exists, Unit 1
+// cannot serve its own calendar.
+const LEGACY_ALIASES: Record<string, string> = {
+  'royal-york-east': 'royal-york-west',
+}
+
 function formatICalDate(dateStr: string): string {
   return dateStr.replace(/-/g, '')
 }
@@ -19,7 +33,7 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ propertyId: string }> }
 ) {
-  const { propertyId } = await params
+  const { propertyId: requestedId } = await params
   const { searchParams } = new URL(request.url)
   const token = searchParams.get('token')
 
@@ -27,6 +41,10 @@ export async function GET(
   if (!token || token !== process.env.ICAL_SECRET) {
     return new NextResponse('Unauthorized', { status: 401 })
   }
+
+  // resolve any legacy alias before touching the database
+  const propertyId = LEGACY_ALIASES[requestedId] ?? requestedId
+  const aliased = propertyId !== requestedId
 
   if (!PROPERTY_NAMES[propertyId]) {
     return new NextResponse('Property not found', { status: 404 })
@@ -99,6 +117,9 @@ export async function GET(
       'Content-Type': 'text/calendar; charset=utf-8',
       'Content-Disposition': `attachment; filename="${propertyId}.ics"`,
       'Cache-Control': 'no-cache',
+      // surfaces the alias without breaking any client; lets us confirm which
+      // platforms are still on the old URL by watching for this header
+      ...(aliased ? { 'X-Calendar-Alias': `${requestedId} -> ${propertyId}` } : {}),
     },
   })
 }

@@ -17,7 +17,7 @@ function defaultQuarter() {
 
 export default function TorontoMatPage() {
   const dq = defaultQuarter()
-  const [property, setProperty] = useState('royal-york-east')
+  const [property, setProperty] = useState('royal-york-west')   // Unit 2 — the operating suite
   const [year, setYear] = useState(dq.year)
   const [quarter, setQuarter] = useState(dq.quarter)
   const [platforms, setPlatforms] = useState<string[]>([...PLATFORMS])

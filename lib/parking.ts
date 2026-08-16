@@ -4,9 +4,10 @@ export const LANES = { 1: 'Wooden fence', 2: 'Metal fence' } as const
 export type LaneId = 1 | 2
 
 // soft preferences by unit
+// Unit 2 / West is the operating suite and uses the WOODEN lane.
 const PREFERENCE: Record<string, LaneId | null> = {
-  'royal-york-east': 1,   // wooden
-  'royal-york-west': 2,   // metal
+  'royal-york-west': 1,   // Unit 2 — wooden
+  'royal-york-east': 2,   // Unit 1 — metal
   // third unit: no preference (added later)
 }
 
