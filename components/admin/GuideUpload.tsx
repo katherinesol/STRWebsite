@@ -20,11 +20,24 @@ export default function GuideUpload() {
   async function upload(id: string, file: File) {
     if (file.type !== 'application/pdf') { setMsg('Please choose a PDF'); return }
     setBusy(id); setMsg('')
-    const fd = new FormData()
-    fd.append('property_id', id); fd.append('file', file)
-    const d = await fetch('/api/admin/guest-guide', { method: 'POST', body: fd }).then(r => r.json()).catch(() => ({ error: 'upload failed' }))
-    setBusy('')
-    if (d.error) { setMsg(d.error); return }
+    // 1. get a signed upload URL from our admin-authed API
+    let sig: any
+    try {
+      const r = await fetch('/api/admin/guest-guide', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ property_id: id }),
+      })
+      sig = await r.json()
+      if (!r.ok || sig.error) { setBusy(''); setMsg(`Step 1 failed (${r.status}): ${sig.error || 'no URL returned'}`); return }
+    } catch (e: any) { setBusy(''); setMsg(`Step 1 error: ${e.message}`); return }
+    // 2. upload the file directly to the signed URL (no 4.5MB API limit)
+    try {
+      const up = await fetch(sig.signedUrl, {
+        method: 'PUT', headers: { 'Content-Type': 'application/pdf' }, body: file,
+      })
+      setBusy('')
+      if (!up.ok) { const t = await up.text().catch(() => ''); setMsg(`Step 2 failed (${up.status}): ${t.slice(0, 140)}`); return }
+    } catch (e: any) { setBusy(''); setMsg(`Step 2 error: ${e.message}`); return }
     setMsg(`Uploaded for ${id}`); refresh(id)
   }
 
