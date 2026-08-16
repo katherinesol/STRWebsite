@@ -1,5 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/server'
 import Link from 'next/link'
+import GuideUpload from '@/components/admin/GuideUpload'
 
 const PROPERTIES = [
   { id: 'royal-york-east', name: 'Royal York East Suite', location: 'Mimico · Toronto' },
@@ -64,6 +65,11 @@ export default async function PropertiesPage() {
             </div>
           )
         })}
+      </div>
+
+      <div style={{ marginTop: '40px' }}>
+        <div style={{ fontSize: '10px', fontWeight: 500, letterSpacing: '.16em', textTransform: 'uppercase', color: '#9A9A92', marginBottom: '12px' }}>Guest Hub</div>
+        <GuideUpload />
       </div>
     </div>
   )

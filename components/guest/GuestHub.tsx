@@ -1,7 +1,10 @@
 'use client'
 import { useState } from 'react'
+import GuideViewer from '@/components/guest/GuideViewer'
 
-export default function GuestHub({ propertyId, propertyName }: { propertyId: string; propertyName: string }) {
+type HubData = { checkIn: string; checkOut: string; amenities: string[]; houseRules: string[]; faq: { q: string; a: string }[]; highlights: string[]; areaDescription: string; description: string }
+
+export default function GuestHub({ propertyId, propertyName, data }: { propertyId: string; propertyName: string; data?: HubData }) {
   const [view, setView] = useState<'home' | 'guide' | 'recs'>('home')
 
   return (
