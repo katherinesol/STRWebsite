@@ -21,6 +21,18 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({ ok: true, url: pub.publicUrl })
 }
 
+// PUT → returns a signed upload URL for the browser to upload a large PDF directly
+export async function PUT(request: NextRequest) {
+  if (!await hasRole('owner', 'co-owner')) return NextResponse.json({ error: 'Not allowed' }, { status: 403 })
+  const { property_id } = await request.json()
+  if (!property_id) return NextResponse.json({ error: 'property_id required' }, { status: 400 })
+  const supabase = createAdminClient()
+  const path = `${property_id}-guide.pdf`
+  const { data, error } = await supabase.storage.from('guest-guides').createSignedUploadUrl(path, { upsert: true } as any)
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json({ token: data.token, path: data.path, signedUrl: data.signedUrl })
+}
+
 // GET ?property_id= → returns whether a guide exists + its public URL
 export async function GET(request: NextRequest) {
   const propertyId = request.nextUrl.searchParams.get('property_id') || ''
