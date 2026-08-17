@@ -1,6 +1,7 @@
 import { createAdminClient } from '@/lib/supabase/server'
 import { getAuth } from '@/lib/auth'
 import { format, addDays } from 'date-fns'
+import { formatTripPurpose, tripPurposeIcon, GIFT_ICON } from '@/lib/trip-purposes'
 import CisternLevel from '@/components/admin/CisternLevel'
 import WindowAiringCard from '@/components/admin/WindowAiringCard'
 import Link from 'next/link'
@@ -81,10 +82,23 @@ export default async function AdminDashboard() {
     supabase.from('bookings').select('id, status, total, check_out').neq('status', 'cancelled'),
   ])
 
+  // Which upcoming check-ins have a gift? We deliberately select ONLY booking_id —
+  // the note text never reaches the dashboard, so it cannot leak on-screen.
+  const checkinIds = [...(upcomingCheckins || []).map(b => b.id), ...(platformCheckins || []).map(b => b.id)]
+  let giftIds = new Set<string>()
+  if (checkinIds.length) {
+    const { data: gifts } = await supabase
+      .from('booking_gifts')
+      .select('booking_id')
+      .in('booking_id', checkinIds)
+      .not('note', 'is', null)
+    giftIds = new Set((gifts || []).map(g => g.booking_id))
+  }
+
   const totalRevenue = allBookings?.filter(b => b.status === 'completed').reduce((sum, b) => sum + (b.total || 0), 0) || 0
   const activeBookings = (allBookings?.filter(b => ['confirmed', 'active'].includes(b.status) && b.check_out >= todayStr).length || 0) + (allPlatformBlocks?.length || 0)
   const hrefFor = (b: any) => b.type === 'direct' ? `/admin/bookings/${b.id}` : `/admin/bookings/block/${b.id}`
-  const allCheckins = [...(upcomingCheckins || []).map(b => ({ id: b.id, name: (Array.isArray(b.guest_info) ? (b.guest_info as any[])[0] : b.guest_info as any)?.name, property: b.property_id, date: b.check_in, nights: b.nights, type: 'direct' })), ...(platformCheckins || []).map(b => ({ id: b.id, name: b.guest_name || b.platform, property: b.property_id, date: b.start_date, nights: null, type: b.platform }))]
+  const allCheckins = [...(upcomingCheckins || []).map(b => ({ id: b.id, name: (Array.isArray(b.guest_info) ? (b.guest_info as any[])[0] : b.guest_info as any)?.name, property: b.property_id, date: b.check_in, nights: b.nights, type: 'direct', purpose: b.trip_purpose as string | null, purposeNote: b.trip_purpose_note as string | null, hasGift: giftIds.has(b.id) })), ...(platformCheckins || []).map(b => ({ id: b.id, name: b.guest_name || b.platform, property: b.property_id, date: b.start_date, nights: null, type: b.platform, purpose: b.trip_purpose as string | null, purposeNote: b.trip_purpose_note as string | null, hasGift: giftIds.has(b.id) }))]
   const allCheckouts = [...(upcomingCheckouts || []).map(b => ({ id: b.id, name: (Array.isArray(b.guest_info) ? (b.guest_info as any[])[0] : b.guest_info as any)?.name, property: b.property_id, date: b.check_out, type: 'direct' })), ...(platformCheckouts || []).map(b => ({ id: b.id, name: b.guest_name || b.platform, property: b.property_id, date: b.end_date, type: b.platform }))]
 
   return (
@@ -129,6 +143,21 @@ export default async function AdminDashboard() {
                   <div>
                     <div style={{ fontSize: '13px', color: '#F5F2EC', fontWeight: 500 }}>{b.name || '—'}</div>
                     <div style={{ fontSize: '11px', color: '#9A9A92', marginTop: '2px' }}>{PROPERTY_NAMES[b.property]} {b.type !== 'direct' ? '· ' + b.type : ''}</div>
+                    {(b.purpose || b.hasGift) && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '5px' }}>
+                        {b.purpose && (
+                          <span style={{ fontSize: '11px', color: '#D8CBB4', background: '#33302A', border: '0.5px solid #4A4438', padding: '2px 8px', borderRadius: '2px' }}>
+                            {tripPurposeIcon(b.purpose)} {formatTripPurpose(b.purpose, b.purposeNote)}
+                          </span>
+                        )}
+                        {b.hasGift && (
+                          <span title="Gift prepared — details on the booking page"
+                            style={{ fontSize: '11px', color: '#D8CBB4', background: '#33302A', border: '0.5px solid #4A4438', padding: '2px 7px', borderRadius: '2px' }}>
+                            {GIFT_ICON}
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
                   <div style={{ textAlign: 'right' }}>
                     <div style={{ fontSize: '13px', color: 'var(--amber)' }}>{format(new Date(b.date + 'T12:00:00'), 'MMM d')}</div>

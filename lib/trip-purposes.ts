@@ -25,6 +25,28 @@ export function isOther(purpose: string | null | undefined): boolean {
   return purpose === TRIP_PURPOSE_OTHER
 }
 
+// Icons for the admin dashboard badges. Purpose is guest-supplied and not secret,
+// so it is shown in full. (Gift notes are the opposite — see GIFT_ICON.)
+export const TRIP_PURPOSE_ICONS: Record<string, string> = {
+  Work: '💼',
+  Leisure: '🌿',
+  Birthday: '🎂',
+  Anniversary: '💐',
+  Honeymoon: '🥂',
+  'Family visit': '👋',
+  Celebration: '🎉',
+  Other: '✨',
+}
+
+export function tripPurposeIcon(purpose?: string | null): string {
+  return (purpose && TRIP_PURPOSE_ICONS[purpose]) || '✨'
+}
+
+// Deliberately text-free. A gift is a surprise: the dashboard shows only that one
+// exists, never what it is, so a guest glancing at the screen learns nothing.
+// The note itself is only ever rendered on the booking detail page.
+export const GIFT_ICON = '🎁'
+
 // Display helper: falls back to the free-text note when "Other" was chosen.
 export function formatTripPurpose(purpose?: string | null, note?: string | null): string {
   if (!purpose) return ''
