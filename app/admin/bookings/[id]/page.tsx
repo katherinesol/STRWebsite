@@ -8,6 +8,7 @@ import WaterUsageCard from '@/components/admin/WaterUsageCard'
 import StayChecklist from '@/components/admin/StayChecklist'
 import PaymentReminderForm from '@/components/admin/PaymentReminderForm'
 import BookingEditForm from '@/components/admin/BookingEditForm'
+import GiftCard from '@/components/admin/GiftCard'
 import GuestEditCard from '@/components/admin/GuestEditCard'
 
 const PROPERTY_NAMES: Record<string, string> = {
@@ -97,6 +98,7 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
           <BookingActions booking={booking} />
           <BookingSupportCard bookingId={booking.id} source="direct" initialCode={booking.confirmation_code} siteUrl={process.env.NEXT_PUBLIC_SITE_URL || 'https://rental-direct-five.vercel.app'} />
           <PaymentReminderForm booking={booking} guest={guest} />
+          <GiftCard bookingId={booking.id} bookingKind="direct" />
           <StayChecklist propertyId={booking.property_id} bookingId={booking.id} />
           <WaterUsageCard propertyId={booking.property_id} checkIn={booking.check_in} checkOut={booking.check_out} />
         </div>
