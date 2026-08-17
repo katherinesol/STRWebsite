@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import ParkingControl from '@/components/admin/ParkingControl'
+import TripPurposeField from '@/components/admin/TripPurposeField'
 import { useRouter } from 'next/navigation'
 import { addDays, format } from 'date-fns'
 
@@ -63,6 +64,8 @@ export default function BookingEditForm({ booking }: { booking: any }) {
   const [bagDrop, setBagDrop] = useState(booking.bag_drop || 'none')
   const [instacart, setInstacart] = useState(booking.instacart_requested || false)
   const [vehicleCount, setVehicleCount] = useState(booking.vehicle_count || 0)
+  const [tripPurpose, setTripPurpose] = useState(booking.trip_purpose || '')
+  const [tripPurposeNote, setTripPurposeNote] = useState(booking.trip_purpose_note || '')
   const [status, setStatus] = useState(booking.status || 'confirmed')
   const [paymentMethod, setPaymentMethod] = useState(booking.payment_method || 'etransfer')
   const [lockCode, setLockCode] = useState(booking.lock_code || '')
@@ -115,6 +118,8 @@ export default function BookingEditForm({ booking }: { booking: any }) {
           bag_drop: bagDrop,
           instacart_requested: instacart,
           vehicle_count: vehicleCount,
+          trip_purpose: tripPurpose || null,
+          trip_purpose_note: tripPurpose === 'Other' && tripPurposeNote.trim() ? tripPurposeNote.trim() : null,
           status,
           payment_method: paymentMethod,
           lock_code: lockCode || null,
@@ -205,6 +210,7 @@ export default function BookingEditForm({ booking }: { booking: any }) {
       ))}
       {field('Instacart', <Toggle value={instacart} onChange={setInstacart} />)}
       {field('Vehicles', <input type="number" value={vehicleCount} onChange={e => setVehicleCount(parseInt(e.target.value)||0)} min={0} style={{ ...inputStyle, maxWidth: '80px' }} />)}
+      {field('Purpose of trip', <TripPurposeField purpose={tripPurpose} note={tripPurposeNote} onPurposeChange={setTripPurpose} onNoteChange={setTripPurposeNote} />)}
       <ParkingControl bookingId={booking.id} bookingKind="direct" propertyId={booking.property_id} guestName={booking.guest_info?.name || booking.guest?.name} startDate={checkIn} endDate={checkOut} />
 
       {sectionLabel('Pricing calculator')}

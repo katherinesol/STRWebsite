@@ -1,5 +1,6 @@
 'use client'
 import { useState } from 'react'
+import TripPurposeField from '@/components/admin/TripPurposeField'
 import { useRouter } from 'next/navigation'
 import WaterUsageCard from '@/components/admin/WaterUsageCard'
 
@@ -106,6 +107,8 @@ export default function PlatformBookingForm({ block }: { block: any }) {
   const [form, setForm] = useState({
     guest_name: block.guest_name || '',
     guest_notes: block.guest_notes || '',
+    trip_purpose: block.trip_purpose || '',
+    trip_purpose_note: block.trip_purpose_note || '',
     notes: block.notes || '',
     early_checkin_time: block.early_checkin_time || '',
     early_checkin_granted: block.early_checkin_granted ?? null,
@@ -153,6 +156,8 @@ export default function PlatformBookingForm({ block }: { block: any }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...form,
+          trip_purpose: form.trip_purpose || null,
+          trip_purpose_note: form.trip_purpose === 'Other' && form.trip_purpose_note.trim() ? form.trip_purpose_note.trim() : null,
           guest_email: guestEmail,
           guest_phone: guestPhone,
           nightly_rate: nightlyNum || null,
@@ -216,6 +221,14 @@ export default function PlatformBookingForm({ block }: { block: any }) {
         </Field>
         <Field label="Phone">
           <input type="tel" value={guestPhone} onChange={e => setGuestPhone(e.target.value.replace(/[^\d+\-\s()]/g, ''))} placeholder="+1 416 000 0000" style={inputStyle} />
+        </Field>
+        <Field label="Purpose of trip">
+          <TripPurposeField
+            purpose={form.trip_purpose}
+            note={form.trip_purpose_note}
+            onPurposeChange={v => set('trip_purpose', v)}
+            onNoteChange={v => set('trip_purpose_note', v)}
+          />
         </Field>
         <Field label="Guest notes">
           <textarea value={form.guest_notes} onChange={e => set('guest_notes', e.target.value)} rows={3} placeholder="Special requests, allergies, notes..." style={{ ...inputStyle, resize: 'vertical' }} />

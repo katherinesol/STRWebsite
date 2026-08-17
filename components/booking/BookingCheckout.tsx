@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { Property } from '@/lib/properties'
 import { format, differenceInDays, addDays } from 'date-fns'
+import { TRIP_PURPOSE_OPTIONS, isOther } from '@/lib/trip-purposes'
 
 const CANCELLATION_POLICIES = {
   moderate: {
@@ -71,6 +72,9 @@ export default function BookingCheckout({ property }: { property: Property }) {
   const [email, setEmail] = useState('')
   const [phone, setPhone] = useState('')
   const [vehicleCount, setVehicleCount] = useState(0)
+  // optional — guests can skip; never validated
+  const [tripPurpose, setTripPurpose] = useState('')
+  const [tripPurposeNote, setTripPurposeNote] = useState('')
   const [plates, setPlates] = useState<string[]>(['', '', '', ''])
   const [platesPending, setPlatesPending] = useState(false)
   const [earlyCheckin, setEarlyCheckin] = useState(false)
@@ -219,6 +223,35 @@ export default function BookingCheckout({ property }: { property: Property }) {
                   <span style={{ fontSize: '15px', color: 'var(--noir)', minWidth: '24px', textAlign: 'center' }}>{guestCount}</span>
                   <button onClick={() => setGuestCount(g => Math.min(property.guests, g + 1))} style={{ width: '32px', height: '32px', borderRadius: '50%', border: '0.5px solid var(--sand-mid)', background: 'white', fontSize: '18px', cursor: 'pointer' }}>+</button>
                   <span style={{ fontSize: '12px', color: 'var(--muted)' }}>Max {property.guests} guests</span>
+                </div>
+              </FormField>
+
+              {/* purpose of trip — optional, helps us prepare for the stay */}
+              <FormField label="Purpose of trip (optional)">
+                <select
+                  value={tripPurpose}
+                  onChange={e => {
+                    const v = e.target.value
+                    setTripPurpose(v)
+                    if (!isOther(v)) setTripPurposeNote('')   // drop stale note when leaving "Other"
+                  }}
+                  style={inputStyle}
+                >
+                  <option value="">Prefer not to say</option>
+                  {TRIP_PURPOSE_OPTIONS.map(p => <option key={p} value={p}>{p}</option>)}
+                </select>
+                {isOther(tripPurpose) && (
+                  <input
+                    type="text"
+                    value={tripPurposeNote}
+                    onChange={e => setTripPurposeNote(e.target.value)}
+                    placeholder="Tell us the occasion"
+                    maxLength={200}
+                    style={{ ...inputStyle, marginTop: '8px' }}
+                  />
+                )}
+                <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '6px' }}>
+                  Entirely optional — it just helps us prepare for your stay.
                 </div>
               </FormField>
             </div>
@@ -540,6 +573,8 @@ export default function BookingCheckout({ property }: { property: Property }) {
                     late_checkout: lateCheckout,
                     late_checkout_time: lateCheckout ? lateCheckoutTime : null,
                     bag_drop: bagDrop,
+                    trip_purpose: tripPurpose || null,
+                    trip_purpose_note: isOther(tripPurpose) && tripPurposeNote.trim() ? tripPurposeNote.trim() : null,
                     instacart_requested: instacart,
                     vehicle_count: vehicleCount,
                     plate_numbers: vehicleCount > 0 && !platesPending ? plates.slice(0, vehicleCount) : [],
