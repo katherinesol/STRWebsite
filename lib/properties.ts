@@ -62,7 +62,8 @@ export const PROPERTIES: Record<string, Property> = {
     name: 'Royal York East Suite',
     neighbourhood: 'Mimico',
     city: 'Toronto, ON',
-    // Unit 1 — not yet operating. Address to be filled in when it goes live.
+    // Unit 1 — not yet operating.
+    address: '426 Royal York Rd, Unit 1, Etobicoke, ON M8Y 2R9',
     tagline: 'Spacious, stylish, and steps from the waterfront.',
     description: "The Royal York East Suite mirrors its West counterpart in quality and design — a two-bedroom suite with everything thoughtfully stocked. In the same building as West, making it ideal for groups travelling together.",
     areaDescription: 'Mimico sits on the western waterfront of Toronto — walkable to the lake, Royal York GO Station, and a strong local dining scene. Easy access to downtown and the airport.',
