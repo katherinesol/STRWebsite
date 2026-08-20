@@ -140,7 +140,7 @@ export default function KnowledgePage() {
             </select>
           </div>
           <input placeholder="Title (e.g. Wifi password)" value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} style={{ ...inp, marginBottom: '10px' }} />
-          <textarea placeholder="The answer the bot should give (e.g. Network: NickelBeach_Guest, Password: SunnyShores2024)" value={form.content} onChange={e => setForm(f => ({ ...f, content: e.target.value }))} style={{ ...inp, minHeight: '90px', resize: 'vertical', fontFamily: 'inherit' }} />
+          <textarea placeholder="The answer the bot should give (e.g. Network: MyNetwork, Password: MyPassword)" value={form.content} onChange={e => setForm(f => ({ ...f, content: e.target.value }))} style={{ ...inp, minHeight: '90px', resize: 'vertical', fontFamily: 'inherit' }} />
           <button onClick={addEntry} disabled={!form.title || !form.content} style={{ marginTop: '10px', padding: '10px 18px', background: 'var(--amber)', color: '#242422', border: 'none', fontSize: '11px', fontWeight: 600, cursor: 'pointer', borderRadius: '3px' }}>Add entry</button>
         </div>
       )}
