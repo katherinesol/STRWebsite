@@ -65,7 +65,9 @@ export default function InvoicesPage() {
             <div style={{ ...cardStyle, padding: '20px', display: 'flex', flexDirection: 'column', gap: '5px' }}>
               <span style={microLabel}>Paid in {t.year}</span>
               <span style={{ fontFamily: F.serif, fontSize: '31px', lineHeight: 1.1 }}>{money(t.paidThisYear)}</span>
-              <span style={{ fontSize: '12px', color: L.inkMuted }}>{money(t.paidAll)} all time · {t.contractors} contractors</span>
+              <span style={{ fontSize: '12px', color: L.inkMuted }}>
+                {t.contractors} contractors{t.scheduled > 0 ? ` · ${money(t.scheduled)} scheduled` : ''}
+              </span>
             </div>
             <div style={{ ...cardStyle, padding: '20px', display: 'flex', flexDirection: 'column', gap: '5px' }}>
               <span style={microLabel}>Biggest job</span>
@@ -101,9 +103,14 @@ export default function InvoicesPage() {
                     </div>
                     <span style={{ fontFamily: F.mono, fontSize: '11px', color: L.inkMuted }}>{money(r.paid)} paid of {money(r.total)}</span>
                   </div>
-                  <span style={{ fontSize: '13px', color: L.red, fontWeight: 600 }}>
-                    {r.nextDue ? `Next due ${r.nextDue}` : `${r.paymentCount} payment${r.paymentCount === 1 ? '' : 's'} so far`}
-                  </span>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                    <span style={{ fontSize: '13px', color: L.red, fontWeight: 600 }}>
+                      {r.nextDue ? `Next due ${r.nextDue}` : `${r.paymentCount} payment${r.paymentCount === 1 ? '' : 's'} so far`}
+                    </span>
+                    {r.planned > 0 && (
+                      <span style={{ fontSize: '11px', color: L.amber }}>{money(r.planned)} scheduled, not yet paid</span>
+                    )}
+                  </div>
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '3px' }}>
                     <span style={{ fontFamily: F.mono, fontSize: '17px', color: L.red }}>{money(r.balance)}</span>
                     <span style={{ fontSize: '12px', color: L.link, fontWeight: 600 }}>Record payment</span>

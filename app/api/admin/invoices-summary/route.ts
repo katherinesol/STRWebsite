@@ -32,24 +32,30 @@ export async function GET() {
     const hst = n(i.hst_amount)
     const total = r2(lineItems - heldBack + hst)
 
-    const mine = (payments || []).filter(p => p.invoice_id === i.id && p.status !== 'void')
-    const paid = r2(mine.reduce((s, p) => s + n(p.amount), 0))
-    for (const p of mine) {
+    // Only status 'paid' is money that has actually moved. A 'planned' row is a
+    // scheduled future payment — counting it as paid understates what is owed.
+    const mine = (payments || []).filter(p => p.invoice_id === i.id)
+    const settled = mine.filter(p => p.status === 'paid')
+    const scheduled = mine.filter(p => p.status === 'planned')
+    const paid = r2(settled.reduce((s, p) => s + n(p.amount), 0))
+    const planned = r2(scheduled.reduce((s, p) => s + n(p.amount), 0))
+    for (const p of settled) {
       if (p.paid_at && new Date(p.paid_at).getFullYear() === thisYear) paidThisYear += n(p.amount)
     }
     const balance = r2(total - paid)
-    const nextDue = mine.map(p => p.due_date).filter(Boolean).sort()[0]
+    const nextDue = scheduled.map(p => p.due_date).filter(Boolean).sort()[0]
       || (i.due_date ?? null)
 
     return {
       id: i.id, title: i.title, contractor: i.contractor_name, company: i.company,
       property: i.property_id, category: i.category,
-      lineItems, heldBack, hst, total, paid, balance,
+      lineItems, heldBack, hst, total, paid, planned, balance,
       owing: balance > 0.005,
       pct: total > 0 ? Math.min(100, Math.round((paid / total) * 100)) : 0,
-      lastPaidAt: mine.map(p => p.paid_at).filter(Boolean).sort().pop() || null,
+      lastPaidAt: settled.map(p => p.paid_at).filter(Boolean).sort().pop() || null,
       nextDue,
-      paymentCount: mine.length,
+      paymentCount: settled.length,
+      plannedCount: scheduled.length,
       heldBackReason: (adjustments || []).find(a => a.invoice_id === i.id)?.description || null,
     }
   }).sort((a, b) => b.total - a.total)
@@ -67,6 +73,7 @@ export async function GET() {
       closedCount: closed.length,
       paidThisYear: r2(paidThisYear),
       paidAll: r2(rows.reduce((s, r) => s + r.paid, 0)),
+      scheduled: r2(rows.reduce((s, r) => s + r.planned, 0)),
       contractors: new Set(rows.map(r => r.contractor).filter(Boolean)).size,
       biggestJob: biggestJob && { title: biggestJob.title, contractor: biggestJob.contractor, total: biggestJob.total, property: biggestJob.property },
       year: thisYear,
