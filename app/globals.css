@@ -10,6 +10,10 @@
   --stone: #888880;
   --muted: #666660;
   --serif: 'Cormorant Garamond', Georgia, serif;
+  /* Keyholder rebrand */
+  --k-serif: 'Instrument Serif', Georgia, serif;
+  --k-sans: 'Schibsted Grotesk', system-ui, sans-serif;
+  --k-mono: 'IBM Plex Mono', ui-monospace, monospace;
   --sans: 'DM Sans', sans-serif;
 }
 
