@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { hasRole } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/server'
+import { matExempt, MAT_MAX_TAXABLE_NIGHTS } from '@/lib/tax-rates'
 
 const DAY = 86400000
 const QUARTERS: Record<string, [number, number]> = { Q1: [0, 2], Q2: [3, 5], Q3: [6, 8], Q4: [9, 11] }
@@ -55,7 +56,11 @@ export async function GET(request: NextRequest) {
     const total = nights(b.start_date, b.end_date)
     if (total <= 0) continue
     const linkExempt = linkedMatExempt.has(b.id)
-    const exempt = total >= 28 || linkExempt   // 28+ days OR marked MAT-exempt via stay linking
+    // MAT applies to continuous stays of 30 days or less, so exemption starts at
+    // 31 days (30 nights) — the previous 28 exempted taxable stays and
+    // under-remitted. Shared with lib/tax-rates.ts so there is one threshold.
+    const tooLong = matExempt(property, total)
+    const exempt = tooLong || linkExempt
     const nightly = ((Number(b.accommodation) || 0) - (Number(b.discount) || 0)) / total
 
     let bookingNights = 0, bookingRevenue = 0, bookingMat = 0
@@ -88,7 +93,7 @@ export async function GET(request: NextRequest) {
         mat_due: exempt ? 0 : Math.round(bookingMat * 100) / 100,
         mat_recorded: Number(b.mat) || 0,
         exempt,
-        exempt_reason: total >= 28 ? '28+ days' : (linkExempt ? 'linked stay (MAT-exempt)' : null),
+        exempt_reason: tooLong ? `over ${MAT_MAX_TAXABLE_NIGHTS} nights` : (linkExempt ? 'linked stay (MAT-exempt)' : null),
         missing_accommodation: !b.accommodation,
       })
     }
