@@ -1,6 +1,9 @@
 'use client'
 import { useState } from 'react'
 import { L, F, microLabel, cardStyle, money } from '@/lib/design-tokens'
+// The invoice category becomes the expense category when a payment is logged,
+// so it must come from the CRA-aligned list, never a local one.
+import { EXPENSE_CATEGORIES } from '@/lib/expense-categories'
 
 const PROPS = [
   { id: '', name: 'No property' },
@@ -9,7 +12,7 @@ const PROPS = [
   { id: 'royal-york-east', name: 'Royal York East' },
   { id: 'nickel-beach', name: 'Nickel Beach' },
 ]
-const CATEGORIES = ['Repairs & maintenance', 'Cleaning', 'Furnishings', 'Appliances', 'Utilities', 'Professional fees (legal/accounting)', 'Property taxes', 'Other expenses']
+
 const METHODS = ['etransfer', 'billpay', 'card', 'cash', 'cheque']
 const today = () => new Date().toISOString().split('T')[0]
 const r2 = (v: number) => Math.round(v * 100) / 100
@@ -33,7 +36,7 @@ export default function NewInvoiceDialog({ onClose, onCreated }: { onClose: () =
   const [contractor, setContractor] = useState('')
   const [contact, setContact] = useState('')
   const [property, setProperty] = useState('royal-york-west')
-  const [category, setCategory] = useState(CATEGORIES[0])
+  const [category, setCategory] = useState('Repairs & maintenance')
   const [hst, setHst] = useState('')
   const [items, setItems] = useState<Line[]>([newLine()])
   const [adjustments, setAdjustments] = useState<Line[]>([])
@@ -117,7 +120,7 @@ export default function NewInvoiceDialog({ onClose, onCreated }: { onClose: () =
                 </select></div>
               <div><div style={microLabel}>Category</div>
                 <select value={category} onChange={e => setCategory(e.target.value)} style={{ ...inputStyle, marginTop: '5px' }}>
-                  {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                  {EXPENSE_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
                 </select></div>
             </div>
 
