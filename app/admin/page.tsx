@@ -4,6 +4,7 @@ import { format, addDays } from 'date-fns'
 import { formatTripPurpose, tripPurposeIcon, GIFT_ICON } from '@/lib/trip-purposes'
 import CisternLevel from '@/components/admin/CisternLevel'
 import WindowAiringCard from '@/components/admin/WindowAiringCard'
+import HotTubWindCard from '@/components/admin/HotTubWindCard'
 import Link from 'next/link'
 
 const PROPERTY_NAMES: Record<string, string> = {
@@ -124,8 +125,9 @@ export default async function AdminDashboard() {
       <div style={{ marginBottom: '32px' }}>
         <CisternLevel />
       </div>
-      <div style={{ marginBottom: '32px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '32px' }}>
         <WindowAiringCard />
+        <HotTubWindCard />
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
 
