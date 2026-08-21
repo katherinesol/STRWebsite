@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import NewInvoiceDialog from '@/components/admin/NewInvoiceDialog'
 import { L, F, microLabel, cardStyle, money } from '@/lib/design-tokens'
 
 const PROP_NAMES: Record<string, string> = {
@@ -24,11 +25,10 @@ export default function InvoicesPage() {
   const [d, setD] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<Filter>('all')
+  const [creating, setCreating] = useState(false)
 
-  useEffect(() => {
-    fetch('/api/admin/invoices-summary')
-      .then(r => r.json()).then(setD).catch(() => {}).finally(() => setLoading(false))
-  }, [])
+  const load = () => fetch('/api/admin/invoices-summary').then(r => r.json()).then(setD).catch(() => {})
+  useEffect(() => { load().finally(() => setLoading(false)) }, [])
 
   const t = d?.totals
   const showOwing = filter !== 'closed'
@@ -36,6 +36,7 @@ export default function InvoicesPage() {
 
   return (
     <div style={{ paddingTop: '24px' }}>
+      {creating && <NewInvoiceDialog onClose={() => setCreating(false)} onCreated={() => { setCreating(false); load() }} />}
 
       <div style={{ display: 'flex', alignItems: 'flex-end', gap: '24px', marginBottom: '24px', flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '7px' }}>
@@ -49,7 +50,7 @@ export default function InvoicesPage() {
         </div>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: '10px' }}>
           <span style={{ padding: '12px 18px', borderRadius: '10px', border: `1px solid ${L.line}`, background: L.card, fontSize: '14px', fontWeight: 600 }}>Export CSV</span>
-          <span style={{ padding: '12px 20px', borderRadius: '10px', background: L.ink, color: '#fff', fontSize: '14px', fontWeight: 600 }}>New invoice</span>
+          <button onClick={() => setCreating(true)} style={{ padding: '12px 20px', borderRadius: '10px', background: L.ink, color: '#fff', fontSize: '14px', fontWeight: 600, border: 'none', cursor: 'pointer', fontFamily: F.sans }}>New invoice</button>
         </div>
       </div>
 
