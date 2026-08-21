@@ -66,7 +66,7 @@ export async function POST(request: NextRequest) {
   const supabase = createAdminClient()
   const payload = {
     invoice_id, title,
-    contractor_name: b?.contractor_name || null,
+    contractor_name: b?.contractor_name || '',   // NOT NULL in the table; '' is the existing convention
     contractor_contact: b?.contractor_contact || null,
     company: b?.company || null,
     property_id: b?.property_id || null,

@@ -26,7 +26,7 @@ begin
   ) values (
     inv_id,
     payload->>'title',
-    nullif(payload->>'contractor_name',''),
+    coalesce(payload->>'contractor_name', ''),   -- NOT NULL; the table's convention is '' not null
     nullif(payload->>'contractor_contact',''),
     nullif(payload->>'company',''),
     nullif(payload->>'property_id',''),
