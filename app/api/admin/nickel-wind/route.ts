@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { isAuthed } from '@/lib/auth'
 import { decideHotTubWind } from '@/lib/hot-tub-wind'
 import { PROPERTIES } from '@/lib/properties'
+import { logCurrentWind } from '@/lib/wind-log'
 
 // Nickel Beach (Port Colborne). Coordinates come from the property's mapOffset —
 // it is deliberately offset from the exact address, which is immaterial for
@@ -31,6 +32,10 @@ export async function GET() {
       gustKmh: cur.wind_gusts_10m ?? null,
       directionDeg: cur.wind_direction_10m ?? null,
     })
+    // store a live reading (throttled to 1/hour) so the log fills in whenever
+    // the dashboard is viewed — same store-on-read approach as the cistern
+    logCurrentWind('nickel-beach').catch(() => {})
+
     return NextResponse.json({ ...decision, fetchedAt: new Date().toISOString() })
   } catch (e: unknown) {
     const d = decideHotTubWind({ windKmh: null, gustKmh: null, directionDeg: null })

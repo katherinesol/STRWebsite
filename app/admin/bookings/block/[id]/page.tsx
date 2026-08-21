@@ -5,6 +5,7 @@ import { format } from 'date-fns'
 import Link from 'next/link'
 import PlatformBookingForm from '@/components/admin/PlatformBookingForm'
 import GiftCard from '@/components/admin/GiftCard'
+import WindLogCard from '@/components/admin/WindLogCard'
 
 const PROPERTY_NAMES: Record<string, string> = {
   'royal-york-east': 'Royal York East Suite',
@@ -45,6 +46,7 @@ export default async function PlatformBookingPage({ params }: { params: Promise<
       </div>
       <PlatformBookingForm block={block} />
       <div style={{ maxWidth: '520px', marginTop: '16px' }}>
+        <WindLogCard propertyId={block.property_id} checkIn={block.start_date} checkOut={block.end_date} bookingId={block.id} bookingKind="platform" />
         <GiftCard bookingId={block.id} bookingKind="platform" />
         <BookingSupportCard bookingId={block.id} source="platform" initialCode={block.confirmation_code} siteUrl={process.env.NEXT_PUBLIC_SITE_URL || 'https://rental-direct-five.vercel.app'} />
       </div>

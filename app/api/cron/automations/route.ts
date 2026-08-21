@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCisternLevel } from '@/lib/cistern'
+import { backfillWind } from '@/lib/wind-log'
 import { createAdminClient } from '@/lib/supabase/server'
 import { Seam } from 'seam'
 import { reprogramBookingWindow, windowFromBooking } from '@/lib/seam'
@@ -17,6 +18,15 @@ export async function GET(request: NextRequest) {
   // 1. Cistern reading + store
   const reading = await getCisternLevel(true)
   results.cistern = reading?.percent ?? null
+
+  // 1b. Wind log — backfill the last 2 days of hourly readings for Nickel Beach.
+  // Hobby plan caps crons at once daily, so a single live sample would be useless
+  // as damage evidence; hourly history from Open-Meteo fills the gap. Idempotent.
+  try {
+    results.windLog = await backfillWind('nickel-beach', 2)
+  } catch (e: any) {
+    results.windLog = { error: e?.message }
+  }
 
   // 2. Low-water → create "order water" task if at/below reorder threshold and none open
   try {

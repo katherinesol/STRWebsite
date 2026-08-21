@@ -5,6 +5,7 @@ import Link from 'next/link'
 import BookingSupportCard from '@/components/admin/BookingSupportCard'
 import BookingActions from '@/components/admin/BookingActions'
 import WaterUsageCard from '@/components/admin/WaterUsageCard'
+import WindLogCard from '@/components/admin/WindLogCard'
 import StayChecklist from '@/components/admin/StayChecklist'
 import PaymentReminderForm from '@/components/admin/PaymentReminderForm'
 import BookingEditForm from '@/components/admin/BookingEditForm'
@@ -101,6 +102,7 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
           <GiftCard bookingId={booking.id} bookingKind="direct" />
           <StayChecklist propertyId={booking.property_id} bookingId={booking.id} />
           <WaterUsageCard propertyId={booking.property_id} checkIn={booking.check_in} checkOut={booking.check_out} />
+          <WindLogCard propertyId={booking.property_id} checkIn={booking.check_in} checkOut={booking.check_out} bookingId={booking.id} bookingKind="direct" />
         </div>
       </div>
     </div>
