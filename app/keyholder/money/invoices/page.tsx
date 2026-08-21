@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
+import Link from 'next/link'
 import { L, F, microLabel, cardStyle, money } from '@/lib/design-tokens'
 
 const PROP_NAMES: Record<string, string> = {
@@ -91,7 +92,7 @@ export default function InvoicesPage() {
                 <span style={{ ...microLabel, letterSpacing: '0.12em', color: 'oklch(0.48 0.13 28)' }}>Owing</span>
               </div>
               {d.owing.map((r: any) => (
-                <div key={r.id} style={{ display: 'grid', gridTemplateColumns: '2.2fr 1.2fr 1.4fr 1.1fr 1fr', padding: '16px 20px', alignItems: 'center', gap: '12px' }}>
+                <Link key={r.id} href={`/keyholder/money/invoices/${r.id}`} style={{ display: 'grid', gridTemplateColumns: '2.2fr 1.2fr 1.4fr 1.1fr 1fr', padding: '16px 20px', alignItems: 'center', gap: '12px', textDecoration: 'none', color: 'inherit' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
                     <span style={{ fontSize: '15px', fontWeight: 600 }}>{r.title}</span>
                     <span style={{ fontSize: '12px', color: L.inkMuted }}>{r.contractor || r.company || 'No contractor'}</span>
@@ -115,7 +116,7 @@ export default function InvoicesPage() {
                     <span style={{ fontFamily: F.mono, fontSize: '17px', color: L.red }}>{money(r.balance)}</span>
                     <span style={{ fontSize: '12px', color: L.link, fontWeight: 600 }}>Record payment</span>
                   </div>
-                </div>
+                </Link>
               ))}
             </div>
           )}
@@ -129,7 +130,8 @@ export default function InvoicesPage() {
                 </span>
               </div>
               {d.closed.map((r: any) => (
-                <div key={r.id} style={{
+                <Link key={r.id} href={`/keyholder/money/invoices/${r.id}`} style={{
+                  textDecoration: 'none', color: 'inherit',
                   display: 'grid', gridTemplateColumns: '2.2fr 1.2fr 1.4fr 1.1fr 1fr',
                   padding: '13px 20px', borderBottom: `1px solid ${L.lineFaint}`, alignItems: 'center', gap: '12px', fontSize: '13px',
                   background: r.heldBack > 0 ? L.amberWash : 'transparent',
@@ -145,7 +147,7 @@ export default function InvoicesPage() {
                     {r.heldBack > 0 && ` · ${money(r.heldBack)} held back`}
                   </span>
                   <span style={{ textAlign: 'right', fontFamily: F.mono, fontSize: '14px' }}>{money(r.total)}</span>
-                </div>
+                </Link>
               ))}
             </div>
           )}
