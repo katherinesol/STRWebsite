@@ -87,22 +87,11 @@ export async function GET(request: NextRequest) {
     return true
   })
 
-  // save to calendar_blocks when requested
-  const save = searchParams.get('save')
-  if (save === '1' && unique.length > 0) {
-    const { createAdminClient } = await import('@/lib/supabase/server')
-    const supabase = createAdminClient()
-    for (const event of unique) {
-      await supabase.from('calendar_blocks').upsert({
-        property_id: propertyId,
-        start_date: event.start,
-        end_date: event.end,
-        reason: 'manual',
-        notes: `Synced from ${event.platform}`,
-        platform: event.platform,
-      }, { onConflict: 'property_id,start_date' })
-    }
-  }
+  // READ-ONLY. This endpoint used to write calendar_blocks via ?save=1, using feed
+  // URLs from environment variables and an upsert keyed on (property_id, start_date)
+  // — a second, divergent sync that could not reconcile cancellations and whose
+  // Royal York West env var was never set in production. Rows now enter the database
+  // through lib/ical-sync.ts only: the daily cron, or POST /api/admin/ical/sync.
 
   return NextResponse.json({
     blocked: unique.map(e => ({ start: e.start, end: e.end })),

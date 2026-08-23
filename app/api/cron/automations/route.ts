@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCisternLevel } from '@/lib/cistern'
 import { backfillWind } from '@/lib/wind-log'
+import { syncAllICal } from '@/lib/ical-sync'
 import { createAdminClient } from '@/lib/supabase/server'
 import { Seam } from 'seam'
 import { reprogramBookingWindow, windowFromBooking } from '@/lib/seam'
@@ -26,6 +27,16 @@ export async function GET(request: NextRequest) {
     results.windLog = await backfillWind('nickel-beach', 2)
   } catch (e: any) {
     results.windLog = { error: e?.message }
+  }
+
+  // 1c. iCal sync — the ONLY scheduled path for platform bookings into the DB.
+  // This used to run on every load of /admin/calendar, so a page view could insert
+  // bookings, move dates and revoke door codes. Wrapped so a dead feed cannot take
+  // down the lock sweep below.
+  try {
+    results.icalSync = await syncAllICal()
+  } catch (e: any) {
+    results.icalSync = { error: e?.message }
   }
 
   // 2. Low-water → create "order water" task if at/below reorder threshold and none open

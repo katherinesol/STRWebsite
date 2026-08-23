@@ -102,6 +102,7 @@ export default function CalendarView({ bookings, blocks }: { bookings: Booking[]
   const [blockNotes, setBlockNotes] = useState('')
   const [saving, setSaving] = useState(false)
   const [icalStatus, setIcalStatus] = useState<Record<string, 'idle' | 'loading' | 'done' | 'error'>>({})
+  const [icalReport, setIcalReport] = useState<Record<string, any>>({})
   const [editingBlock, setEditingBlock] = useState<Block | null>(null)
   const [editingBooking, setEditingBooking] = useState<Booking | null>(null)
   const [bookingEditForm, setBookingEditForm] = useState<Record<string, any>>({})
@@ -251,11 +252,21 @@ export default function CalendarView({ bookings, blocks }: { bookings: Booking[]
     router.refresh()
   }
 
+  // Runs the real sync — the same code the daily cron runs. Reports what actually
+  // happened per feed instead of a tick: the old button called ?save=1, a separate
+  // env-var-driven path that could not reconcile cancellations and was not even
+  // configured for Royal York West in production.
   async function refreshICal(propertyId: string) {
     setIcalStatus(s => ({ ...s, [propertyId]: 'loading' }))
     try {
-      await fetch(`/api/calendar?property=${propertyId}&save=1`)
+      const res = await fetch('/api/admin/ical/sync', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ property_id: propertyId }),
+      })
+      const d = await res.json().catch(() => ({}))
+      if (!d.ok) throw new Error(d.error || 'sync failed')
       setIcalStatus(s => ({ ...s, [propertyId]: 'done' }))
+      setIcalReport(r => ({ ...r, [propertyId]: d }))
       router.refresh()
     } catch {
       setIcalStatus(s => ({ ...s, [propertyId]: 'error' }))
@@ -290,10 +301,21 @@ export default function CalendarView({ bookings, blocks }: { bookings: Booking[]
               <div>
                 <div style={{ fontSize: '10px', fontWeight: 500, letterSpacing: '.12em', textTransform: 'uppercase', color: p.color, marginBottom: '2px' }}>{p.label}</div>
                 <div style={{ fontSize: '11px', color: '#888880' }}>
-                  {icalStatus[p.id] === 'loading' ? 'Syncing...' :
-                   icalStatus[p.id] === 'done' ? 'Synced ✓' :
+                  {icalStatus[p.id] === 'loading' ? 'Syncing…' :
                    icalStatus[p.id] === 'error' ? 'Sync failed' :
-                   'iCal connected'}
+                   icalStatus[p.id] === 'done' && icalReport[p.id]
+                     ? (() => {
+                         const r = icalReport[p.id]
+                         const bad = (r.feeds || []).filter((f: any) => !f.ok)
+                         const bits = [`${r.inserted} new`]
+                         if (r.adopted) bits.push(`${r.adopted} linked`)
+                         if (r.removed) bits.push(`${r.removed} cancelled`)
+                         if (r.extended) bits.push(`${r.extended} moved`)
+                         return bad.length
+                           ? `${bits.join(' · ')} — ${bad.length} feed${bad.length > 1 ? 's' : ''} failed`
+                           : bits.join(' · ')
+                       })()
+                     : 'iCal connected'}
                 </div>
               </div>
               <button

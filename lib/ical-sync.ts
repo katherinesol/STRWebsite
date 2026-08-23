@@ -1,127 +1,191 @@
 import { createAdminClient } from '@/lib/supabase/server'
 import { revokeCodeFromProperty, reprogramBookingWindow, windowFromBooking } from '@/lib/seam'
 import { logSystem } from '@/lib/system-log'
+import { parseICal, detectPlatform } from '@/lib/ical-parse'
 
-function parseICal(icalText: string): { start: string; end: string; summary: string }[] {
-  const events: { start: string; end: string; summary: string }[] = []
-  const lines = icalText.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n')
-  let inEvent = false
-  let start = ''
-  let end = ''
-  let summary = ''
-  for (const line of lines) {
-    const trimmed = line.trim()
-    if (trimmed === 'BEGIN:VEVENT') { inEvent = true; start = ''; end = ''; summary = '' }
-    if (trimmed === 'END:VEVENT') {
-      // skip Airbnb/VRBO "not available" and owner-blocked events — they are NOT bookings
-      const s = summary.toLowerCase()
-      const isBlockMarker = s.includes('not available') || s.includes('unavailable') || s.includes('blocked')
-      if (start && end && !isBlockMarker) events.push({ start, end, summary })
-      inEvent = false
-    }
-    if (inEvent) {
-      if (trimmed.startsWith('SUMMARY')) {
-        summary = trimmed.split(':').slice(1).join(':').trim()
-      }
-      if (trimmed.startsWith('DTSTART')) {
-        const raw = trimmed.split(':').pop() || ''
-        const digits = raw.replace(/\D/g, '').slice(0, 8)
-        if (digits.length === 8) start = `${digits.slice(0,4)}-${digits.slice(4,6)}-${digits.slice(6,8)}`
-      }
-      if (trimmed.startsWith('DTEND')) {
-        const raw = trimmed.split(':').pop() || ''
-        const digits = raw.replace(/\D/g, '').slice(0, 8)
-        if (digits.length === 8) end = `${digits.slice(0,4)}-${digits.slice(4,6)}-${digits.slice(6,8)}`
-      }
-    }
-  }
-  return events
+// The ONE way platform bookings enter calendar_blocks.
+//
+// This used to run on every load of /admin/calendar, which meant a page view could
+// insert bookings, move dates, reprogram a lock and revoke a door code. It now runs
+// from the daily cron and from an explicit Sync-now button — both through
+// syncAllICal() below, so there is a single code path and a single set of rules.
+//
+// IDENTITY. A synced row is identified by its feed UID, not by its dates. Matching
+// on (start_date, end_date) meant a manual date edit broke the link: the event no
+// longer matched, a duplicate was inserted, and the reconcile pass then reverted the
+// edit. UID survives a date change, so an edit stays an edit. Rows created before
+// UIDs were captured have ical_uid null; they adopt one the first time a feed event
+// matches them by range.
+
+export type FeedResult = {
+  property_id: string
+  platform: string
+  url_host: string
+  ok: boolean
+  events: number
+  inserted: number
+  adopted: number
+  error?: string
 }
 
-function detectPlatform(url: string): string {
-  if (url.includes('airbnb')) return 'airbnb'
-  if (url.includes('vrbo') || url.includes('homeaway')) return 'vrbo'
-  if (url.includes('houfy')) return 'houfy'
-  return 'manual'
+export type SyncReport = {
+  properties: string[]
+  feeds: FeedResult[]
+  inserted: number
+  adopted: number
+  extended: number
+  cancelled: number
+  removed: number
+  failed_feeds: number
 }
 
+const hostOf = (u: string) => { try { return new URL(u).hostname } catch { return u.slice(0, 24) } }
 
-export async function syncICalToDB(propertyId: string): Promise<number> {
+/** Sync every property that has an active feed. The property list comes from the
+ *  ical_feeds table, so a property with no feed is never touched and a new one
+ *  starts syncing the moment its feed row is added — no code change. */
+export async function syncAllICal(): Promise<SyncReport> {
   const supabase = createAdminClient()
+  const { data } = await supabase.from('ical_feeds').select('property_id').eq('active', true)
+  const properties = [...new Set((data || []).map((f: any) => f.property_id).filter(Boolean))]
+
+  const report: SyncReport = {
+    properties, feeds: [], inserted: 0, adopted: 0,
+    extended: 0, cancelled: 0, removed: 0, failed_feeds: 0,
+  }
+  for (const p of properties) {
+    const r = await syncICalToDB(p)
+    report.feeds.push(...r.feeds)
+    report.inserted += r.inserted
+    report.adopted += r.adopted
+    report.extended += r.extended
+    report.cancelled += r.cancelled
+    report.removed += r.removed
+  }
+  report.failed_feeds = report.feeds.filter(f => !f.ok).length
+  return report
+}
+
+export async function syncICalToDB(propertyId: string): Promise<SyncReport> {
+  const supabase = createAdminClient()
+  const report: SyncReport = {
+    properties: [propertyId], feeds: [], inserted: 0, adopted: 0,
+    extended: 0, cancelled: 0, removed: 0, failed_feeds: 0,
+  }
+
   const { data: feeds } = await supabase.from('ical_feeds').select('url').eq('property_id', propertyId).eq('active', true)
   const urls = (feeds || []).map((f: any) => f.url).filter(Boolean)
-  if (!urls.length) return 0
-  let saved = 0
+  if (!urls.length) return report
 
-  // collect every date-range currently present across all feeds, keyed by platform
-  const feedRanges = new Set<string>()          // "platform|start|end"
+  // every range currently present per platform, plus start->end for extension detection
   const feedRangesByPlatform: Record<string, Set<string>> = {}
-  const feedStartMap: Record<string, Record<string, string>> = {}  // platform -> start -> end (for extension detection)
+  const feedUidsByPlatform: Record<string, Set<string>> = {}
+  const feedStartMap: Record<string, Record<string, string>> = {}
 
-  await Promise.all(urls.map(async url => {
+  for (const url of urls) {
     const platform = detectPlatform(url)
+    const fr: FeedResult = { property_id: propertyId, platform, url_host: hostOf(url), ok: false, events: 0, inserted: 0, adopted: 0 }
     if (!feedRangesByPlatform[platform]) feedRangesByPlatform[platform] = new Set()
+    if (!feedUidsByPlatform[platform]) feedUidsByPlatform[platform] = new Set()
+    if (!feedStartMap[platform]) feedStartMap[platform] = {}
+
     try {
       const res = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0 RentalDirect/1.0' }, cache: 'no-store' })
-      if (!res.ok) return
-      const text = await res.text()
-      const events = parseICal(text)
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const events = parseICal(await res.text())
+      fr.events = events.length
+
       for (const event of events) {
-        feedRanges.add(`${platform}|${event.start}|${event.end}`)
         feedRangesByPlatform[platform].add(`${event.start}|${event.end}`)
-        if (!feedStartMap[platform]) feedStartMap[platform] = {}
         feedStartMap[platform][event.start] = event.end
-        const { data: existing } = await supabase
-          .from('calendar_blocks')
-          .select('id, guest_name')
-          .eq('property_id', propertyId)
-          .eq('start_date', event.start)
-          .eq('end_date', event.end)
-          .maybeSingle()
+        if (event.uid) feedUidsByPlatform[platform].add(event.uid)
+
+        // 1. match by UID — survives a manual date change
+        let existing: any = null
+        if (event.uid) {
+          const { data } = await supabase.from('calendar_blocks')
+            .select('id, start_date, end_date, ical_uid')
+            .eq('property_id', propertyId).eq('ical_uid', event.uid).maybeSingle()
+          existing = data
+        }
+
+        // 2. fall back to the date range, for rows created before UIDs were stored
         if (!existing) {
-          await supabase.from('calendar_blocks').insert({
+          const { data } = await supabase.from('calendar_blocks')
+            .select('id, start_date, end_date, ical_uid')
+            .eq('property_id', propertyId)
+            .eq('start_date', event.start).eq('end_date', event.end)
+            .is('ical_uid', null)
+            .maybeSingle()
+          if (data) {
+            existing = data
+            // adopt the UID so this row is never identified by its dates again
+            if (event.uid) {
+              const { error } = await supabase.from('calendar_blocks')
+                .update({ ical_uid: event.uid }).eq('id', data.id).is('ical_uid', null)
+              if (!error) { fr.adopted++; report.adopted++ }
+            }
+          }
+        }
+
+        if (!existing) {
+          const { error } = await supabase.from('calendar_blocks').insert({
             property_id: propertyId, start_date: event.start, end_date: event.end,
             reason: 'manual', notes: `Synced from ${platform}`, platform,
-          }).then(({ error }) => { if (!error) saved++ })
+            ical_uid: event.uid || null,
+          })
+          if (!error) { fr.inserted++; report.inserted++ }
         }
       }
-    } catch {}
-  }))
+      fr.ok = true
+    } catch (e: any) {
+      fr.error = e?.message || 'fetch failed'
+    }
+    report.feeds.push(fr)
+  }
 
-  // RECONCILE cancellations: synced blocks whose range vanished from their platform feed.
-  // Only reconcile platforms we actually fetched (don't touch a platform whose feed errored/empty).
+  // RECONCILE cancellations: synced blocks that vanished from their platform feed.
+  // Only platforms that actually returned events are reconciled — a feed that errored
+  // or came back empty must never be read as "everything was cancelled".
   const fetchedPlatforms = Object.keys(feedRangesByPlatform).filter(p => feedRangesByPlatform[p].size > 0)
   if (fetchedPlatforms.length) {
     const { data: synced } = await supabase.from('calendar_blocks')
-      .select('id, platform, start_date, end_date, guest_name, door_code, notes, early_checkin_time, late_checkout_time')
+      .select('id, platform, start_date, end_date, guest_name, door_code, notes, early_checkin_time, late_checkout_time, ical_uid')
       .eq('property_id', propertyId)
       .in('platform', fetchedPlatforms)
 
     const todayStr = new Date().toISOString().split('T')[0]
     for (const b of synced || []) {
-      // skip past bookings — no point revoking a stay that already ended
-      if (b.end_date < todayStr) continue
-      const key = `${b.start_date}|${b.end_date}`
-      const stillInFeed = feedRangesByPlatform[b.platform]?.has(key)
-      if (stillInFeed) continue
+      if (b.end_date < todayStr) continue   // don't revoke a stay that already ended
 
-      // EXTENSION / SHORTENING: same start date exists in feed with a different end.
-      const newEnd = feedStartMap[b.platform] ? feedStartMap[b.platform][b.start_date] : undefined
-      if (newEnd && newEnd !== b.end_date) {
-        await supabase.from('calendar_blocks').update({ end_date: newEnd }).eq('id', b.id)
-        const exCode = String(b.door_code || '').replace(/[^0-9]/g, '').slice(-4)
-        if (exCode) {
-          try {
-            await reprogramBookingWindow({
-              propertyId, platform: b.platform, code: exCode,
-              startsAt: windowFromBooking(b.start_date, (b as any).early_checkin_time || null, false),
-              endsAt: windowFromBooking(newEnd, (b as any).late_checkout_time || null, true),
-            })
-          } catch {}
-        }
-        const dir = newEnd > b.end_date ? 'extended' : 'shortened'
-        await logSystem('booking.dates_changed', (b.guest_name || 'A booking') + ' ' + dir + ': ' + b.start_date + '\u2013' + b.end_date + ' \u2192 ' + b.start_date + '\u2013' + newEnd + '. Code window moved. REVIEW FINANCE (accommodation, tax, payout).', { booking_id: b.id, old_end: b.end_date, new_end: newEnd, code: exCode || null }, propertyId)
+      // Still present? By UID when we have one — a date change is then an EDIT, not a
+      // disappearance, and the row is left exactly as the owner set it.
+      if (b.ical_uid) {
+        if (feedUidsByPlatform[b.platform]?.has(b.ical_uid)) continue
+      } else if (feedRangesByPlatform[b.platform]?.has(`${b.start_date}|${b.end_date}`)) {
         continue
+      }
+
+      // Pre-UID rows only: same start, different end = the platform moved the dates.
+      if (!b.ical_uid) {
+        const newEnd = feedStartMap[b.platform]?.[b.start_date]
+        if (newEnd && newEnd !== b.end_date) {
+          await supabase.from('calendar_blocks').update({ end_date: newEnd }).eq('id', b.id)
+          report.extended++
+          const exCode = String(b.door_code || '').replace(/[^0-9]/g, '').slice(-4)
+          if (exCode) {
+            try {
+              await reprogramBookingWindow({
+                propertyId, platform: b.platform, code: exCode,
+                startsAt: windowFromBooking(b.start_date, (b as any).early_checkin_time || null, false),
+                endsAt: windowFromBooking(newEnd, (b as any).late_checkout_time || null, true),
+              })
+            } catch {}
+          }
+          const dir = newEnd > b.end_date ? 'extended' : 'shortened'
+          await logSystem('booking.dates_changed', (b.guest_name || 'A booking') + ' ' + dir + ': ' + b.start_date + '–' + b.end_date + ' → ' + b.start_date + '–' + newEnd + '. Code window moved. REVIEW FINANCE (accommodation, tax, payout).', { booking_id: b.id, old_end: b.end_date, new_end: newEnd, code: exCode || null }, propertyId)
+          continue
+        }
       }
 
       // vanished from feed = likely cancelled. Revoke any code first (security).
@@ -135,12 +199,15 @@ export async function syncICalToDB(propertyId: string): Promise<number> {
       const pristine = !b.guest_name && !b.door_code
       if (pristine) {
         await supabase.from('calendar_blocks').delete().eq('id', b.id)
+        report.removed++
         await logSystem('booking.removed', `Removed cancelled ${b.platform} booking (${b.start_date}–${b.end_date}) — was never manually edited`, { booking_id: b.id }, propertyId)
       } else {
+        report.cancelled++
         await logSystem('booking.cancelled', `${b.guest_name || 'A booking'} vanished from ${b.platform} feed — code revoked, review the record (${b.start_date}–${b.end_date})`, { booking_id: b.id }, propertyId)
       }
     }
   }
 
-  return saved
+  report.failed_feeds = report.feeds.filter(f => !f.ok).length
+  return report
 }

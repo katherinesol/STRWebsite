@@ -1,16 +1,10 @@
 import { createAdminClient } from '@/lib/supabase/server'
 import MobileAgenda from '@/components/admin/MobileAgenda'
 import CalendarView from '@/components/admin/CalendarView'
-import { syncICalToDB } from '@/lib/ical-sync'
 
 export default async function CalendarPage() {
-  // auto-sync all iCal feeds on calendar load
-  await Promise.all([
-    syncICalToDB('nickel-beach'),
-    syncICalToDB('royal-york-east'),
-    syncICalToDB('royal-york-west'),
-  ])
-
+  // Read only. iCal syncing runs from the daily cron and the explicit Sync-now
+  // button — never from a page view. See lib/ical-sync.ts.
   const supabase = createAdminClient()
   const [{ data: bookings }, { data: blocks }] = await Promise.all([
     supabase
