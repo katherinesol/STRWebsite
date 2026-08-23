@@ -56,3 +56,5 @@ platform variant. Build the page so the toggle drops into a slot that already
 exists; do not unhold it — the VRBO/Airbnb audit decides what each platform
 actually remits, and shipping the switch before that settles is what the hold is
 for.
+
+The parked tax batch lives in [../vrbo-airbnb-audit.md](../vrbo-airbnb-audit.md).
