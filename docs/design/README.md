@@ -58,3 +58,40 @@ actually remits, and shipping the switch before that settles is what the hold is
 for.
 
 The parked tax batch lives in [../vrbo-airbnb-audit.md](../vrbo-airbnb-audit.md).
+
+## Backlog
+
+**Email stats** — open rates, click rates, unsubscribes, bounces, delivery.
+Not started; needs investigation before it can be scoped.
+
+- Find out what Resend already captures versus what needs webhooks, an events
+  table, and tracking switched on.
+- The split is likely two products, not one: delivery and bounce belong to
+  transactional mail; open, click and unsubscribe belong to anything marketing
+  or newsletter.
+- Forward-looking only. There is no retroactive open data to backfill.
+- Open rates are imperfect and should be labelled as such on any screen that
+  shows them — Apple Mail Privacy Protection pre-fetches images and inflates
+  them.
+
+**Also queued, from tonight**
+
+- 2a phases D (port the writes), E ("Add the figures" panel on `/figures`),
+  F (repoint `hrefFor` and Today's links).
+- Today's "Set code" check only asks whether `door_code` is filled, not whether
+  the code reached the lock or is yet DUE to. A smarter version flags a booking
+  only when a code should have programmed by now and did not — codes program
+  close to check-in by design, so a future arrival without one is normal.
+  Needs the "when should it be on the lock" threshold defined first.
+- Haussy's confirm card warns "Creating this makes a second, separate booking"
+  while in enrich mode, because the overlap query and the merge-candidate query
+  return the same row. Confirming merges correctly; the warning says the
+  opposite of what happens.
+- Haussy fills `taxes_platform_remits` from the rule (MAT owed) rather than from
+  the screenshot (what the platform actually kept). On Kristine Nguyen that is
+  52.50 against a real 80.24, and only the real figure reconciles the payout.
+- The extractor asserts Airbnb uses the host-only fee model and that a guest
+  service fee is "typically $0". Split-fee bookings still exist — Kristine's has
+  a $150.60 guest fee and a 3% host fee — so it flags correct data as suspect.
+- 6c People: guests, contacts and inbox. Guest contact details still live only
+  on the legacy `/admin/guests` pages.
