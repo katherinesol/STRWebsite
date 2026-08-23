@@ -54,7 +54,7 @@ Confirm the deploy tree is what you think it is, and that held work is absent:
 
 ```sh
 test -e "$D/components/admin/TaxToggleField.tsx" && echo "HELD FILE PRESENT — STOP"
-grep -rl TaxToggleField "$D" | wc -l        # expect 0
+grep -rl TaxToggleField "$D" --exclude=DEPLOY.md | wc -l   # expect 0 (this file names it)
 cat "$D/.vercel/project.json"               # expect projectName: rental-direct
 ```
 
