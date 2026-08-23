@@ -252,7 +252,6 @@ export default function BookingDetail({ kind, b, locks, guest, conversation, mes
               </span>
             </div>
           </div>
-        </div>
 
           {/* ported controls. GiftCard, StayChecklist and ParkingControl are
               MOUNTED UNCHANGED, not reimplemented — GiftCard in particular earns
@@ -282,6 +281,7 @@ export default function BookingDetail({ kind, b, locks, guest, conversation, mes
             {sectionHead('Gift', 'never shown to the guest')}
             <GiftCard bookingId={b.id} bookingKind={kind} />
           </div>
+        </div>
 
         {/* rail */}
         <div className="kh-rail" style={{ width: '392px', flex: 'none', ...cardStyle, borderRadius: '18px', padding: '26px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
