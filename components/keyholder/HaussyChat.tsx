@@ -36,6 +36,7 @@ export default function HaussyChat() {
 
   // task proposal
   const [draftTask, setDraftTask] = useState<any>(null)
+  const [taskId, setTaskId] = useState<string>('')
   const [taskSaving, setTaskSaving] = useState(false)
 
   const endRef = useRef<HTMLDivElement>(null)
@@ -82,18 +83,21 @@ export default function HaussyChat() {
     priceIt(next)
   }
 
-  async function confirmBooking({ createExpenses, ids }: { createExpenses: boolean; ids: any }) {
+  async function confirmBooking({ createExpenses, ids, mode, targetId }: { createExpenses: boolean; ids: any; mode: 'create' | 'merge'; targetId?: string }) {
     setSaving(true); setErr('')
     try {
       const res = await fetch('/api/admin/haussy/booking', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ draft, commit: true, ids, create_expenses: createExpenses }),
+        body: JSON.stringify({ draft, commit: true, ids, create_expenses: createExpenses, mode, target_id: targetId }),
       })
       const d = await res.json().catch(() => ({}))
       if (!d.applied) { setErr(d.error || 'Could not create the booking'); return }
+      const taxBit = d.tax.apply_tax ? `HST ${d.tax.hst.toFixed(2)} · MAT ${d.tax.mat.toFixed(2)}` : 'no tax applied'
       setNote(d.result?.already
-        ? 'Already created — the repeat submit was ignored, no second booking.'
-        : `Booking created for ${draft.guest_name || 'guest'} · ${d.tax.apply_tax ? `HST ${d.tax.hst.toFixed(2)} · MAT ${d.tax.mat.toFixed(2)}` : 'no tax applied'}.`)
+        ? 'Already done — the repeat submit was ignored, nothing written twice.'
+        : mode === 'merge'
+          ? `Filled in ${draft.guest_name || 'the booking'} · ${taxBit}.`
+          : `Booking created for ${draft.guest_name || 'guest'} · ${taxBit}.`)
       setDraft(null); setPreview(null)
     } catch { setErr('Could not reach the server — nothing was written.') }
     finally { setSaving(false) }
@@ -118,7 +122,7 @@ export default function HaussyChat() {
       const bk = (d.tools || []).find((x: any) => x.tool === 'propose_booking')
       if (bk?.input) { const dr = { ...bk.input }; setDraft(dr); await priceIt(dr) }
       const tk = (d.tools || []).find((x: any) => x.tool === 'propose_task')
-      if (tk?.input) setDraftTask({ ...tk.input })
+      if (tk?.input) { setDraftTask({ ...tk.input }); setTaskId(crypto.randomUUID()) }
     } catch {
       setMessages(m => [...m, { role: 'assistant', content: 'Something went wrong.' }])
     } finally { setBusy(false) }
@@ -254,7 +258,7 @@ export default function HaussyChat() {
               setTaskSaving(true)
               const res = await fetch('/api/admin/haussy/create-task', {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ task: draftTask }),
+                body: JSON.stringify({ task: draftTask, task_id: taskId }),
               })
               const d = await res.json()
               setTaskSaving(false)

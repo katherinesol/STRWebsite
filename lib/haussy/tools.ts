@@ -100,6 +100,27 @@ Notes:
     },
   },
   {
+    name: 'propose_block',
+    description: `Propose blocking dates so they cannot be booked. This does NOT write anything — the owner sees a confirm card first. Use when they want dates held for themselves, for friends and family, or for cleaning or maintenance: "block Nickel Beach Sep 3 to 7", "hold Royal York West for my parents next weekend", "the west unit is having the floors done Oct 1-3".
+
+A block is NOT a booking. There is no guest, no money and no door code. If they describe a paying guest, use propose_booking instead.
+
+Work the dates out from today. end_date is the day the block ENDS, the way a checkout date works — blocking Sep 3 to Sep 7 holds four nights.`,
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        property_id: { type: 'string', enum: ['royal-york-east', 'royal-york-west', 'nickel-beach'] },
+        start_date: { type: 'string', description: 'YYYY-MM-DD' },
+        end_date: { type: 'string', description: 'YYYY-MM-DD, the day the block ends' },
+        reason: { type: 'string', enum: ['owner', 'cleaning', 'maintenance', 'manual'], description: 'owner = the owner or their people are staying' },
+        block_for: { type: 'string', enum: ['myself', 'friends-family'], description: 'Only for reason=owner' },
+        block_for_name: { type: 'string', description: 'Who it is for, when friends-family' },
+        notes: { type: 'string' },
+      },
+      required: ['property_id', 'start_date', 'end_date'],
+    },
+  },
+  {
     name: 'propose_booking',
     description: `Propose a NEW booking from what the owner typed. This does NOT write anything — it returns a draft that the owner sees on a confirm card with the computed tax, then approves. Use whenever they describe a stay they want recorded, e.g. "book Sarah at Nickel Beach Aug 14-17, $250 a night" or "Tom's staying at Royal York West this weekend, direct, $600 total".
 
@@ -140,6 +161,11 @@ export async function runTool(name: string, input: any, ctx: HaussyCtx): Promise
   if (name === 'propose_task') {
     if (ctx.role !== 'owner') return { ok: false, error: 'Only the owner can create tasks.' }
     return { ok: true, data: { proposed: true, ...input } }
+  }
+  if (name === 'propose_block') {
+    if (ctx.role !== 'owner') return { ok: false, error: 'Only the owner can block dates.' }
+    // Writes NOTHING. The client prices/checks it and only a confirmed card commits.
+    return { ok: true, data: { proposed_block: true, ...input } }
   }
   if (name === 'propose_booking') {
     if (ctx.role !== 'owner') return { ok: false, error: 'Only the owner can create bookings.' }

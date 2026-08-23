@@ -66,8 +66,39 @@ export async function POST(request: NextRequest) {
     ...(directOv || []).map(b => ({ source: 'direct', id: b.id, label: `direct booking · ${b.check_in} → ${b.check_out}` })),
   ]
 
+  // A booking the feed already made for these dates. Most bookings arrive as a
+  // bare calendar_blocks row with only dates on it; the screenshot supplies the
+  // rest. Enriching that row is the common case, so the card leads with it.
+  const candidate = (blockOv || []).find(b => b.id) || null
+  let mergeInto: any = null
+  if (candidate) {
+    const { data: full } = await supabase.from('calendar_blocks').select('*').eq('id', candidate.id).maybeSingle()
+    if (full) {
+      // only the fields the draft would actually change, never a blanking
+      const proposed = buildBookingColumns(d, priced) as Record<string, any>
+      const SERVER_DEFAULTS = new Set(['reason', 'status'])
+      const changes: any[] = []
+      for (const [k, v] of Object.entries(proposed)) {
+        if (v === null || v === undefined || v === '') continue        // draft says nothing → leave it
+        if (SERVER_DEFAULTS.has(k)) continue                            // server default, not the screenshot
+        const cur = (full as any)[k]
+        const same = String(cur ?? '') === String(v ?? '')
+        changes.push({ field: k, from: cur ?? null, to: v, changed: !same })
+      }
+      mergeInto = {
+        id: full.id,
+        summary: `${full.platform || 'platform'} · ${full.start_date} → ${full.end_date}`,
+        was_bare: !full.guest_name,
+        had_tax: full.hst != null && full.mat != null && full.apply_tax != null,
+        changes: changes.filter(c => c.changed),
+        unchanged: changes.filter(c => !c.changed).map(c => c.field),
+      }
+    }
+  }
+
   const preview = {
     ok: true,
+    merge_into: mergeInto,
     kind: priced.kind, property_id: priced.property_id, platform: priced.platform,
     check_in: priced.check_in, check_out: priced.check_out, nights: priced.nights,
     guests: priced.guests, guests_assumed: priced.guests_assumed,
@@ -94,13 +125,37 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'an id is required for each expense' }, { status: 400 })
   }
 
+  const mode: 'create' | 'merge' = body?.mode === 'merge' ? 'merge' : 'create'
+  const target_id = body?.target_id ? String(body.target_id) : null
+  if (mode === 'merge' && !UUID.test(String(target_id))) {
+    return NextResponse.json({ error: 'target_id required to fill in an existing booking' }, { status: 400 })
+  }
+
+  // On merge, send ONLY the fields that actually change. The SQL writes a column
+  // just when its key is present, so anything omitted here keeps what it has —
+  // enriching adds, it never erases.
+  const allCols = buildBookingColumns(d, priced) as Record<string, any>
+  let bookingCols: Record<string, any> = allCols
+  if (mode === 'merge') {
+    // Columns the server fills in on a NEW booking but must never impose on an
+    // existing one — they say nothing about what the screenshot contained.
+    const SERVER_DEFAULTS = new Set(['reason', 'status'])
+    const keep = new Set<string>((mergeInto?.changes || []).map((c: any) => c.field))
+    bookingCols = Object.fromEntries(
+      Object.entries(allCols).filter(([k]) => keep.has(k) && !SERVER_DEFAULTS.has(k)),
+    )
+  } else {
+    bookingCols = { ...allCols, notes: allCols.notes || 'Added by Haussy' }
+  }
+
   const payload = {
+    mode, target_id,
     booking_id, kind: priced.kind,
     guest_id: guestMatch?.id || null,
     guest: !guestMatch && d.guest_name && guest_new_id
       ? { id: guest_new_id, name: d.guest_name, email: d.guest_email || '', phone: d.guest_phone || '' }
       : null,
-    booking: buildBookingColumns(d, priced),
+    booking: bookingCols,
     expenses: createExpenses ? buildExpenseRows(priced, expenseIds) : [],
   }
 
@@ -118,8 +173,8 @@ export async function POST(request: NextRequest) {
   if (!(rpc as any)?.already) {
     await logCalendarActivity({
       propertyId: priced.property_id, eventType: 'new_booking',
-      description: `New booking · ${d.guest_name || 'Guest'} · ${priced.check_in} → ${priced.check_out}` + (priced.platform ? ` (${priced.platform})` : ' (direct)'),
-      bookingId: booking_id, bookingKind: priced.kind, guestName: d.guest_name || null,
+      description: `${mode === 'merge' ? 'Booking details added' : 'New booking'} · ${d.guest_name || 'Guest'} · ${priced.check_in} → ${priced.check_out}` + (priced.platform ? ` (${priced.platform})` : ' (direct)'),
+      bookingId: (mode === 'merge' ? target_id : booking_id) as string, bookingKind: priced.kind, guestName: d.guest_name || null,
       actorId: auth.ok ? auth.userId : null, actorName: auth.ok ? auth.name : null,
     })
   }

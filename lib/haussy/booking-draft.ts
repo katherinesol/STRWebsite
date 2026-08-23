@@ -127,7 +127,10 @@ export function buildBookingColumns(d: any, p: Priced) {
       early_checkin_time: d.check_in_time || null, late_checkout_time: d.check_out_time || null,
       door_code: d.door_code || null,
       trip_purpose: d.trip_purpose || null, trip_purpose_note: d.trip_purpose_note || null,
-      notes: d.notes || 'Added by Haussy',
+      // NOT defaulted here. A server-invented note is not something the screenshot
+      // said, and on a merge it would overwrite a hand-typed one. The create path
+      // supplies the default; merge leaves the column alone.
+      notes: d.notes || null,
     }
   }
   return {

@@ -5,11 +5,22 @@ import { createAdminClient } from '@/lib/supabase/server'
 export async function POST(request: NextRequest) {
   if (!await hasRole('owner')) return NextResponse.json({ error: 'Not allowed' }, { status: 403 })
   const auth = await getAuth()
-  const { task } = await request.json()
+  const supabase = createAdminClient()
+  const { task, task_id } = await request.json()
   if (!task?.title) return NextResponse.json({ error: 'Title required' }, { status: 400 })
 
-  const supabase = createAdminClient()
+  // Client-generated id: a double-click collides on the primary key instead of
+  // creating the same reminder twice.
+  const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  const id = UUID.test(String(task_id)) ? String(task_id) : null
+  if (id) {
+    const { data: existing } = await supabase.from('maintenance_tasks')
+      .select('id, title, due_date').eq('id', id).maybeSingle()
+    if (existing) return NextResponse.json({ ok: true, already: true, task: existing })
+  }
+
   const { data, error } = await supabase.from('maintenance_tasks').insert({
+    ...(id ? { id } : {}),
     title: task.title,
     description: task.description || null,
     property_id: task.property_id || null,

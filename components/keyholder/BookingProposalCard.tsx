@@ -37,7 +37,7 @@ const rowS: React.CSSProperties = { display: 'flex', fontSize: '13px', padding: 
 export default function BookingProposalCard({ draft, preview, busy, err, onEdit, onConfirm, onCancel }: {
   draft: any; preview: any; busy: boolean; err: string
   onEdit: (patch: any) => void
-  onConfirm: (opts: { createExpenses: boolean; ids: any }) => void
+  onConfirm: (opts: { createExpenses: boolean; ids: any; mode: 'create' | 'merge'; targetId?: string }) => void
   onCancel: () => void
 }) {
   const [editing, setEditing] = useState(false)
@@ -50,13 +50,16 @@ export default function BookingProposalCard({ draft, preview, busy, err, onEdit,
 
   if (!preview) return null
   const t = preview.tax, m = preview.money, g = preview.guest
+  const mi = preview.merge_into
   const hasOverlap = preview.overlaps?.length > 0
   const varianceBad = t.variance != null && Math.abs(t.variance) > 0.005
 
   return (
     <div style={{ ...cardStyle, borderRadius: '18px', padding: '26px', display: 'flex', flexDirection: 'column', gap: '18px' }}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-        <span style={microLabel}>Haussy proposes a booking · nothing is saved yet</span>
+        <span style={microLabel}>
+          {mi ? 'Haussy found this booking already · nothing is saved yet' : 'Haussy proposes a booking · nothing is saved yet'}
+        </span>
         <span style={{ fontFamily: F.serif, fontSize: '27px', lineHeight: 1.15 }}>
           {g.name || 'Unnamed guest'} · {PROP_NAMES[preview.property_id] || preview.property_id}
         </span>
@@ -67,6 +70,38 @@ export default function BookingProposalCard({ draft, preview, busy, err, onEdit,
           {preview.kind === 'direct' ? 'direct' : preview.platform}
         </span>
       </div>
+
+      {/* WHAT THE SCREENSHOT ADDS — only when an existing booking matches */}
+      {mi && (
+        <div style={{ background: L.cardAlt, borderRadius: '12px', padding: '14px 16px' }}>
+          <span style={microLabel}>What this fills in</span>
+          <div style={{ fontSize: '12px', color: L.inkMuted, marginTop: '4px', lineHeight: 1.5 }}>
+            {mi.was_bare
+              ? 'This row came from the feed with only dates on it.'
+              : 'This booking already exists; only the fields below change.'}
+            {!mi.had_tax && ' Its tax columns are empty — this is the first time they get set.'}
+          </div>
+          <div style={{ marginTop: '9px', display: 'flex', flexDirection: 'column', gap: '5px' }}>
+            {mi.changes.length === 0 && (
+              <span style={{ fontSize: '13px', color: L.inkMuted }}>Nothing to add — the booking already matches.</span>
+            )}
+            {mi.changes.map((c: any) => (
+              <div key={c.field} style={{ display: 'flex', gap: '10px', fontSize: '12.5px', alignItems: 'baseline' }}>
+                <span style={{ color: L.inkMuted, minWidth: '150px' }}>{c.field.replace(/_/g, ' ')}</span>
+                <span style={{ color: L.inkFaint, fontFamily: F.mono, fontSize: '11px' }}>{c.from === null || c.from === '' ? '—' : String(c.from)}</span>
+                <span style={{ color: L.inkFaint }}>→</span>
+                <span style={{ fontFamily: F.mono, fontSize: '11px' }}><strong>{String(c.to)}</strong></span>
+              </div>
+            ))}
+          </div>
+          {mi.unchanged.length > 0 && (
+            <div style={{ fontSize: '11.5px', color: L.inkFaint, marginTop: '9px', lineHeight: 1.5 }}>
+              Unchanged: {mi.unchanged.slice(0, 8).join(', ')}{mi.unchanged.length > 8 ? ` +${mi.unchanged.length - 8} more` : ''}.
+              Anything the screenshot doesn&rsquo;t mention is left exactly as it is.
+            </div>
+          )}
+        </div>
+      )}
 
       {/* GUEST */}
       <div style={{ background: L.cardAlt, borderRadius: '12px', padding: '14px 16px' }}>
@@ -182,10 +217,21 @@ export default function BookingProposalCard({ draft, preview, busy, err, onEdit,
       {err && <span style={{ fontSize: '13px', color: L.red }}>{err}</span>}
 
       <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-        <button onClick={() => onConfirm({ createExpenses, ids })} disabled={busy}
-          style={{ padding: '12px 20px', borderRadius: '10px', background: L.ink, color: '#fff', fontSize: '14px', fontWeight: 600, border: 'none', cursor: 'pointer', fontFamily: F.sans, opacity: busy ? 0.6 : 1 }}>
-          {busy ? 'Creating…' : 'Create the booking'}
-        </button>
+        {mi ? (<>
+          <button onClick={() => onConfirm({ createExpenses, ids, mode: 'merge', targetId: mi.id })} disabled={busy || mi.changes.length === 0}
+            style={{ padding: '12px 20px', borderRadius: '10px', background: mi.changes.length ? L.ink : L.line, color: '#fff', fontSize: '14px', fontWeight: 600, border: 'none', cursor: mi.changes.length ? 'pointer' : 'not-allowed', fontFamily: F.sans, opacity: busy ? 0.6 : 1 }}>
+            {busy ? 'Filling in…' : 'Fill in this booking'}
+          </button>
+          <button onClick={() => onConfirm({ createExpenses, ids, mode: 'create' })} disabled={busy}
+            style={{ padding: '12px 18px', borderRadius: '10px', background: 'transparent', border: `1px solid ${L.line}`, fontSize: '14px', fontWeight: 600, cursor: 'pointer', fontFamily: F.sans }}>
+            Create separate
+          </button>
+        </>) : (
+          <button onClick={() => onConfirm({ createExpenses, ids, mode: 'create' })} disabled={busy}
+            style={{ padding: '12px 20px', borderRadius: '10px', background: L.ink, color: '#fff', fontSize: '14px', fontWeight: 600, border: 'none', cursor: 'pointer', fontFamily: F.sans, opacity: busy ? 0.6 : 1 }}>
+            {busy ? 'Creating…' : 'Create the booking'}
+          </button>
+        )}
         <button onClick={() => setEditing(v => !v)} disabled={busy}
           style={{ padding: '12px 18px', borderRadius: '10px', background: 'transparent', border: `1px solid ${L.line}`, fontSize: '14px', cursor: 'pointer', fontFamily: F.sans }}>
           {editing ? 'Done editing' : 'Edit fields'}
