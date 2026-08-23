@@ -3,6 +3,13 @@ import { format } from 'date-fns'
 import { L, F, microLabel, cardStyle, money, platformColour } from '@/lib/design-tokens'
 import { getCheckInDisplay, getCheckOutDisplay } from '@/lib/checkin-times'
 import { unpaid, paidSoFar, outstanding } from '@/lib/keyholder/payment'
+import DoorCodeField from './DoorCodeField'
+import GrantsField from './GrantsField'
+import { ConfirmationCodeField } from './BookingControls'
+import FiguresPanel from './FiguresPanel'
+import GiftCard from '@/components/admin/GiftCard'
+import StayChecklist from '@/components/admin/StayChecklist'
+import ParkingControl from '@/components/admin/ParkingControl'
 
 /** Design-doc 2a, read only.
  *
@@ -145,6 +152,15 @@ export default function BookingDetail({ kind, b, locks, guest, conversation, mes
                 )
               })}
             </div>
+            <div style={{ ...cardStyle, padding: '18px 20px' }}>
+              <DoorCodeField bookingId={b.id} kind={kind} current={code || null}
+                guestPhone={(isDirect ? guest?.phone : b.guest_phone) || null} />
+            </div>
+            <div style={{ ...cardStyle, padding: '18px 20px' }}>
+              <GrantsField bookingId={b.id} kind={kind}
+                earlyGranted={!!b.early_checkin_granted} lateGranted={!!b.late_checkout_granted}
+                earlyTime={b.early_checkin_time} lateTime={b.late_checkout_time} />
+            </div>
             <span style={{ fontSize: '12px', color: L.inkFaint, lineHeight: 1.5 }}>
               {ls?.checked_at
                 ? <>Last swept {format(new Date(ls.checked_at), 'MMM d, h:mm a')}.{' '}
@@ -167,6 +183,10 @@ export default function BookingDetail({ kind, b, locks, guest, conversation, mes
                     <span style={{ fontSize: '13px', color: L.inkBody }}>
                       Nobody can tell whether {name} has paid until the room subtotal is recorded.
                     </span>
+                    <div style={{ marginTop: '8px' }}>
+                      <FiguresPanel bookingId={b.id} guestName={name}
+                        current={{ accommodation: b.accommodation, cleaning_fee: b.cleaning_fee, addon_fee: b.addon_fee, hst: b.hst, mat: b.mat, total: b.total }} />
+                    </div>
                   </div>
                 ) : <>
                   {([['Deposit', b.deposit_amount, b.deposit_paid_at, null],
@@ -182,6 +202,10 @@ export default function BookingDetail({ kind, b, locks, guest, conversation, mes
                         </span>
                       </div>
                     ))}
+                  <div style={{ padding: '12px 0' }}>
+                    <FiguresPanel bookingId={b.id} guestName={name}
+                      current={{ accommodation: b.accommodation, cleaning_fee: b.cleaning_fee, addon_fee: b.addon_fee, hst: b.hst, mat: b.mat, total: b.total }} />
+                  </div>
                   <div style={{ ...rowS, fontSize: '14px' }}>
                     <span style={{ width: '90px', fontWeight: 600 }}>Outstanding</span>
                     <span style={{ marginLeft: 'auto', fontFamily: F.mono, fontWeight: 600, color: owing > 0.005 ? L.red : L.green }}>
@@ -229,6 +253,35 @@ export default function BookingDetail({ kind, b, locks, guest, conversation, mes
             </div>
           </div>
         </div>
+
+          {/* ported controls. GiftCard, StayChecklist and ParkingControl are
+              MOUNTED UNCHANGED, not reimplemented — GiftCard in particular earns
+              its keep by never loading the note text, and rewriting it to match
+              the palette is how that guarantee gets lost. They still wear the
+              legacy dark styling; restyling them is a follow-up that must not
+              touch their behaviour. */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            {sectionHead('Support & access codes')}
+            <div style={{ ...cardStyle, padding: '18px 20px' }}>
+              <ConfirmationCodeField bookingId={b.id} kind={kind} current={b.confirmation_code || null} />
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            {sectionHead('Parking', 'legacy styling — behaviour unchanged')}
+            <ParkingControl bookingId={b.id} bookingKind={kind} propertyId={b.property_id}
+              guestName={name} startDate={from} endDate={to} />
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            {sectionHead('Checklist', 'legacy styling — behaviour unchanged')}
+            <StayChecklist propertyId={b.property_id} bookingId={b.id} />
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            {sectionHead('Gift', 'never shown to the guest')}
+            <GiftCard bookingId={b.id} bookingKind={kind} />
+          </div>
 
         {/* rail */}
         <div className="kh-rail" style={{ width: '392px', flex: 'none', ...cardStyle, borderRadius: '18px', padding: '26px', display: 'flex', flexDirection: 'column', gap: '24px' }}>

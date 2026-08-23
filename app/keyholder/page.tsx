@@ -75,12 +75,12 @@ export default async function Today() {
   const stays: Stay[] = [
     ...D.filter(b => b.check_in && b.check_out && b.check_out >= todayStr && b.check_in <= weekStr).map(b => ({
       id: b.id, name: guestName(b), property: b.property_id, from: b.check_in, to: b.check_out,
-      kind: 'direct', href: `/admin/bookings/${b.id}`, purpose: b.trip_purpose, note: b.trip_purpose_note,
+      kind: 'direct', href: `/keyholder/stays/booking/${b.id}`, purpose: b.trip_purpose, note: b.trip_purpose_note,
       gift: gifts.has(b.id), owes: unpaid(b) ? outstanding(b) : 0,
     })),
     ...P.map(b => ({
       id: b.id, name: b.guest_name || b.platform, property: b.property_id, from: b.start_date, to: b.end_date,
-      kind: b.platform || 'manual', href: `/admin/bookings/block/${b.id}`, purpose: b.trip_purpose, note: b.trip_purpose_note,
+      kind: b.platform || 'manual', href: `/keyholder/stays/block/${b.id}`, purpose: b.trip_purpose, note: b.trip_purpose_note,
       gift: gifts.has(b.id), owes: 0,
     })),
   ]
@@ -111,10 +111,10 @@ export default async function Today() {
   const noCode = P.filter(b => b.start_date >= todayStr && b.start_date <= soonStr && !String(b.door_code || '').trim())
 
   const needs = [
-    ...noTotal.map(b => ({ key: 't' + b.id, tone: L.red, text: `${guestName(b)}'s booking has no total on it, so nobody can tell whether they have paid.`, meta: `${PROPERTY_NAMES[b.property_id]} · ${short(b.check_in)} – ${short(b.check_out)}`, href: `/admin/bookings/${b.id}`, cta: 'Add the figures' })),
-    ...noCode.map(b => ({ key: 'k' + b.id, tone: L.red, text: `${b.guest_name || 'A guest'} arrives ${short(b.start_date)} at ${PROPERTY_NAMES[b.property_id]} and no door code is set.`, meta: 'They would be standing outside', href: `/admin/bookings/block/${b.id}`, cta: 'Set code' })),
-    ...overdue.map(b => ({ key: 'o' + b.id, tone: L.red, text: `${guestName(b)} still owes ${money(outstanding(b))}.`, meta: `${PROPERTY_NAMES[b.property_id]} · stayed ${short(b.check_in)}`, href: `/admin/bookings/${b.id}`, cta: 'Chase it' })),
-    ...E.map(b => ({ key: 'e' + b.id, tone: L.gold, text: `${guestName(b)}'s e-transfer of ${money(b.deposit_amount)} hasn't landed.`, meta: `${PROPERTY_NAMES[b.property_id]} · arrives ${b.check_in ? short(b.check_in) : '—'}`, href: `/admin/bookings/${b.id}`, cta: 'Open' })),
+    ...noTotal.map(b => ({ key: 't' + b.id, tone: L.red, text: `${guestName(b)}'s booking has no total on it, so nobody can tell whether they have paid.`, meta: `${PROPERTY_NAMES[b.property_id]} · ${short(b.check_in)} – ${short(b.check_out)}`, href: `/keyholder/stays/booking/${b.id}`, cta: 'Add the figures' })),
+    ...noCode.map(b => ({ key: 'k' + b.id, tone: L.red, text: `${b.guest_name || 'A guest'} arrives ${short(b.start_date)} at ${PROPERTY_NAMES[b.property_id]} and no door code is set.`, meta: 'They would be standing outside', href: `/keyholder/stays/block/${b.id}`, cta: 'Set code' })),
+    ...overdue.map(b => ({ key: 'o' + b.id, tone: L.red, text: `${guestName(b)} still owes ${money(outstanding(b))}.`, meta: `${PROPERTY_NAMES[b.property_id]} · stayed ${short(b.check_in)}`, href: `/keyholder/stays/booking/${b.id}`, cta: 'Chase it' })),
+    ...E.map(b => ({ key: 'e' + b.id, tone: L.gold, text: `${guestName(b)}'s e-transfer of ${money(b.deposit_amount)} hasn't landed.`, meta: `${PROPERTY_NAMES[b.property_id]} · arrives ${b.check_in ? short(b.check_in) : '—'}`, href: `/keyholder/stays/booking/${b.id}`, cta: 'Open' })),
   ]
 
   const week = stays

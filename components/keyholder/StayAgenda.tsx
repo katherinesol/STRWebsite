@@ -27,7 +27,7 @@ const endOf = (b: any) => b.check_out || b.end_date
 const sourceOf = (b: any) => (b.check_in ? 'direct' : String(b.platform || 'manual').toLowerCase())
 const guestName = (b: any) =>
   (Array.isArray(b.guest_info) ? b.guest_info[0]?.name : b.guest_info?.name) || b.guest_name || 'Guest'
-const hrefFor = (b: any) => (b.check_in ? `/admin/bookings/${b.id}` : `/admin/bookings/block/${b.id}`)
+const hrefFor = (b: any) => (b.check_in ? `/keyholder/stays/booking/${b.id}` : `/keyholder/stays/block/${b.id}`)
 
 /* UNPAID lives in lib/keyholder/payment.ts — see the note there. */
 

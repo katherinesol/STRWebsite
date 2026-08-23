@@ -35,7 +35,7 @@ const startOf = (b: any) => b.check_in || b.start_date
 /** Direct bookings live in `bookings`, platform ones in `calendar_blocks`, and they
  *  have separate detail routes. The redesigned detail (doc turn 2a) is not built yet,
  *  so these point at the legacy pages — repoint here when it lands. */
-const hrefFor = (b: any) => (b.check_in ? `/admin/bookings/${b.id}` : `/admin/bookings/block/${b.id}`)
+const hrefFor = (b: any) => (b.check_in ? `/keyholder/stays/booking/${b.id}` : `/keyholder/stays/block/${b.id}`)
 const endOf = (b: any) => b.check_out || b.end_date
 
 /** minutes past midnight from an is24 "HH:MM" */

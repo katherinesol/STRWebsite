@@ -9,7 +9,7 @@ file — it is a single self-contained page, six turns deep.
 |---|---|---|
 | 1a | Home — dark operator console | not chosen |
 | 1b | Home — light, one-thing-at-a-time | **chosen**, informs Today |
-| 1c / 2a | Booking detail | **next** — legacy `/admin/bookings/[id]` still |
+| 1c / 2a | Booking detail | **built** · `components/keyholder/BookingDetail.tsx` |
 | 3a | Stays — timeline | partial |
 | 3b | Money | partial |
 | 4a | Stays — month grid | **built** · `components/keyholder/MonthGrid.tsx` |
@@ -76,8 +76,15 @@ Not started; needs investigation before it can be scoped.
 
 **Also queued, from tonight**
 
-- 2a phases D (port the writes), E ("Add the figures" panel on `/figures`),
-  F (repoint `hrefFor` and Today's links).
+- **Payment reminders and outbound email.** `PaymentReminderForm` POSTs to
+  `/api/admin/bookings/[id]/send-reminder`, which does not exist — the button has
+  been 404ing on the legacy page. Dropped from 2a rather than ported. Building it
+  means template, audit trail and Resend decisions, so it belongs with the
+  email-stats item above as one piece of outbound-email work.
+- **GiftCard, StayChecklist and ParkingControl still wear the legacy dark
+  styling** on the new page. They were mounted unchanged rather than
+  reimplemented — GiftCard earns its keep by never loading the note text, and a
+  rewrite is how that gets lost. Restyle without touching behaviour.
 - Today's "Set code" check only asks whether `door_code` is filled, not whether
   the code reached the lock or is yet DUE to. A smarter version flags a booking
   only when a code should have programmed by now and did not — codes program
