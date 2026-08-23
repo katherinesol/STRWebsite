@@ -1,7 +1,10 @@
 import { createAdminClient } from '@/lib/supabase/server'
-import { revokeCodeFromProperty, reprogramBookingWindow, windowFromBooking } from '@/lib/seam'
 import { logSystem } from '@/lib/system-log'
 import { parseICal, detectPlatform } from '@/lib/ical-parse'
+
+// Seam is imported lazily: it is only needed when a booking is cancelled or moved,
+// so parsing a feed should not drag in the lock SDK.
+const seamLib = () => import('@/lib/seam')
 
 // The ONE way platform bookings enter calendar_blocks.
 //
@@ -175,6 +178,7 @@ export async function syncICalToDB(propertyId: string): Promise<SyncReport> {
           const exCode = String(b.door_code || '').replace(/[^0-9]/g, '').slice(-4)
           if (exCode) {
             try {
+              const { reprogramBookingWindow, windowFromBooking } = await seamLib()
               await reprogramBookingWindow({
                 propertyId, platform: b.platform, code: exCode,
                 startsAt: windowFromBooking(b.start_date, (b as any).early_checkin_time || null, false),
@@ -191,6 +195,7 @@ export async function syncICalToDB(propertyId: string): Promise<SyncReport> {
       // vanished from feed = likely cancelled. Revoke any code first (security).
       const code = String(b.door_code || '').replace(/\D/g, '').slice(-4)
       if (code) {
+        const { revokeCodeFromProperty } = await seamLib()
         const r = await revokeCodeFromProperty(propertyId, code)
         await logSystem('lock.revoked', `Revoked code ${code} for cancelled ${b.platform} booking (${b.start_date}–${b.end_date})`, { code, revoked: r.revoked, booking_id: b.id }, propertyId)
       }
