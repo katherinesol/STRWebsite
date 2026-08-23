@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
-import { isAuthed } from '@/lib/auth'
+import { hasRole } from '@/lib/auth'
 
 
+/* Guest records are the most personal table here — names, email addresses,
+ * phone numbers and free-text notes. Every route on it was isAuthed(), so any
+ * signed-in account could pull the whole list. Same hole as the booking PATCH,
+ * closed the same way. */
 export async function POST(request: NextRequest) {
-  if (!await isAuthed()) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!await hasRole('owner', 'co-owner')) return NextResponse.json({ error: 'Not allowed' }, { status: 403 })
   const { name, email, phone, platform } = await request.json()
   if (!name) return NextResponse.json({ ok: true })
 
