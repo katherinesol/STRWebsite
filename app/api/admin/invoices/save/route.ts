@@ -31,6 +31,44 @@ export async function POST(request: NextRequest) {
     invoiceId = created.id
   }
 
+  // Invoice header, read once — every expense minted below derives its fields from it.
+  const { data: inv } = await supabase.from('invoices')
+    .select('contractor_name, company, property_id, title, hst_amount, category').eq('id', invoiceId).single()
+
+  // Mint the expense for a payment, exactly once, ever.
+  //
+  // Two payments can legitimately share vendor+amount+date (Nikola was paid the same
+  // sum on separate occasions), so identity has to come from the payment row itself.
+  // The guard is invoice_payments.expense_id, read from the DB — never from the client
+  // payload, whose expense_created flag is lost whenever a payment is recreated.
+  // That lost flag is what minted three duplicate Flooring expenses in July 2026.
+  async function mintExpense(paymentId: string, amount: number, paidDate: string, p: any) {
+    const { data: row } = await supabase.from('invoice_payments')
+      .select('expense_id, expense_created').eq('id', paymentId).maybeSingle()
+    // expense_id set -> already has one. expense_created set with no expense_id -> it had
+    // one and the expense was deleted deliberately; don't resurrect it behind the user's back.
+    if (!row || row.expense_id || row.expense_created) return
+
+    const methodStr = p.method ? `${p.method}${p.method_detail ? ' ' + p.method_detail : ''}${p.method_last4 ? ' …' + p.method_last4 : ''}` : ''
+    const { data: expense } = await supabase.from('expenses').insert({
+      property_id: inv?.property_id || null, date: paidDate,
+      vendor: inv?.contractor_name || inv?.company,
+      description: `Payment — ${inv?.title}${methodStr ? ' (' + methodStr + ')' : ''}`,
+      amount, category: inv?.category || 'Repairs & maintenance',
+      hst_paid: inv?.hst_amount ?? null, notes: 'From invoice tracker', confirmed: true,
+    }).select('id').single()
+    if (!expense) return
+
+    // Compare-and-swap: only keep this expense if we won the race to claim the payment.
+    // Two concurrent saves (double-click, retry) otherwise each mint one.
+    const { data: claimed } = await supabase.from('invoice_payments')
+      .update({ expense_id: expense.id, expense_created: true })
+      .eq('id', paymentId).is('expense_id', null).select('id')
+    if (!claimed || claimed.length === 0) {
+      await supabase.from('expenses').delete().eq('id', expense.id)
+    }
+  }
+
   // 2a. reconcile deletions — remove existing DB rows the user deleted (id no longer in payload)
   if (invoiceId) {
     const keepItemIds = items.filter((i: any) => i.id).map((i: any) => i.id)
@@ -50,16 +88,10 @@ export async function POST(request: NextRequest) {
     const { data: dbPays } = await supabase.from('invoice_payments').select('*').eq('invoice_id', invoiceId)
     const delPayRows = (dbPays || []).filter(r => !keepPayIds.includes(r.id))
     if (delPayRows.length) {
-      // delete the matching expense for any paid payment that had one
-      const { data: invForExp } = await supabase.from('invoices').select('contractor_name, title').eq('id', invoiceId).single()
       for (const p of delPayRows) {
-        if (p.status === 'paid' && p.expense_created && p.paid_at) {
-          await supabase.from('expenses').delete()
-            .eq('vendor', invForExp?.contractor_name)
-            .eq('amount', Number(p.amount))
-            .eq('date', p.paid_at)
-            .eq('notes', 'From invoice tracker')
-        }
+        // Delete by id via the link. The old attribute match (vendor+amount+date) could
+        // hit a sibling payment's expense when two payments shared all three.
+        if (p.expense_id) await supabase.from('expenses').delete().eq('id', p.expense_id)
       }
       await supabase.from('invoice_payments').delete().in('id', delPayRows.map(r => r.id))
     }
@@ -88,47 +120,21 @@ export async function POST(request: NextRequest) {
       due_date: st === 'planned' ? (p.due_date || 'completion') : null,
     }).eq('id', p.id)
     // if it flipped planned->paid and no expense yet, create the expense
-    if (st === 'paid' && !p.expense_created) {
-      const { data: inv } = await supabase.from('invoices').select('contractor_name, company, property_id, title, hst_amount, category').eq('id', invoiceId).single()
-      const methodStr = p.method ? `${p.method}${p.method_detail ? ' ' + p.method_detail : ''}${p.method_last4 ? ' …' + p.method_last4 : ''}` : ''
-      await supabase.from('expenses').insert({
-        property_id: inv?.property_id || null, date: pd,
-        vendor: inv?.contractor_name || inv?.company,
-        description: `Payment — ${inv?.title}${methodStr ? ' (' + methodStr + ')' : ''}`,
-        amount: Number(p.amount) || 0, category: inv?.category || 'Repairs & maintenance',
-        hst_paid: inv?.hst_amount ?? null, notes: 'From invoice tracker', confirmed: true,
-      })
-      await supabase.from('invoice_payments').update({ expense_created: true }).eq('id', p.id)
-    }
+    if (st === 'paid') await mintExpense(p.id, Number(p.amount) || 0, pd as string, p)
   }
 
   // 3. payments — insert new ones. For paid payments, create an expense.
   const newPays = payments.filter((p: any) => !p.id && p.amount)
   for (const p of newPays) {
     const status = p.status === 'planned' ? 'planned' : 'paid'
-    const paidDate = status === 'paid' ? (p.paid_at || new Date().toISOString().split('T')[0]) : null
-    const { data: payRow, error: payErr } = await supabase.from('invoice_payments').insert({
+    const paidDate = status === 'paid' ? (p.paid_at || today0) : null
+    const { data: payRow } = await supabase.from('invoice_payments').insert({
       invoice_id: invoiceId, amount: Number(p.amount) || 0, method: p.method || null,
       method_detail: p.method_detail || null, method_last4: p.method_last4 || null,
       status, paid_at: paidDate, due_date: status === 'planned' ? (p.due_date || 'completion') : null,
     }).select('id').single()
 
-    if (status === 'paid' && payRow) {
-      const { data: inv } = await supabase.from('invoices').select('contractor_name, company, property_id, title, hst_amount, category').eq('id', invoiceId).single()
-      const methodStr = p.method ? `${p.method}${p.method_detail ? ' ' + p.method_detail : ''}${p.method_last4 ? ' …' + p.method_last4 : ''}` : ''
-      await supabase.from('expenses').insert({
-        property_id: inv?.property_id || null,
-        date: paidDate,
-        vendor: inv?.contractor_name || inv?.company,
-        description: `Payment — ${inv?.title}${methodStr ? ' (' + methodStr + ')' : ''}`,
-        amount: Number(p.amount) || 0,
-        category: inv?.category || 'Repairs & maintenance',
-        hst_paid: inv?.hst_amount ?? null,
-        notes: 'From invoice tracker',
-        confirmed: true,
-      })
-      await supabase.from('invoice_payments').update({ expense_created: true }).eq('id', payRow.id)
-    }
+    if (status === 'paid' && payRow) await mintExpense(payRow.id, Number(p.amount) || 0, paidDate as string, p)
   }
 
   return NextResponse.json({ ok: true, id: invoiceId })
