@@ -100,5 +100,9 @@ Not started; needs investigation before it can be scoped.
 - The extractor asserts Airbnb uses the host-only fee model and that a guest
   service fee is "typically $0". Split-fee bookings still exist — Kristine's has
   a $150.60 guest fee and a 3% host fee — so it flags correct data as suspect.
+- **Two door-code write paths.** The new field on the booking page writes through
+  the hardened PATCH; `/admin/locks` writes through `POST /api/admin/locks/set-code`.
+  Both handle the lock_code / door_code split correctly today, which is exactly
+  why they will drift. Collapse to one when either is next touched.
 - 6c People: guests, contacts and inbox. Guest contact details still live only
   on the legacy `/admin/guests` pages.
