@@ -36,7 +36,10 @@ const EDITABLE = new Set([
   'early_checkin', 'early_checkin_time', 'early_checkin_granted',
   'late_checkout', 'late_checkout_time', 'late_checkout_granted',
   'bag_drop', 'instacart_requested', 'vehicle_count', 'plate_numbers', 'plates_pending',
-  'lock_code', 'door_code', 'checked_in_at',
+  // lock_code only. bookings has no door_code column — that is calendar_blocks'
+  // name for the same thing, and admitting it here let a phantom key through the
+  // allowlist to fail at the database instead of being refused cleanly.
+  'lock_code', 'checked_in_at',
   // guest-supplied, guest-visible
   'trip_purpose', 'trip_purpose_note',
   // lifecycle
