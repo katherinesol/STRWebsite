@@ -64,3 +64,15 @@ export const cardStyle: React.CSSProperties = {
 
 export const money = (v: number | null | undefined): string =>
   v == null ? '—' : `$${Number(v).toLocaleString('en-CA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+
+/** Platform identity colours, lifted from the design doc (turn 4a).
+ *  Direct is the Solhaus gold and takes DARK text; the other three take white. */
+export const PLATFORM: Record<string, { bg: string; fg: string }> = {
+  airbnb: { bg: 'oklch(0.58 0.19 22)',  fg: '#fff' },
+  vrbo:   { bg: 'oklch(0.50 0.14 250)', fg: '#fff' },
+  houfy:  { bg: 'oklch(0.52 0.06 200)', fg: '#fff' },
+  direct: { bg: 'oklch(0.82 0.11 78)',  fg: 'oklch(0.28 0.05 70)' },
+  manual: { bg: 'oklch(0.72 0.02 60)',  fg: '#fff' },
+}
+export const platformColour = (p?: string | null) =>
+  PLATFORM[String(p || '').toLowerCase()] || PLATFORM.manual
