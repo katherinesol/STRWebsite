@@ -340,18 +340,31 @@ export default function HaussyChat() {
 
         <div style={railCard}>
           <span style={{ fontSize: '15px', fontWeight: 600 }}>What it can touch</span>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '9px', fontSize: '13px', color: L.inkBody }}>
-            <div style={{ display: 'flex', gap: '9px' }}><span style={{ color: L.green, minWidth: '58px' }}>reads</span><span>bookings, money, guests, tasks, locks</span></div>
-            <div style={{ display: 'flex', gap: '9px' }}><span style={{ color: L.amber, minWidth: '58px' }}>proposes</span><span>booking edits, blocks and task reminders</span></div>
-            <div style={{ display: 'flex', gap: '9px' }}><span style={{ color: L.red, minWidth: '58px' }}>never</span><span>writes anything on its own</span></div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '13px', color: L.inkBody }}>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <span style={{ color: L.green, minWidth: '62px', flex: 'none' }}>reads</span>
+              <span style={{ lineHeight: 1.45 }}>bookings, platform stays, guests, invoices, expenses, tasks, messages, reviews and the cistern log — 17 tables, 8 of them owner-only</span>
+            </div>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <span style={{ color: L.amber, minWidth: '62px', flex: 'none' }}>proposes</span>
+              <span style={{ lineHeight: 1.45 }}>a new booking, figures filled into one you already have, an owner date-block, or a task reminder</span>
+            </div>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <span style={{ color: L.red, minWidth: '62px', flex: 'none' }}>never</span>
+              <span style={{ lineHeight: 1.45 }}>writes anything until you press confirm on the card</span>
+            </div>
           </div>
         </div>
 
         <div style={{ ...railCard, flex: 1 }}>
-          <span style={{ fontSize: '15px', fontWeight: 600 }}>This session</span>
+          <span style={{ fontSize: '15px', fontWeight: 600 }}>Your chats</span>
           <span style={{ fontSize: '13px', color: L.inkMuted, lineHeight: 1.55 }}>
-            Chats aren&rsquo;t kept. Anything worth remembering becomes a task — that&rsquo;s
-            the only thing that survives the tab closing.
+            Kept, and reloaded when you open this page. <b style={{ fontWeight: 600, color: L.ink }}>New chat</b> starts
+            a fresh one rather than clearing the old.
+          </span>
+          <span style={{ fontSize: '13px', color: L.inkMuted, lineHeight: 1.55 }}>
+            Haussy itself will tell you it has no memory. It is wrong — nothing in its
+            instructions mentions the history, so it guesses.
           </span>
         </div>
       </div>
