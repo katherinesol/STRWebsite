@@ -2,6 +2,7 @@
 import { useState, useEffect, use } from 'react'
 import Link from 'next/link'
 import { L, F, microLabel, cardStyle, money } from '@/lib/design-tokens'
+import InvoiceLineEditor from '@/components/keyholder/InvoiceLineEditor'
 
 const PROP_NAMES: Record<string, string> = {
   'royal-york': 'Royal York', 'royal-york-west': 'Royal York West',
@@ -113,7 +114,12 @@ export default function InvoiceEditor({ params }: { params: Promise<{ id: string
         <div style={{ flex: '1 1 560px', display: 'flex', flexDirection: 'column', gap: '16px', minWidth: 0 }}>
 
           <div style={{ ...cardStyle, padding: '22px' }}>
-            <span style={{ fontSize: '15px', fontWeight: 600 }}>Line items</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <span style={{ fontSize: '15px', fontWeight: 600 }}>Line items</span>
+              <div style={{ marginLeft: 'auto' }}>
+                <InvoiceLineEditor invoice={inv} items={items} adjustments={adjustments} onSaved={load} />
+              </div>
+            </div>
             <div style={{ marginTop: '10px' }}>
               {items.length === 0 && <span style={{ fontSize: '13px', color: L.inkMuted }}>No line items.</span>}
               {items.map((i: any) => (
