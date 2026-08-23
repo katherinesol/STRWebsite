@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { logCalendarActivity } from '@/lib/calendar-activity'
-import { isAuthed, getAuth } from '@/lib/auth'
+import { getAuth, hasRole } from '@/lib/auth'
 import { reprogramBookingWindow, windowFromBooking } from '@/lib/seam'
 
 
@@ -9,13 +9,37 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  if (!await isAuthed()) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  // Was isAuthed(), so anyone with a login could PATCH any column on any booking.
+  if (!await hasRole('owner', 'co-owner')) return NextResponse.json({ error: 'Not allowed' }, { status: 403 })
   const { id } = await params
-  const body = await request.json()
+  const raw = await request.json()
   const supabase = createAdminClient()
-  const { data: before } = await supabase.from('calendar_blocks')
-    .select('property_id, start_date, end_date, status, guest_name, early_checkin_time, late_checkout_time')
+
+  // What the calendar may change. Money and tax are deliberately absent: those
+  // move through the booking editor, where the HST/MAT rules are applied. A raw
+  // calendar PATCH must never be able to set accommodation, hst, mat or apply_tax.
+  const EDITABLE = new Set([
+    'start_date', 'end_date', 'reason', 'notes',
+    'guest_name', 'guest_email', 'guest_phone', 'guests',
+    'door_code',
+    'early_checkin_time', 'late_checkout_time',
+    'early_checkin_granted', 'late_checkout_granted',
+    'block_for', 'block_for_name',
+  ])
+  const rejected = Object.keys(raw || {}).filter(k => !EDITABLE.has(k))
+  const body: any = Object.fromEntries(Object.entries(raw || {}).filter(([k]) => EDITABLE.has(k)))
+  if (!Object.keys(body).length) {
+    return NextResponse.json({ error: 'Nothing editable in that request', rejected }, { status: 400 })
+  }
+
+  // `status` is not a column on calendar_blocks — selecting it made this query
+  // 400 on every request, so `before` was always null and every comparison below
+  // silently never fired. Date-change logging has never worked.
+  const { data: before, error: beforeErr } = await supabase.from('calendar_blocks')
+    .select('property_id, start_date, end_date, guest_name, early_checkin_time, late_checkout_time')
     .eq('id', id).maybeSingle()
+  if (beforeErr) return NextResponse.json({ error: beforeErr.message }, { status: 500 })
+  if (!before) return NextResponse.json({ error: 'Booking not found' }, { status: 404 })
 
   // auto-flip is_booking when guest name is added
   if (body.guest_name && body.guest_name.trim()) {
@@ -50,9 +74,9 @@ export async function PATCH(
     const actor = { actorId: auth.ok ? auth.userId : null, actorName: auth.ok ? auth.name : null }
     const pid = before?.property_id || body.property_id || ''
     const gname = body.guest_name || before?.guest_name || 'Guest'
-    if (body.status === 'cancelled' && before?.status !== 'cancelled') {
-      await logCalendarActivity({ propertyId: pid, eventType: 'cancelled', description: `${gname} — booking cancelled (${before?.start_date} → ${before?.end_date})`, bookingId: id, bookingKind: 'platform', guestName: gname, ...actor })
-    } else if ((('start_date' in body) && body.start_date !== before?.start_date) || (('end_date' in body) && body.end_date !== before?.end_date)) {
+    // there is no status column on calendar_blocks — a cancellation is a deletion,
+    // handled by DELETE below and logged as booking.removed
+    if ((('start_date' in body) && body.start_date !== before?.start_date) || (('end_date' in body) && body.end_date !== before?.end_date)) {
       const ns = body.start_date || before?.start_date, ne = body.end_date || before?.end_date
       await logCalendarActivity({ propertyId: pid, eventType: 'date_change', description: `${gname} — dates changed to ${ns} → ${ne}`, bookingId: id, bookingKind: 'platform', guestName: gname, ...actor })
     }
@@ -95,6 +119,10 @@ export async function DELETE(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  // Was any authenticated user. The per-reason rules below only protected OWNER
+  // blocks, so a cleaner could delete a cleaning block — or a real booking row,
+  // since is_booking rows live in this table too.
+  if (!await hasRole('owner', 'co-owner')) return NextResponse.json({ error: 'Not allowed' }, { status: 403 })
   const auth = await getAuth()
   if (!auth.ok) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const { id } = await params

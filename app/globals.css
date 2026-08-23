@@ -218,3 +218,11 @@ body.sidebar-collapsed .sidebar-reopen { display: flex; }
     white-space: nowrap;
   }
 }
+
+/* Stays: the month grid needs seven columns to mean anything. Narrower than that
+   it is replaced by the agenda list rather than squeezed. */
+.kh-narrow { display: none; }
+@media (max-width: 900px) {
+  .kh-wide { display: none; }
+  .kh-narrow { display: block; }
+}

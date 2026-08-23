@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation'
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isToday, addMonths, subMonths } from 'date-fns'
 import { L, F, cardStyle, money, platformColour } from '@/lib/design-tokens'
 import { getCheckInDisplay, getCheckOutDisplay } from '@/lib/checkin-times'
+import BlockPanel from './BlockPanel'
 
 // Stays · Month, built to turn 4a of the Keyholder design doc.
 //
@@ -44,6 +45,7 @@ export default function MonthGrid({ bookings, blocks }: { bookings: any[]; block
   const [month, setMonth] = useState(new Date())
   const [prop, setProp] = useState('nickel-beach')
   const [groups, setGroups] = useState<Record<string, string>>({})
+  const [blocking, setBlocking] = useState(false)
 
   useEffect(() => {
     fetch('/api/admin/stay-groups/all').then(r => r.json()).then(d => {
@@ -205,6 +207,7 @@ export default function MonthGrid({ bookings, blocks }: { bookings: any[]; block
             </span>same day
           </span>
         </div>
+        <button onClick={() => setBlocking(true)} style={{ ...pill(false), fontWeight: 600 }}>Block dates</button>
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '16px' }}>
           <button onClick={() => setMonth(m => subMonths(m, 1))} style={{ background: 'none', border: 'none', fontSize: '15px', color: 'oklch(0.50 0.01 60)', cursor: 'pointer' }}>←</button>
           <span style={{ fontFamily: F.serif, fontSize: '26px', minWidth: '170px', textAlign: 'center' }}>{format(month, 'MMMM yyyy')}</span>
@@ -346,6 +349,11 @@ export default function MonthGrid({ bookings, blocks }: { bookings: any[]; block
           </div>
         </div>
       </div>
+
+      {blocking && (
+        <BlockPanel property={prop} onClose={() => setBlocking(false)}
+          onDone={() => { setBlocking(false); router.refresh() }} />
+      )}
     </div>
   )
 }

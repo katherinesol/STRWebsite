@@ -104,9 +104,6 @@ export default function CalendarView({ bookings, blocks }: { bookings: Booking[]
   const [icalStatus, setIcalStatus] = useState<Record<string, 'idle' | 'loading' | 'done' | 'error'>>({})
   const [icalReport, setIcalReport] = useState<Record<string, any>>({})
   const [editingBlock, setEditingBlock] = useState<Block | null>(null)
-  const [editingBooking, setEditingBooking] = useState<Booking | null>(null)
-  const [bookingEditForm, setBookingEditForm] = useState<Record<string, any>>({})
-  const [bookingEditSaving, setBookingEditSaving] = useState(false)
   const [editForm, setEditForm] = useState<Partial<Block>>({})
   const [editSaving, setEditSaving] = useState(false)
   const [guestSuggestions, setGuestSuggestions] = useState<any[]>([])
@@ -197,30 +194,7 @@ export default function CalendarView({ bookings, blocks }: { bookings: Booking[]
     finally { setEditSaving(false) }
   }
 
-  function openEditBooking(b: Booking) {
-    setEditingBooking(b)
-    setBookingEditForm({
-      early_checkin_granted: (b as any).early_checkin_granted ?? null,
-      late_checkout_granted: (b as any).late_checkout_granted ?? null,
-      early_checkin_time: (b as any).early_checkin_time || '',
-      late_checkout_time: (b as any).late_checkout_time || '',
-    })
-  }
 
-  async function handleSaveBooking() {
-    if (!editingBooking) return
-    setBookingEditSaving(true)
-    try {
-      await fetch(`/api/admin/bookings/${editingBooking.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(bookingEditForm),
-      })
-      setEditingBooking(null)
-      router.refresh()
-    } catch {}
-    finally { setBookingEditSaving(false) }
-  }
 
   async function handleAddBlock() {
     if (!blockStart || !blockEnd) return
@@ -424,7 +398,7 @@ export default function CalendarView({ bookings, blocks }: { bookings: Booking[]
                     // if this checkout continues into a linked extension, show as continuing (no checkout arrow)
                     const continues = isContinuation && inItems.some((x: any) => sameStayGroup(b, x))
                     return (
-                      <div key={'out-' + b.id} onClick={() => isBlk ? openEditBlock(b) : openEditBooking(b)}
+                      <div key={'out-' + b.id} onClick={() => isBlk ? openEditBlock(b) : router.push(`/admin/bookings/block/${b.id}`)}
                         style={{ fontSize: '11px', lineHeight: 1.45, marginBottom: '2px', cursor: 'pointer', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                         {continues
                           ? <span style={{ color: '#888880', textDecoration: 'underline' }}>{nm} <span style={{ color: '#6a9fd8', fontSize: '9px' }}>· staying</span></span>
@@ -440,7 +414,7 @@ export default function CalendarView({ bookings, blocks }: { bookings: Booking[]
                   )}
                   {stayingBookings.map((b: any) => {
                     const nm = (Array.isArray(b.guest_info) ? (b.guest_info as any[])[0]?.name : b.guest_info?.name) || 'Direct'
-                    return (<div key={'stay-' + b.id} onClick={() => openEditBooking(b)} style={{ fontSize: '11px', color: STATUS_COLORS[b.status] || '#888880', lineHeight: 1.45, marginBottom: '2px', cursor: 'pointer', textDecoration: 'underline', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{nm}</div>)
+                    return (<div key={'stay-' + b.id} onClick={() => router.push(`/admin/bookings/block/${b.id}`)} style={{ fontSize: '11px', color: STATUS_COLORS[b.status] || '#888880', lineHeight: 1.45, marginBottom: '2px', cursor: 'pointer', textDecoration: 'underline', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{nm}</div>)
                   })}
                   {stayingBlocks.map((b: any) => {
                     const isPrep = isOneDayBlock(b.start_date, b.end_date) && !b.is_booking
@@ -462,7 +436,7 @@ export default function CalendarView({ bookings, blocks }: { bookings: Booking[]
                     const d = getCheckInDisplay(b)
                     const isBlk = 'start_date' in b && !('check_in' in b && (b as any).check_in)
                     return (
-                      <div key={'in-' + b.id} onClick={() => isBlk ? openEditBlock(b) : openEditBooking(b)}
+                      <div key={'in-' + b.id} onClick={() => isBlk ? openEditBlock(b) : router.push(`/admin/bookings/block/${b.id}`)}
                         style={{ fontSize: '11px', lineHeight: 1.45, marginBottom: '2px', cursor: 'pointer', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                         <span style={{ color: '#888880', textDecoration: 'underline' }}>{nm}</span>{' '}
                         <span style={{ color: '#7bc47b' }}>→ {d.time}{d.state === 'pending' ? ' req' : ''}</span>
@@ -495,85 +469,6 @@ export default function CalendarView({ bookings, blocks }: { bookings: Booking[]
         ))}
       </div>
 
-      {/* edit booking modal */}
-      {editingBooking && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}>
-          <div style={{ background: '#242422', border: '0.5px solid #363634', padding: '32px', width: '420px' }}>
-            <div style={{ fontFamily: 'var(--serif)', fontSize: '22px', fontWeight: 300, color: '#F5F2EC', marginBottom: '6px' }}>
-              {(Array.isArray(editingBooking.guest_info) ? (editingBooking.guest_info as any[])[0] : editingBooking.guest_info as any)?.name || 'Direct booking'}
-            </div>
-            <div style={{ fontSize: '11px', color: '#9A9A92', marginBottom: '20px' }}>
-              {(editingBooking as any).check_in} → {(editingBooking as any).check_out} · {editingBooking.property_id === 'royal-york-east' ? 'Royal York East' : editingBooking.property_id === 'royal-york-west' ? 'Royal York West' : 'Nickel Beach'}
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              {!(editingBooking as any).early_checkin && !(editingBooking as any).late_checkout && (
-                <div style={{ fontSize: '12px', color: '#666660' }}>Guest did not request early check-in or late checkout.</div>
-              )}
-              {/* early check-in — only show if requested */}
-              {(editingBooking as any).early_checkin && <div style={{ background: '#1E1E1C', padding: '14px', border: '0.5px solid #363634' }}>
-                <div style={{ fontSize: '10px', letterSpacing: '.12em', textTransform: 'uppercase', color: '#9A9A92', marginBottom: '10px' }}>Early check-in</div>
-                <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-                  <select value={bookingEditForm.early_checkin_time || ''}
-                    onChange={e => setBookingEditForm(f => ({ ...f, early_checkin_time: e.target.value }))}
-                    style={{ padding: '8px 10px', background: '#363634', border: '0.5px solid #4A4A48', color: '#F5F2EC', fontFamily: 'var(--sans)', fontSize: '13px', outline: 'none' }}>
-                    <option value="">Standard (4:00 PM)</option>
-                    {Array.from({ length: 24 }, (_, h) => ['00','30'].map(m => {
-                      const val = `${String(h).padStart(2,'0')}:${m}`
-                      const ampm = h >= 12 ? 'PM' : 'AM'
-                      const h12 = h % 12 || 12
-                      return <option key={val} value={val}>{h12}:{m} {ampm}</option>
-                    })).flat()}
-                  </select>
-                  {[{ val: true, label: 'Granted', color: '#2ecc71' }, { val: false, label: 'Denied', color: '#e74c3c' }, { val: null, label: 'Pending', color: '#888880' }].map(({ val, label, color }) => (
-                    <button key={label} onClick={() => setBookingEditForm(f => ({ ...f, early_checkin_granted: val }))}
-                      style={{ padding: '5px 10px', background: bookingEditForm.early_checkin_granted === val ? color : '#363634', color: bookingEditForm.early_checkin_granted === val ? '#fff' : '#9A9A92', border: 'none', fontFamily: 'var(--sans)', fontSize: '10px', cursor: 'pointer' }}>
-                      {label}
-                    </button>
-                  ))}
-                </div>
-                <div style={{ fontSize: '10px', color: '#555550', marginTop: '6px' }}>Standard: 4:00 PM</div>
-              </div>}
-
-              {/* late checkout — only show if requested */}
-              {(editingBooking as any).late_checkout && <div style={{ background: '#1E1E1C', padding: '14px', border: '0.5px solid #363634' }}>
-                <div style={{ fontSize: '10px', letterSpacing: '.12em', textTransform: 'uppercase', color: '#9A9A92', marginBottom: '10px' }}>Late checkout</div>
-                <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-                  <select value={bookingEditForm.late_checkout_time || ''}
-                    onChange={e => setBookingEditForm(f => ({ ...f, late_checkout_time: e.target.value }))}
-                    style={{ padding: '8px 10px', background: '#363634', border: '0.5px solid #4A4A48', color: '#F5F2EC', fontFamily: 'var(--sans)', fontSize: '13px', outline: 'none' }}>
-                    <option value="">Standard (11:00 AM)</option>
-                    {Array.from({ length: 24 }, (_, h) => ['00','30'].map(m => {
-                      const val = `${String(h).padStart(2,'0')}:${m}`
-                      const ampm = h >= 12 ? 'PM' : 'AM'
-                      const h12 = h % 12 || 12
-                      return <option key={val} value={val}>{h12}:{m} {ampm}</option>
-                    })).flat()}
-                  </select>
-                  {[{ val: true, label: 'Granted', color: '#2ecc71' }, { val: false, label: 'Denied', color: '#e74c3c' }, { val: null, label: 'Pending', color: '#888880' }].map(({ val, label, color }) => (
-                    <button key={label} onClick={() => setBookingEditForm(f => ({ ...f, late_checkout_granted: val }))}
-                      style={{ padding: '5px 10px', background: bookingEditForm.late_checkout_granted === val ? color : '#363634', color: bookingEditForm.late_checkout_granted === val ? '#fff' : '#9A9A92', border: 'none', fontFamily: 'var(--sans)', fontSize: '10px', cursor: 'pointer' }}>
-                      {label}
-                    </button>
-                  ))}
-                </div>
-                <div style={{ fontSize: '10px', color: '#555550', marginTop: '6px' }}>Standard: 11:00 AM</div>
-              </div>}
-            </div>
-
-            <div style={{ display: 'flex', gap: '8px', marginTop: '20px' }}>
-              <button onClick={() => setEditingBooking(null)}
-                style={{ flex: 1, padding: '12px', background: '#363634', color: '#9A9A92', border: 'none', fontFamily: 'var(--sans)', fontSize: '11px', cursor: 'pointer', letterSpacing: '.08em', textTransform: 'uppercase' }}>
-                Cancel
-              </button>
-              <button onClick={handleSaveBooking} disabled={bookingEditSaving}
-                style={{ flex: 1, padding: '12px', background: bookingEditSaving ? '#363634' : 'var(--amber)', color: bookingEditSaving ? '#9A9A92' : '#1A1A18', border: 'none', fontFamily: 'var(--sans)', fontSize: '11px', cursor: 'pointer', letterSpacing: '.08em', textTransform: 'uppercase', fontWeight: 500 }}>
-                {bookingEditSaving ? 'Saving...' : 'Save'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
 
       {/* edit block modal */}

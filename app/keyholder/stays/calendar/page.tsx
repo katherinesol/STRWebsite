@@ -1,5 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/server'
 import MonthGrid from '@/components/keyholder/MonthGrid'
+import StayAgenda from '@/components/keyholder/StayAgenda'
 
 // Read only. iCal syncing runs from the daily cron and the explicit Sync-now
 // endpoint — never from a page view. See lib/ical-sync.ts.
@@ -14,5 +15,12 @@ export default async function CalendarPage() {
       .order('check_in'),
     supabase.from('calendar_blocks').select('*').order('start_date'),
   ])
-  return <MonthGrid bookings={bookings || []} blocks={blocks || []} />
+  // The grid needs seven columns to carry meaning; below that it becomes a list.
+  // Both render server-side and CSS picks one, so there is no flash on load.
+  return (
+    <>
+      <div className="kh-wide"><MonthGrid bookings={bookings || []} blocks={blocks || []} /></div>
+      <div className="kh-narrow"><StayAgenda bookings={bookings || []} blocks={blocks || []} /></div>
+    </>
+  )
 }
