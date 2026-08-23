@@ -49,13 +49,36 @@ export function priceBooking(d: any) {
     propertyId: property_id, checkIn: check_in, nights,
     accommodation, discount, cleaning, hstTaxableExtras: 0,
   })
-  const remit = remittanceSplit(platform, split)
-
   const hst = applyTax ? split.hst : 0
   const mat = applyTax ? split.mat : 0
   const owed = r2(hst + mat)
-  const youRemit = applyTax ? remit.youRemit : 0
-  const platformRemits = applyTax ? remit.platformRemits : 0
+
+  // WHO REMITS. How much is owed comes from the rules; who hands it over does not.
+  //
+  //   Airbnb  remits the MAT — a fixed rule, so it can be derived.
+  //   VRBO    prints two explicit lines, "taxes you remit" and "taxes we remit".
+  //           There is no rule to derive it from: the screenshot is the only source.
+  //           When it is absent these stay NULL and the columns are not written,
+  //           because writing 0 would erase a figure already recorded from a
+  //           previous screenshot. Five of six VRBO bookings carry a real value.
+  //   Houfy / direct  nothing is remitted for you.
+  const reported = nOrNull(d.taxes_platform_remits)
+  let platformRemits: number | null
+  let youRemit: number | null
+  let remitSource: 'reported' | 'rule' | 'unknown' | 'off'
+
+  if (!applyTax) {
+    platformRemits = 0; youRemit = 0; remitSource = 'off'
+  } else if (reported != null) {
+    platformRemits = Math.min(r2(reported), owed)
+    youRemit = r2(owed - platformRemits)
+    remitSource = 'reported'
+  } else if (platform === 'vrbo') {
+    platformRemits = null; youRemit = null; remitSource = 'unknown'
+  } else {
+    const remit = remittanceSplit(platform, split)
+    platformRemits = remit.platformRemits; youRemit = remit.youRemit; remitSource = 'rule'
+  }
 
   // bookings.guests is NOT NULL. A stay has at least one guest, so assume 1 when
   // the owner did not say — but flag it, so the card states the assumption rather
@@ -88,7 +111,7 @@ export function priceBooking(d: any) {
       apply_tax: applyTax, explainer: taxToggleExplainer(applyTax, kind, platform),
       mat_rate: split.matRate, mat_exempt: split.matExempt,
       mat, hst, hst_base: applyTax ? split.hstBase : 0, owed,
-      you_remit: youRemit, platform_remits: platformRemits,
+      you_remit: youRemit, platform_remits: platformRemits, remit_source: remitSource,
       collected_reported: collectedGiven, variance,
     },
     expenses,
@@ -118,7 +141,10 @@ export function buildBookingColumns(d: any, p: Priced) {
       nightly_rate: nOrNull(d.nightly_rate), accommodation: m.accommodation,
       cleaning_fee: m.cleaning, extras: m.extras, discount: m.discount,
       taxes_collected: t.apply_tax ? (t.collected_reported ?? t.owed) : nOrNull(d.taxes_collected),
-      taxes_you_remit: t.you_remit, taxes_platform_remits: t.platform_remits,
+      // omitted entirely when unknown — a 0 here would wipe a figure taken from an
+      // earlier screenshot, which is what VRBO rows already carry
+      ...(t.you_remit == null ? {} : { taxes_you_remit: t.you_remit }),
+      ...(t.platform_remits == null ? {} : { taxes_platform_remits: t.platform_remits }),
       hst: t.hst, mat: t.mat, apply_tax: t.apply_tax, tax_note: taxNote,
       guest_total: nOrNull(d.guest_total) ?? m.guest_total,
       payout_amount: nOrNull(d.payout_amount),

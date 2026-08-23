@@ -24,7 +24,8 @@ const FIELDS: [string, string, 'text' | 'number' | 'date'][] = [
   ['nightly_rate', 'Nightly rate', 'number'], ['accommodation', 'Accommodation', 'number'],
   ['cleaning_fee', 'Cleaning', 'number'], ['extras', 'Extras', 'number'], ['discount', 'Discount', 'number'],
   ['commission', 'Host fee', 'number'], ['payment_processing_fee', 'Processing fee', 'number'],
-  ['taxes_collected', 'Tax platform collected', 'number'],
+  ['taxes_collected', 'Tax the guest paid', 'number'],
+  ['taxes_platform_remits', 'Of that, the platform remits', 'number'],
   ['confirmation_code', 'Confirmation code', 'text'], ['door_code', 'Door code', 'text'],
 ]
 
@@ -148,8 +149,23 @@ export default function BookingProposalCard({ draft, preview, busy, err, onEdit,
             <div style={rowS}><span style={{ color: L.inkMuted }}>HST 13% on room + MAT</span><span style={{ marginLeft: 'auto', fontFamily: F.mono }}>{money(t.hst)}</span></div>
             <div style={{ height: '1px', background: L.lineSoft, margin: '7px 0' }} />
             <div style={{ ...rowS, fontSize: '14px' }}><span>Tax owed</span><span style={{ marginLeft: 'auto', fontFamily: F.mono }}><strong>{money(t.owed)}</strong></span></div>
-            <div style={rowS}><span style={{ color: L.inkMuted }}>You remit</span><span style={{ marginLeft: 'auto', fontFamily: F.mono }}>{money(t.you_remit)}</span></div>
-            {t.platform_remits > 0 && <div style={rowS}><span style={{ color: L.inkMuted }}>Platform remits</span><span style={{ marginLeft: 'auto', fontFamily: F.mono }}>{money(t.platform_remits)}</span></div>}
+            {t.remit_source === 'unknown' ? (
+              <div style={{ ...rowS, color: L.amber }}>
+                <span>Who remits</span>
+                <span style={{ marginLeft: 'auto', textAlign: 'right', maxWidth: '62%' }}>
+                  VRBO prints it on the payout screenshot. Put it in &ldquo;Of that, the platform remits&rdquo; —
+                  left blank, neither figure is written and whatever is on the booking stays.
+                </span>
+              </div>
+            ) : (<>
+              <div style={rowS}><span style={{ color: L.inkMuted }}>You remit</span><span style={{ marginLeft: 'auto', fontFamily: F.mono }}>{money(t.you_remit)}</span></div>
+              {(t.platform_remits ?? 0) > 0 && (
+                <div style={rowS}>
+                  <span style={{ color: L.inkMuted }}>Platform remits{t.remit_source === 'reported' ? ' · from the screenshot' : ''}</span>
+                  <span style={{ marginLeft: 'auto', fontFamily: F.mono }}>{money(t.platform_remits)}</span>
+                </div>
+              )}
+            </>)}
             <div style={{ ...rowS, fontSize: '14px', paddingTop: '7px' }}><span>Guest total</span><span style={{ marginLeft: 'auto', fontFamily: F.mono }}>{money(m.guest_total)}</span></div>
           </> : (
             <span style={{ fontSize: '13px', color: L.inkBody }}>{t.explainer}</span>
