@@ -9,7 +9,7 @@ file — it is a single self-contained page, six turns deep.
 |---|---|---|
 | 1a | Home — dark operator console | not chosen |
 | 1b | Home — light, one-thing-at-a-time | **chosen**, informs Today |
-| 1c / 2a | Booking detail | legacy `/admin/bookings/[id]` still |
+| 1c / 2a | Booking detail | **next** — legacy `/admin/bookings/[id]` still |
 | 3a | Stays — timeline | partial |
 | 3b | Money | partial |
 | 4a | Stays — month grid | **built** · `components/keyholder/MonthGrid.tsx` |
@@ -36,3 +36,23 @@ file — it is a single self-contained page, six turns deep.
   `position:sticky` over the page — sticky reserves no space, so the last message
   slides under the Send button.
 - **Red on a figure means the arithmetic disagrees**, not merely "large".
+
+## 2a, booking detail — why it matters more than it looks
+
+It is the landing page for nearly every link the new screens emit:
+
+- Today → **Set code** (platform arrival inside 72h with no `door_code`)
+- Today → **Add the figures** (a stay carrying no total — how Per Polderman and
+  Mikaela Manley get filled in, which is what clears their Needs You rows)
+- Today → arrivals, departures, in-residence, and every row of The week
+- Calendar → `hrefFor()` in `MonthGrid` and `StayAgenda`, both variants
+- Phase E moved the early/late-checkout grants off the calendar and onto here
+
+Until 2a is built those all land on the dark legacy pages, so the redesign has a
+seam running straight through the middle of it.
+
+It is also where the **held `apply_tax` toggle** is designed to live, on the
+platform variant. Build the page so the toggle drops into a slot that already
+exists; do not unhold it — the VRBO/Airbnb audit decides what each platform
+actually remits, and shipping the switch before that settles is what the hold is
+for.
