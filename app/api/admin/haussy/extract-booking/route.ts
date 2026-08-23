@@ -53,7 +53,7 @@ Rules:
 - guests_count = total number of guests in the party (e.g. 'Erica's group of 3' means 3). Add adults + children if shown separately.
 - Combine info across multiple screenshots into one booking.
 - Numbers only, no currency symbols/commas. Always positive — strip any minus sign. Deductions like commission and processing fees are shown negative on statements but must be recorded as positive amounts.
-- accommodation = the room/nightly subtotal before fees/taxes (host side).
+- accommodation = the room/nightly subtotal for the stay, before fees and taxes.
 - extras = additional guest-charged fees such as pet fee, extra guest fee, or resort fee. Add them together if there are several.
 - discount = any negative rate adjustment or discount (store as a positive number). E.g. "Nightly rate adjustment -$125.10" means discount: 125.10.
 - commission = the fee the platform charges the host. Airbnb calls it "Host service fee", VRBO calls it "Vrbo commission".
@@ -65,8 +65,8 @@ Rules:
 - VRBO shows TWO tax lines. "Lodging taxes you remit" is the host's and goes in occupancy_taxes. "Lodging taxes we remit" is the platform's own and goes in taxes_platform_remits — never combine them.
 - VRBO's "Guest service fee" appears as both a charge and a deduction and nets to zero for the host — put it in guest_service_fee, not in any total.
 - guest_service_fee = the service fee charged to the GUEST.
-- occupancy_taxes = occupancy/lodging taxes collected from the guest (this is taxes_collected too if not separately shown).
-- accommodation = subtotal for the stay before fees/taxes.
+- occupancy_taxes / taxes_collected = the tax the GUEST was charged. Always the guest-side figure.
+- AIRBNB'S EARNINGS MODAL HAS TWO TABS AND BOTH SHOW A LINE CALLED "Taxes". They are different numbers and only one belongs here. "Guest paid" shows the full tax the guest was charged — that is taxes_collected. "You earn" shows only the portion Airbnb hands the host to remit, with the part Airbnb remits itself already taken out; on a Toronto booking that is roughly the HST alone. Never take the tax figure from the "You earn" tab. If only "You earn" is visible, set taxes_collected to null and add "guest-paid tax total (You-earn tab shows the host portion only)" to missing — a low figure recorded as though it were the whole tax is worse than no figure at all.
 - guest_total = what the guest paid total. payout_amount = what the host receives.
 - Use null for anything not visible. Do not guess or invent numbers.
 

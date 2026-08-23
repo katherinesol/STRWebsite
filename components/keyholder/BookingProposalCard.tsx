@@ -146,7 +146,16 @@ export default function BookingProposalCard({ draft, preview, busy, err, onEdit,
             {t.mat_exempt
               ? <div style={rowS}><span style={{ color: L.inkMuted }}>MAT</span><span style={{ marginLeft: 'auto', color: L.inkBody }}>exempt — stay is over 29 nights</span></div>
               : <div style={rowS}><span style={{ color: L.inkMuted }}>MAT {(t.mat_rate * 100).toFixed(t.mat_rate * 100 % 1 ? 1 : 0)}% on room</span><span style={{ marginLeft: 'auto', fontFamily: F.mono }}>{money(t.mat)}</span></div>}
-            <div style={rowS}><span style={{ color: L.inkMuted }}>HST 13% on room + MAT</span><span style={{ marginLeft: 'auto', fontFamily: F.mono }}>{money(t.hst)}</span></div>
+            {/* The base is room + cleaning + MAT. The label used to omit cleaning,
+                which made a correct figure look like it had been computed wrong —
+                on a $875 room with $69 cleaning, 13% of "room + MAT" is $120.51
+                but the card showed the true $129.55 beside that label. */}
+            <div style={rowS}>
+              <span style={{ color: L.inkMuted }}>
+                HST 13% on room{Number(t.hst_base) > Number(m.room) + Number(t.mat) + 0.005 ? ' + cleaning' : ''}{t.mat_exempt ? '' : ' + MAT'}
+              </span>
+              <span style={{ marginLeft: 'auto', fontFamily: F.mono }}>{money(t.hst)}</span>
+            </div>
             <div style={{ height: '1px', background: L.lineSoft, margin: '7px 0' }} />
             <div style={{ ...rowS, fontSize: '14px' }}><span>Tax owed</span><span style={{ marginLeft: 'auto', fontFamily: F.mono }}><strong>{money(t.owed)}</strong></span></div>
             {t.remit_source === 'unknown' ? (
