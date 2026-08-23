@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { createAdminClient } from '@/lib/supabase/server'
-import { EXPENSE_CATEGORIES } from '@/lib/expense-categories'
+import { EXPENSE_CATEGORIES, normaliseCategory } from '@/lib/expense-categories'
 import { isAuthed } from '@/lib/auth'
 
 
@@ -88,7 +88,20 @@ Extract every distinct product line into items with its name exactly as printed 
     const text = response.content[0].type === 'text' ? response.content[0].text : '{}'
     const clean = text.replace(/```json|```/g, '').trim()
     const extracted = JSON.parse(clean)
-    return NextResponse.json({ extracted: true, ...extracted, receipt_path })
+
+    // The prompt lists the valid categories, but that is guidance, not a
+    // constraint — the model has returned near-misses such as "Motor vehicle"
+    // for "Motor vehicle (not CCA)". Nothing leaves here mis-categorised, and a
+    // correction is reported rather than hidden.
+    const { category, matched } = normaliseCategory(extracted.category)
+    return NextResponse.json({
+      extracted: true,
+      ...extracted,
+      category,
+      category_source: matched,
+      category_raw: matched === 'exact' ? undefined : (extracted.category ?? null),
+      receipt_path,
+    })
   } catch (err: any) {
     console.error('AI extraction error:', err?.message)
     return NextResponse.json({ extracted: false, error: err?.message, receipt_path })
