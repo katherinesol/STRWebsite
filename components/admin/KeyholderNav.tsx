@@ -3,12 +3,15 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { L, F } from '@/lib/design-tokens'
 
-// Top nav from the rebrand: four sections, not the thirty-item side rail.
+// Top nav from the rebrand: five sections, not the thirty-item side rail.
+// Assistant is the home for the AI/comms cluster — Haussy, Inbox, Knowledge, Concierge —
+// which had nowhere to live under the original four.
 export const SECTIONS = [
   { id: 'today', name: 'Today', href: '/keyholder' },
   { id: 'stays', name: 'Stays', href: '/keyholder/stays' },
   { id: 'money', name: 'Money', href: '/keyholder/money' },
   { id: 'property', name: 'Property', href: '/keyholder/property' },
+  { id: 'assistant', name: 'Assistant', href: '/keyholder/assistant' },
 ]
 
 export default function KeyholderNav({ initial }: { initial: string }) {

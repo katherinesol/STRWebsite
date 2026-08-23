@@ -100,22 +100,38 @@ Notes:
     },
   },
   {
-    name: 'propose_change',
-    description: `Propose a change to a booking or its finances. This does NOT write anything — it shows the owner a before/after card to confirm. Use when the owner wants to fix financial data, change dates, record a payment, or handle a platform switch (e.g. guest cancelled on VRBO and rebooked on Houfy). ALWAYS look up the current booking first (via query_data) so the "before" values are real. NEVER guess the before values. Verify you have the right booking (guest name + property + dates) before proposing.`,
+    name: 'propose_booking',
+    description: `Propose a NEW booking from what the owner typed. This does NOT write anything — it returns a draft that the owner sees on a confirm card with the computed tax, then approves. Use whenever they describe a stay they want recorded, e.g. "book Sarah at Nickel Beach Aug 14-17, $250 a night" or "Tom's staying at Royal York West this weekend, direct, $600 total".
+
+Work the dates out from today. A booking is almost never in the past — if a month/day is given without a year, use the next upcoming occurrence.
+
+kind: 'direct' means the owner's own booking (goes in the bookings table). 'platform' means it came through Airbnb/VRBO/Houfy (goes in calendar_blocks). If they name a platform it is 'platform'; if they say "direct" or name no platform, it is 'direct'.
+
+Give accommodation as the ROOM subtotal for the whole stay before cleaning, fees and tax. If they give a nightly rate, multiply it by the nights yourself and put the result in accommodation, and also set nightly_rate.
+
+NEVER invent money. If they did not say a price, leave the amounts out — the owner fills them in on the card. Do NOT compute tax: the server computes HST and MAT from the real rules and shows them on the card.`,
     input_schema: {
-      type: 'object',
+      type: 'object' as const,
       properties: {
-        change_type: { type: 'string', enum: ['financial', 'dates', 'record_payment', 'platform_switch'], description: 'What kind of change' },
-        booking_id: { type: 'string', description: 'The booking being changed (from query_data)' },
-        booking_kind: { type: 'string', enum: ['direct', 'platform'], description: 'direct = your bookings table, platform = calendar_blocks' },
-        guest_name: { type: 'string', description: 'Guest name, for the confirmation header' },
+        kind: { type: 'string', enum: ['direct', 'platform'], description: 'direct = your own booking, platform = came via Airbnb/VRBO/Houfy' },
         property_id: { type: 'string', enum: ['royal-york-east', 'royal-york-west', 'nickel-beach'] },
-        summary: { type: 'string', description: 'One plain-English sentence of what will happen, shown on the card' },
-        before: { type: 'object', description: 'Current values (label -> value), e.g. {"Platform":"VRBO · cancelled","Amount":"$980 · card","Dates":"Aug 10 → 13"}' },
-        after: { type: 'object', description: 'New values (same labels), e.g. {"Platform":"Houfy · confirmed","Amount":"$980 · e-transfer","Dates":"Aug 10 → 13"}' },
-        changes: { type: 'object', description: 'The actual field updates to apply on confirm, e.g. {"platform":"houfy","status":"confirmed"}. Use real column names.' },
+        platform: { type: 'string', enum: ['airbnb', 'vrbo', 'houfy', 'other'], description: 'Only for kind=platform' },
+        guest_name: { type: 'string' },
+        guest_email: { type: 'string' },
+        guest_phone: { type: 'string' },
+        check_in: { type: 'string', description: 'YYYY-MM-DD' },
+        check_out: { type: 'string', description: 'YYYY-MM-DD' },
+        guests_count: { type: 'number' },
+        nightly_rate: { type: 'number', description: 'Per night, if they gave one' },
+        accommodation: { type: 'number', description: 'Room subtotal for the WHOLE stay, before cleaning/fees/tax' },
+        cleaning_fee: { type: 'number' },
+        extras: { type: 'number', description: 'Pet fee, extra guest fee etc.' },
+        discount: { type: 'number', description: 'Positive number' },
+        confirmation_code: { type: 'string' },
+        trip_purpose: { type: 'string', description: 'Only if they mention why the guest is visiting' },
+        notes: { type: 'string', description: 'Anything else worth recording on the booking' },
       },
-      required: ['change_type', 'booking_id', 'booking_kind', 'summary', 'before', 'after', 'changes'],
+      required: ['kind', 'property_id', 'check_in', 'check_out'],
     },
   },
 ]
@@ -125,10 +141,11 @@ export async function runTool(name: string, input: any, ctx: HaussyCtx): Promise
     if (ctx.role !== 'owner') return { ok: false, error: 'Only the owner can create tasks.' }
     return { ok: true, data: { proposed: true, ...input } }
   }
-  if (name === 'propose_change') {
-    if (ctx.role !== 'owner') return { ok: false, error: 'Only the owner can change bookings or finances.' }
-    // does NOT write — returns a proposal the owner confirms via /api/admin/haussy/apply-change
-    return { ok: true, data: { proposed_change: true, ...input } }
+  if (name === 'propose_booking') {
+    if (ctx.role !== 'owner') return { ok: false, error: 'Only the owner can create bookings.' }
+    // Writes NOTHING. The client sends this draft to /api/admin/haussy/booking for a
+    // priced, tax-computed preview, and only a confirmed preview reaches the database.
+    return { ok: true, data: { proposed_booking: true, ...input } }
   }
   if (name === 'mat_report') {
     if (ctx.role !== 'owner') return { ok: false, error: 'MAT figures are restricted to owners.' }
