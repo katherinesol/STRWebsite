@@ -1,7 +1,7 @@
 'use client'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { L, F } from '@/lib/design-tokens'
+import { L, F, container } from '@/lib/design-tokens'
 
 // Top nav from the rebrand: five sections, not the thirty-item side rail.
 // Assistant is the home for the AI/comms cluster — Haussy, Inbox, Knowledge, Concierge —
@@ -20,11 +20,8 @@ export default function KeyholderNav({ initial }: { initial: string }) {
     href === '/keyholder' ? path === '/keyholder' : path.startsWith(href)
 
   return (
-    <div style={{
-      display: 'flex', alignItems: 'center', gap: '36px',
-      padding: '20px 40px', borderBottom: `1px solid ${L.lineSoft}`,
-      background: L.card, fontFamily: F.sans,
-    }}>
+    <div style={{ borderBottom: `1px solid ${L.lineSoft}`, background: L.card, fontFamily: F.sans }}>
+      <div style={{ ...container, display: 'flex', alignItems: 'center', gap: '36px', padding: '20px 40px' }}>
       <Link href="/keyholder" style={{ fontFamily: F.serif, fontSize: '23px', color: L.ink, textDecoration: 'none' }}>
         Keyholder
       </Link>
@@ -50,6 +47,7 @@ export default function KeyholderNav({ initial }: { initial: string }) {
           width: '34px', height: '34px', borderRadius: '50%', background: 'oklch(0.88 0.03 78)',
           display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px', fontWeight: 600,
         }}>{initial}</span>
+      </div>
       </div>
     </div>
   )

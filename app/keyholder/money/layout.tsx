@@ -8,8 +8,10 @@ const TABS = [
 ]
 
 export default function MoneyLayout({ children }: { children: React.ReactNode }) {
+  // Horizontal gutter comes from the shell container in app/keyholder/layout.tsx.
+  // This used to set its own 44px, which now stacks on top of it.
   return (
-    <div style={{ padding: '22px 44px 44px' }}>
+    <div style={{ paddingTop: '22px' }}>
       <KeyholderTabs section="Money" tabs={TABS} />
       {children}
     </div>

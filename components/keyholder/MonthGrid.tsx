@@ -2,6 +2,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isToday, addMonths, subMonths } from 'date-fns'
+import { unpaid } from '@/lib/keyholder/payment'
 import { L, F, cardStyle, money, platformColour } from '@/lib/design-tokens'
 import { getCheckInDisplay, getCheckOutDisplay } from '@/lib/checkin-times'
 import BlockPanel from './BlockPanel'
@@ -88,20 +89,7 @@ export default function MonthGrid({ bookings, blocks }: { bookings: any[]; block
     return h > 0 ? h : null
   }
 
-  /** A direct booking with money still outstanding.
-   *
-   *  DIRECT ONLY. Airbnb, VRBO and Houfy collect from the guest themselves, so
-   *  "unpaid" is not a thing that can be true of a platform booking — the badge
-   *  never appears on one.
-   *
-   *  The three payment columns are SCHEDULED amounts; each has its own paid_at.
-   *  Summing the amounts alone would count a scheduled-but-unsent payment as
-   *  money received, so only instalments with a paid_at count toward paid. */
-  const paidSoFar = (s: any) =>
-    (s.deposit_paid_at ? n(s.deposit_amount) : 0) +
-    (s.second_paid_at ? n(s.second_payment_amount) : 0) +
-    (s.final_paid_at ? n(s.final_payment_amount) : 0)
-  const unpaid = (s: any) => !!s.check_in && n(s.total) > 0 && n(s.total) - paidSoFar(s) > 0.005
+  /* UNPAID lives in lib/keyholder/payment.ts — see the note there. */
 
   // first day of each run of empty nights, and how long the run is
   const openRuns = useMemo(() => {

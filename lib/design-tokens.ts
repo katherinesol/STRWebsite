@@ -76,3 +76,16 @@ export const PLATFORM: Record<string, { bg: string; fg: string }> = {
 }
 export const platformColour = (p?: string | null) =>
   PLATFORM[String(p || '').toLowerCase()] || PLATFORM.manual
+
+/** The shell's page container. Lives here, not in each page, because for a
+ *  while every keyholder screen invented its own gutter — 44px, 24px, or none
+ *  at all — and Haussy, Tax and Invoices all ended up flush against the left
+ *  edge. The nav bar spans full width but its CONTENTS use this same box, so
+ *  the logo and the page title stay on one vertical line at any width. */
+export const container: React.CSSProperties = {
+  maxWidth: '1440px',
+  margin: '0 auto',
+  padding: '0 40px',
+  width: '100%',
+  boxSizing: 'border-box',
+}

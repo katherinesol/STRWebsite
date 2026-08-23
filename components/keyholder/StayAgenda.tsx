@@ -1,6 +1,7 @@
 'use client'
 import { useState } from 'react'
 import Link from 'next/link'
+import { unpaid } from '@/lib/keyholder/payment'
 import { L, F, cardStyle, platformColour } from '@/lib/design-tokens'
 import { getCheckInDisplay, getCheckOutDisplay } from '@/lib/checkin-times'
 
@@ -28,11 +29,7 @@ const guestName = (b: any) =>
   (Array.isArray(b.guest_info) ? b.guest_info[0]?.name : b.guest_info?.name) || b.guest_name || 'Guest'
 const hrefFor = (b: any) => (b.check_in ? `/admin/bookings/${b.id}` : `/admin/bookings/block/${b.id}`)
 
-const paidSoFar = (s: any) =>
-  (s.deposit_paid_at ? n(s.deposit_amount) : 0) +
-  (s.second_paid_at ? n(s.second_payment_amount) : 0) +
-  (s.final_paid_at ? n(s.final_payment_amount) : 0)
-const unpaid = (s: any) => !!s.check_in && n(s.total) > 0 && n(s.total) - paidSoFar(s) > 0.005
+/* UNPAID lives in lib/keyholder/payment.ts — see the note there. */
 
 const fmt = (d: string) =>
   new Date(d + 'T12:00:00').toLocaleDateString('en-CA', { month: 'short', day: 'numeric' })

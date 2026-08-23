@@ -226,3 +226,7 @@ body.sidebar-collapsed .sidebar-reopen { display: flex; }
   .kh-wide { display: none; }
   .kh-narrow { display: block; }
 }
+
+/* Haussy's right rail is reference, not conversation — below 1100px the
+   conversation takes the full width and the rail steps out of the way. */
+@media (max-width: 1100px) { .kh-rail { display: none !important; } }

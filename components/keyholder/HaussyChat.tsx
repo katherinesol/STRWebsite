@@ -175,126 +175,185 @@ export default function HaussyChat() {
     } finally { setExtracting(false) }
   }
 
+  /* 6a: the two bubble shapes differ — the tail corner points at its author,
+     and the assistant is allowed to run wider because it does the explaining. */
   const bubble = (role: string): React.CSSProperties => ({
-    maxWidth: '80%', padding: '12px 16px', borderRadius: '14px', fontSize: '14px', lineHeight: 1.6,
-    whiteSpace: 'pre-wrap', alignSelf: role === 'user' ? 'flex-end' : 'flex-start',
-    background: role === 'user' ? L.ink : L.cardAlt,
-    color: role === 'user' ? '#fff' : L.ink,
+    maxWidth: role === 'user' ? '70%' : '82%',
+    padding: role === 'user' ? '12px 15px' : '14px 16px',
+    borderRadius: role === 'user' ? '14px 14px 4px 14px' : '14px 14px 14px 4px',
+    fontSize: '14px', lineHeight: 1.55, whiteSpace: 'pre-wrap',
+    alignSelf: role === 'user' ? 'flex-end' : 'flex-start',
+    background: role === 'user' ? L.ink : 'oklch(0.965 0.005 85)',
+    color: role === 'user' ? L.onInk : L.ink,
   })
 
+  const railCard: React.CSSProperties = {
+    ...cardStyle, borderRadius: '18px', padding: '22px',
+    display: 'flex', flexDirection: 'column', gap: '12px',
+  }
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', paddingTop: '24px', maxWidth: '820px' }}>
-      <div style={{ display: 'flex', alignItems: 'flex-end', gap: '16px' }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-          <span style={{ fontFamily: F.serif, fontSize: '36px', lineHeight: 1 }}>Haussy</span>
-          <span style={{ fontSize: '14px', color: L.inkBody }}>
-            Reads your data. Proposes bookings and tasks — you confirm before anything is written.
-          </span>
-        </div>
-        <button onClick={newChat} style={{ marginLeft: 'auto', padding: '9px 15px', borderRadius: '9px', background: 'transparent', border: `1px solid ${L.line}`, fontSize: '13px', fontWeight: 600, cursor: 'pointer', fontFamily: F.sans }}>
-          New chat
-        </button>
-      </div>
+    <div style={{ display: 'flex', gap: '20px', paddingTop: '30px', alignItems: 'stretch' }}>
 
-      {note && (
-        <div style={{ ...cardStyle, border: `1px solid ${L.amberLine}`, background: L.amberWash, borderRadius: '14px', padding: '14px 18px', display: 'flex', alignItems: 'center', gap: '14px' }}>
-          <span style={{ fontSize: '14px' }}>{note}</span>
-          <button onClick={() => setNote('')} style={{ marginLeft: 'auto', background: 'none', border: 'none', color: L.inkMuted, cursor: 'pointer', fontSize: '13px', fontFamily: F.sans }}>Dismiss</button>
-        </div>
-      )}
+      {/* ─────────── conversation ─────────── */}
+      <div style={{ flex: 1.6, display: 'flex', flexDirection: 'column', gap: '16px', minWidth: 0 }}>
 
-      {messages.length === 0 && (
-        <div style={{ display: 'grid', gap: '8px' }}>
-          {SUGGESTIONS.map(s => (
-            <button key={s} onClick={() => send(s)} style={{
-              textAlign: 'left', padding: '13px 16px', borderRadius: '11px', background: L.card,
-              border: `1px solid ${L.line}`, fontSize: '14px', cursor: 'pointer', fontFamily: F.sans, color: L.inkBody,
-            }}>{s}</button>
-          ))}
+        <div style={{ display: 'flex', alignItems: 'flex-end', gap: '16px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            <span style={{ fontFamily: F.serif, fontSize: '36px', lineHeight: 1 }}>Haussy</span>
+            <span style={{ fontSize: '14px', color: L.inkBody }}>
+              Reads everything you have. Changes nothing without your yes.
+            </span>
+          </div>
+          <button onClick={newChat} style={{ marginLeft: 'auto', padding: '10px 16px', borderRadius: '10px', background: L.card, border: `1px solid ${L.line}`, fontSize: '13px', fontWeight: 600, cursor: 'pointer', fontFamily: F.sans, color: L.ink }}>
+            New chat
+          </button>
         </div>
-      )}
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-        {messages.map((m, i) => (
-          <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: m.role === 'user' ? 'flex-end' : 'flex-start', gap: '6px' }}>
-            {m.image_urls?.length > 0 && (
-              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                {m.image_urls.map((u: string, j: number) => (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img key={j} src={u} alt="" style={{ width: '96px', height: '96px', objectFit: 'cover', borderRadius: '10px', border: `1px solid ${L.line}` }} />
-                ))}
+        {note && (
+          <div style={{ ...cardStyle, border: `1px solid ${L.amberLine}`, background: L.amberWash, borderRadius: '14px', padding: '14px 18px', display: 'flex', alignItems: 'center', gap: '14px' }}>
+            <span style={{ fontSize: '14px' }}>{note}</span>
+            <button onClick={() => setNote('')} style={{ marginLeft: 'auto', background: 'none', border: 'none', color: L.inkMuted, cursor: 'pointer', fontSize: '13px', fontFamily: F.sans }}>Dismiss</button>
+          </div>
+        )}
+
+        {/* One card holds the transcript AND the composer. The composer sits at
+            margin-top:auto inside it rather than position:sticky over the page,
+            which is what used to let messages slide underneath the Send button. */}
+        <div style={{
+          ...cardStyle, borderRadius: '18px', padding: '24px',
+          display: 'flex', flexDirection: 'column', gap: '14px',
+          height: 'calc(100vh - 260px)', minHeight: '540px',
+        }}>
+
+          <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '14px', marginRight: '-8px', paddingRight: '8px' }}>
+            {messages.length === 0 && (
+              <div style={{ margin: 'auto 0', display: 'flex', flexDirection: 'column', gap: '10px', alignItems: 'flex-start' }}>
+                <span style={microLabel}>Nothing asked yet</span>
+                <span style={{ fontSize: '14px', color: L.inkBody, lineHeight: 1.55, maxWidth: '440px' }}>
+                  Ask a question, describe a booking in your own words, or paste platform
+                  screenshots and I&rsquo;ll read the figures off them.
+                </span>
               </div>
             )}
-            {m.content && <div style={bubble(m.role)}>{m.content}</div>}
-          </div>
-        ))}
-        {(busy || extracting) && <div style={{ ...bubble('assistant'), color: L.inkMuted }}>{extracting ? 'Reading the screenshots…' : 'Thinking…'}</div>}
-        <div ref={endRef} />
-      </div>
 
-      {preview && (
-        <BookingProposalCard draft={draft} preview={preview} busy={saving} err={err}
-          onEdit={editDraft} onConfirm={confirmBooking}
-          onCancel={() => { setDraft(null); setPreview(null); setErr('') }} />
-      )}
-
-      {draftTask && (
-        <div style={{ ...cardStyle, borderRadius: '18px', padding: '24px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-            <span style={microLabel}>Haussy proposes a task · nothing is saved yet</span>
-            <span style={{ fontFamily: F.serif, fontSize: '23px' }}>{draftTask.title || 'Untitled task'}</span>
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '10px' }}>
-            {TASK_FIELDS.map(k => (
-              <div key={k}>
-                <div style={microLabel}>{k.replace(/_/g, ' ')}</div>
-                <input value={draftTask[k] ?? ''} onChange={e => setDraftTask((t: any) => ({ ...t, [k]: e.target.value }))}
-                  style={{ padding: '9px 11px', border: `1px solid ${L.line}`, borderRadius: '9px', fontSize: '14px', fontFamily: F.sans, width: '100%', boxSizing: 'border-box', marginTop: '4px' }} />
+            {messages.map((m, i) => (
+              <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: m.role === 'user' ? 'flex-end' : 'flex-start', gap: '8px' }}>
+                {m.image_urls?.length > 0 && (
+                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                    {m.image_urls.map((u: string, j: number) => (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img key={j} src={u} alt="" style={{ width: '96px', height: '66px', objectFit: 'cover', borderRadius: '8px', border: `1px solid ${L.line}` }} />
+                    ))}
+                  </div>
+                )}
+                {m.content && <div style={bubble(m.role)}>{m.content}</div>}
               </div>
             ))}
+            {(busy || extracting) && <div style={{ ...bubble('assistant'), color: L.inkMuted }}>{extracting ? 'Reading the screenshots…' : 'Thinking…'}</div>}
+
+            {preview && (
+              <BookingProposalCard draft={draft} preview={preview} busy={saving} err={err}
+                onEdit={editDraft} onConfirm={confirmBooking}
+                onCancel={() => { setDraft(null); setPreview(null); setErr('') }} />
+            )}
+
+            {draftTask && (
+              <div style={{ ...cardStyle, border: `1px solid ${L.amberLine}`, borderRadius: '14px', overflow: 'hidden', alignSelf: 'flex-start', width: '82%' }}>
+                <div style={{ padding: '12px 16px', background: L.amberWash, borderBottom: `1px solid ${L.amberLine}` }}>
+                  <span style={{ ...microLabel, color: L.amber }}>Proposed task · nothing saved yet</span>
+                </div>
+                <div style={{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <span style={{ fontFamily: F.serif, fontSize: '21px' }}>{draftTask.title || 'Untitled task'}</span>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '10px' }}>
+                    {TASK_FIELDS.map(k => (
+                      <div key={k}>
+                        <div style={microLabel}>{k.replace(/_/g, ' ')}</div>
+                        <input value={draftTask[k] ?? ''} onChange={e => setDraftTask((t: any) => ({ ...t, [k]: e.target.value }))}
+                          style={{ padding: '9px 11px', border: `1px solid ${L.line}`, borderRadius: '9px', fontSize: '14px', fontFamily: F.sans, width: '100%', boxSizing: 'border-box', marginTop: '4px' }} />
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ display: 'flex', gap: '9px' }}>
+                    <button disabled={taskSaving} onClick={async () => {
+                      setTaskSaving(true)
+                      const res = await fetch('/api/admin/haussy/create-task', {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ task: draftTask, task_id: taskId }),
+                      })
+                      const d = await res.json()
+                      setTaskSaving(false)
+                      if (d.error) setErr(d.error)
+                      else { setNote(`Task created: ${d.task?.title}`); setDraftTask(null) }
+                    }} style={{ padding: '10px 16px', borderRadius: '9px', background: L.ink, color: '#fff', fontSize: '13px', fontWeight: 600, border: 'none', cursor: 'pointer', fontFamily: F.sans }}>
+                      {taskSaving ? 'Creating…' : 'Create the task'}
+                    </button>
+                    <button onClick={() => setDraftTask(null)} style={{ padding: '10px 16px', borderRadius: '9px', background: 'transparent', border: `1px solid ${L.line}`, fontSize: '13px', fontWeight: 600, cursor: 'pointer', fontFamily: F.sans }}>
+                      Discard
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {err && !preview && <span style={{ fontSize: '13px', color: L.red }}>{err}</span>}
+            <div ref={endRef} />
           </div>
-          <div style={{ display: 'flex', gap: '10px' }}>
-            <button disabled={taskSaving} onClick={async () => {
-              setTaskSaving(true)
-              const res = await fetch('/api/admin/haussy/create-task', {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ task: draftTask, task_id: taskId }),
-              })
-              const d = await res.json()
-              setTaskSaving(false)
-              if (d.error) setErr(d.error)
-              else { setNote(`Task created: ${d.task?.title}`); setDraftTask(null) }
-            }} style={{ padding: '12px 20px', borderRadius: '10px', background: L.ink, color: '#fff', fontSize: '14px', fontWeight: 600, border: 'none', cursor: 'pointer', fontFamily: F.sans }}>
-              {taskSaving ? 'Creating…' : 'Create the task'}
-            </button>
-            <button onClick={() => setDraftTask(null)} style={{ padding: '12px 18px', borderRadius: '10px', background: 'transparent', border: `1px solid ${L.line}`, fontSize: '14px', cursor: 'pointer', fontFamily: F.sans }}>
-              Discard
+
+          {pendingImages.length > 0 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: '13px', color: L.inkMuted }}>{pendingImages.length} screenshot{pendingImages.length > 1 ? 's' : ''} ready</span>
+              <button onClick={() => setPendingImages([])} style={{ padding: '6px 12px', borderRadius: '8px', background: 'transparent', border: `1px solid ${L.line}`, fontSize: '12px', cursor: 'pointer', fontFamily: F.sans }}>Clear</button>
+            </div>
+          )}
+
+          <div style={{ marginTop: 'auto', display: 'flex', gap: '10px', alignItems: 'center' }}>
+            <input ref={fileRef} type="file" accept="image/*" multiple style={{ display: 'none' }} onChange={e => addFiles(e.target.files)} />
+            <button onClick={() => fileRef.current?.click()} title="Attach booking screenshots"
+              style={{ width: '40px', height: '40px', flex: 'none', borderRadius: '11px', background: L.card, border: `1px solid ${L.line}`, fontSize: '15px', color: L.inkMuted, cursor: 'pointer', fontFamily: F.sans }}>▤</button>
+            <textarea value={input} onChange={e => setInput(e.target.value)} onPaste={onPaste} rows={1}
+              onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
+              placeholder="Ask, or paste booking screenshots…"
+              style={{ flex: 1, padding: '13px 15px', borderRadius: '11px', border: `1px solid ${L.line}`, fontSize: '14px', fontFamily: F.sans, resize: 'none', background: '#fff', color: L.ink, boxSizing: 'border-box' }} />
+            <button onClick={() => send()} disabled={busy || extracting || (!input.trim() && !pendingImages.length)}
+              style={{ padding: '13px 20px', flex: 'none', borderRadius: '11px', background: L.ink, color: '#fff', fontSize: '14px', fontWeight: 600, border: 'none', cursor: 'pointer', fontFamily: F.sans, opacity: (busy || extracting) ? 0.6 : 1 }}>
+              Send
             </button>
           </div>
         </div>
-      )}
+      </div>
 
-      {err && !preview && <span style={{ fontSize: '13px', color: L.red }}>{err}</span>}
-
-      {pendingImages.length > 0 && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-          <span style={{ fontSize: '13px', color: L.inkMuted }}>{pendingImages.length} screenshot{pendingImages.length > 1 ? 's' : ''} ready</span>
-          <button onClick={() => setPendingImages([])} style={{ padding: '6px 12px', borderRadius: '8px', background: 'transparent', border: `1px solid ${L.line}`, fontSize: '12px', cursor: 'pointer', fontFamily: F.sans }}>Clear</button>
+      {/* ─────────── rail ─────────── */}
+      <div className="kh-rail" style={{ width: '320px', flex: 'none', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        <div style={railCard}>
+          <span style={{ fontSize: '15px', fontWeight: 600 }}>Start from</span>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {SUGGESTIONS.map(s => (
+              <button key={s} onClick={() => send(s)} style={{
+                textAlign: 'left', padding: '11px 14px', borderRadius: '10px', background: L.card,
+                border: `1px solid ${L.line}`, fontSize: '13px', lineHeight: 1.45,
+                cursor: 'pointer', fontFamily: F.sans, color: L.ink,
+              }}>{s}</button>
+            ))}
+          </div>
         </div>
-      )}
 
-      <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-end', position: 'sticky', bottom: '16px' }}>
-        <input ref={fileRef} type="file" accept="image/*" multiple style={{ display: 'none' }} onChange={e => addFiles(e.target.files)} />
-        <button onClick={() => fileRef.current?.click()} title="Attach booking screenshots"
-          style={{ padding: '13px 15px', borderRadius: '11px', background: L.card, border: `1px solid ${L.line}`, fontSize: '15px', cursor: 'pointer' }}>▤</button>
-        <textarea value={input} onChange={e => setInput(e.target.value)} onPaste={onPaste} rows={1}
-          onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
-          placeholder="Describe a booking, or ask about your data…"
-          style={{ flex: 1, padding: '13px 15px', borderRadius: '11px', border: `1px solid ${L.line}`, fontSize: '14px', fontFamily: F.sans, resize: 'none', background: '#fff' }} />
-        <button onClick={() => send()} disabled={busy || extracting || (!input.trim() && !pendingImages.length)}
-          style={{ padding: '13px 22px', borderRadius: '11px', background: L.ink, color: '#fff', fontSize: '14px', fontWeight: 600, border: 'none', cursor: 'pointer', fontFamily: F.sans, opacity: (busy || extracting) ? 0.6 : 1 }}>
-          Send
-        </button>
+        <div style={railCard}>
+          <span style={{ fontSize: '15px', fontWeight: 600 }}>What it can touch</span>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '9px', fontSize: '13px', color: L.inkBody }}>
+            <div style={{ display: 'flex', gap: '9px' }}><span style={{ color: L.green, minWidth: '58px' }}>reads</span><span>bookings, money, guests, tasks, locks</span></div>
+            <div style={{ display: 'flex', gap: '9px' }}><span style={{ color: L.amber, minWidth: '58px' }}>proposes</span><span>booking edits, blocks and task reminders</span></div>
+            <div style={{ display: 'flex', gap: '9px' }}><span style={{ color: L.red, minWidth: '58px' }}>never</span><span>writes anything on its own</span></div>
+          </div>
+        </div>
+
+        <div style={{ ...railCard, flex: 1 }}>
+          <span style={{ fontSize: '15px', fontWeight: 600 }}>This session</span>
+          <span style={{ fontSize: '13px', color: L.inkMuted, lineHeight: 1.55 }}>
+            Chats aren&rsquo;t kept. Anything worth remembering becomes a task — that&rsquo;s
+            the only thing that survives the tab closing.
+          </span>
+        </div>
       </div>
     </div>
   )
