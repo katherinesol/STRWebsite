@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { resolveGuest } from '@/lib/keyholder/guest-resolve'
 import { createAdminClient } from '@/lib/supabase/server'
 
 export async function POST(request: NextRequest) {
@@ -25,38 +26,22 @@ export async function POST(request: NextRequest) {
   try {
     console.log('Step 1: find or create guest for', guest_email)
     console.log('STEP 1, service key present:', !!process.env.SUPABASE_SERVICE_ROLE_KEY, 'url present:', !!process.env.NEXT_PUBLIC_SUPABASE_URL)
-    // 1. find or create guest
-    let guestId: string
-    let isReturning = false
+    /* 1. attach a guest — one matching rule for every path, see
+       lib/keyholder/guest-match.ts. This was eq('email'), which is
+       case-sensitive in Postgres, so Kris@x.com and kris@x.com booked as two
+       different people. It also set returning_guest, which is derived now. */
+    const resolved = await resolveGuest(supabase, { name: guest_name, email: guest_email, phone: guest_phone })
+    if (!resolved) return NextResponse.json({ error: 'Failed to create guest' }, { status: 500 })
+    const guestId = resolved.guestId
+    const isReturning = !resolved.created
 
-    const { data: existingGuest, error: guestQueryError } = await supabase
-      .from('guests')
-      .select('id, locked_rate_enabled, locked_rate_royal_york, locked_rate_nickel_beach')
-      .eq('email', guest_email)
-      .maybeSingle()
-
-    console.log('STEP 1 query done, error:', guestQueryError?.message, 'found:', !!existingGuest)
-    if (guestQueryError) throw new Error('Guest query failed: ' + guestQueryError.message)
-
-    if (existingGuest) {
-      guestId = existingGuest.id
-      isReturning = true
-      await supabase.from('guests').update({
-        returning_guest: true,
-        phone: guest_phone,
-      }).eq('id', guestId)
-    } else {
-      const { data: newGuest, error: guestError } = await supabase
-        .from('guests')
-        .insert({ name: guest_name, email: guest_email, phone: guest_phone })
-        .select('id')
-        .single()
-
-      if (guestError || !newGuest) {
-        return NextResponse.json({ error: 'Failed to create guest' }, { status: 500 })
-      }
-      guestId = newGuest.id
-    }
+    // locked rates live on the guest record and are only honoured for someone
+    // we have actually seen before
+    const { data: existingGuest } = isReturning
+      ? await supabase.from('guests')
+          .select('locked_rate_enabled, locked_rate_royal_york, locked_rate_nickel_beach')
+          .eq('id', guestId).maybeSingle()
+      : { data: null as any }
 
     console.log('Step 2: guestId', guestId, 'returning', isReturning)
     console.log('STEP 2 guestId:', guestId)

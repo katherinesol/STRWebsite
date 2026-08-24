@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { programBookingLocks } from '@/lib/seam'
 import { chooseGuestCode } from '@/lib/lock-codes'
+import { resolveGuest } from '@/lib/keyholder/guest-resolve'
 import { createAdminClient } from '@/lib/supabase/server'
 import { differenceInDays } from 'date-fns'
 import { isAuthed } from '@/lib/auth'
@@ -14,16 +15,11 @@ export async function POST(request: NextRequest) {
 
   const supabase = createAdminClient()
 
-  // find or create guest
-  let guestId = use_existing || null
-  if (!guestId && guest_email) {
-    const { data: existing } = await supabase.from('guests').select('id').eq('email', guest_email).maybeSingle()
-    if (existing) {
-      guestId = existing.id
-    } else {
-      const { data: newGuest } = await supabase.from('guests').insert({ name: guest_name, email: guest_email, phone: guest_phone }).select('id').single()
-      guestId = newGuest?.id
-    }
+  // One matching rule for every path — see lib/keyholder/guest-match.ts.
+  let guestId: string | null = use_existing || null
+  if (!guestId) {
+    const r = await resolveGuest(supabase, { name: guest_name, email: guest_email, phone: guest_phone })
+    guestId = r?.guestId ?? null
   }
 
   const nights = differenceInDays(new Date(check_out), new Date(check_in))

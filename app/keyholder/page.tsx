@@ -1,9 +1,11 @@
 import Link from 'next/link'
-import { format, addDays } from 'date-fns'
+import { format } from 'date-fns'
 import { createAdminClient } from '@/lib/supabase/server'
 import { getAuth } from '@/lib/auth'
 import { unpaid, outstanding, PAYMENT_COLUMNS } from '@/lib/keyholder/payment'
 import { readEnvironment } from '@/lib/keyholder/today-env'
+import { torontoParts, torontoPlus } from '@/lib/keyholder/today-date'
+import TorontoClock from '@/components/keyholder/TorontoClock'
 import { formatTripPurpose, tripPurposeIcon, GIFT_ICON } from '@/lib/trip-purposes'
 import { L, F, microLabel, cardStyle, money, platformColour } from '@/lib/design-tokens'
 
@@ -27,12 +29,15 @@ export default async function Today() {
   const auth = await getAuth()
   const first = (auth.ok && auth.name) ? auth.name.split(' ')[0] : ''
 
+  /* Every date below is Toronto's, not the server's. Vercel runs UTC, so
+     format(new Date(), ...) rolled the whole page over to tomorrow at 8pm —
+     heading, arrivals, departures, in-residence, the week, all of it. */
   const now = new Date()
-  const hour = Number(now.toLocaleString('en-US', { timeZone: 'America/Toronto', hour: 'numeric', hour12: false }))
-  const greeting = hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : 'evening'
-  const todayStr = format(now, 'yyyy-MM-dd')
-  const weekStr = format(addDays(now, 7), 'yyyy-MM-dd')
-  const soonStr = format(addDays(now, 3), 'yyyy-MM-dd')
+  const T = torontoParts(now)
+  const greeting = T.hour < 12 ? 'morning' : T.hour < 17 ? 'afternoon' : 'evening'
+  const todayStr = T.iso
+  const weekStr = torontoPlus(7, now)
+  const soonStr = torontoPlus(3, now)
 
   /* One round trip. is_booking and platform filtering happen in the query, not
      in JavaScript afterwards — the legacy page pulls every block with select('*')
@@ -131,7 +136,7 @@ export default async function Today() {
     <div style={{ paddingTop: '40px', display: 'flex', flexDirection: 'column', gap: '32px' }}>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-        <span style={microLabel}>{format(now, 'EEEE, MMMM d')} · Toronto</span>
+        <TorontoClock weekday={T.weekday} month={T.month} day={T.day} />
         <span style={{ fontFamily: F.serif, fontSize: '42px', lineHeight: 1.05 }}>
           Good {greeting}{first ? `, ${first}` : ''}.
         </span>

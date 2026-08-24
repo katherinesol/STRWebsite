@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { resolveGuest } from '@/lib/keyholder/guest-resolve'
 import { createAdminClient } from '@/lib/supabase/server'
 import { hasRole } from '@/lib/auth'
 
@@ -14,47 +15,19 @@ export async function POST(request: NextRequest) {
 
   const supabase = createAdminClient()
 
-  if (email) {
-    // upsert guest by email
-    const { data: existing } = await supabase
-      .from('guests')
-      .select('id')
-      .eq('email', email)
-      .maybeSingle()
+  /* This route existed to "upsert a guest by email", and when there was no email
+     it invented one — name@platform.noemail — then looked the guest back up by
+     that invention. Five records still carry such an address and four of the
+     duplicate pairs trace to it: the placeholder made a person look like two.
 
-    if (existing) {
-      await supabase.from('guests').update({
-        name,
-        ...(phone && { phone }),
-        returning_guest: true,
-      }).eq('id', existing.id)
-    } else {
-      await supabase.from('guests').insert({
-        name,
-        email,
-        ...(phone && { phone }),
-        notes: `First seen via ${platform}`,
-      })
-    }
-  } else {
-    // no email — just create with name if not duplicate
-    const { data: existing } = await supabase
-      .from('guests')
-      .select('id')
-      .ilike('name', name)
-      .maybeSingle()
+     It is a thin wrapper now. resolveGuest treats a fabricated address as no
+     address, matches on real evidence only, and writes nothing it had to make up. */
+  const r = await resolveGuest(supabase, { name, email, phone })
+  if (!r) return NextResponse.json({ ok: true })
 
-    if (!existing) {
-      await supabase.from('guests').insert({
-        name,
-        ...(phone && { phone }),
-        email: `${name.toLowerCase().replace(/\s+/g, '.')}@platform.noemail`,
-        notes: `Added from ${platform} — no email on file`,
-      })
-    }
+  if (r.created && platform) {
+    await supabase.from('guests').update({ notes: `First seen via ${platform}` }).eq('id', r.guestId)
   }
 
-  // return the guest id so caller can link the calendar block
-  const { data: g } = await supabase.from('guests').select('id').eq('email', email || `${name.toLowerCase().replace(/\s+/g, '.')}@platform.noemail`).maybeSingle()
-  return NextResponse.json({ ok: true, guest_id: g?.id })
+  return NextResponse.json({ ok: true, guest_id: r.guestId, linked_on: r.on, certain: r.certain })
 }

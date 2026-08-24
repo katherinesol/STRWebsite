@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { hasRole, getAuth } from '@/lib/auth'
+import { resolveGuest } from '@/lib/keyholder/guest-resolve'
 import { createAdminClient } from '@/lib/supabase/server'
 import { logCalendarActivity } from '@/lib/calendar-activity'
 
@@ -70,28 +71,19 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true, overlaps })
   }
 
-  // COMMIT phase: create/link guest, then the booking row
+  /* COMMIT: attach a guest, then the booking row.
+     One matching rule for every path — lib/keyholder/guest-match.ts. This used to
+     ilike(email) then ilike(name) with maybeSingle(), which silently takes the
+     first of two matches; findGuest insists a match be unique and refuses a
+     single-token name outright. It also set returning_guest here, which is why
+     ten guests carry the flag and only one has actually returned — that is
+     derived now, not stored. */
   let guestId: string | null = null
-  if (booking.guest_name) {
-    // returning-guest linking: match by email first, then name
-    let existing = null
-    if (booking.guest_email) {
-      const { data } = await supabase.from('guests').select('id').ilike('email', booking.guest_email).maybeSingle()
-      existing = data
-    }
-    if (!existing && booking.guest_name) {
-      const { data } = await supabase.from('guests').select('id').ilike('name', booking.guest_name).maybeSingle()
-      existing = data
-    }
-    if (existing) {
-      guestId = existing.id
-      await supabase.from('guests').update({ returning_guest: true }).eq('id', existing.id)
-    } else {
-      const { data: newGuest } = await supabase.from('guests').insert({
-        name: booking.guest_name, email: booking.guest_email || null, phone: booking.guest_phone || null,
-      }).select('id').single()
-      guestId = newGuest?.id || null
-    }
+  if (booking.guest_name || booking.guest_email || booking.guest_phone) {
+    const r = await resolveGuest(supabase, {
+      name: booking.guest_name, email: booking.guest_email, phone: booking.guest_phone,
+    })
+    guestId = r?.guestId ?? null
   }
 
   // UPDATE path: merge screenshot data into an existing block (e.g. one imported bare from iCal)

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { resolveGuest } from '@/lib/keyholder/guest-resolve'
 import { createAdminClient } from '@/lib/supabase/server'
 import { isAuthed } from '@/lib/auth'
 
@@ -16,20 +17,10 @@ export async function POST(request: NextRequest) {
     const { data: refNum } = await supabase.rpc('get_next_booking_ref')
     const bookingReference = `RS-${String(refNum || Date.now().toString().slice(-4)).padStart(4, '0')}`
 
-    // find or create guest
-    let guestId = null
-    if (guest_name) {
-      const { data: existing } = await supabase.from('guests').select('id').ilike('name', guest_name).maybeSingle()
-      if (existing) {
-        guestId = existing.id
-      } else {
-        const { data: newGuest } = await supabase.from('guests').insert({
-          name: guest_name,
-          email: `${guest_name.toLowerCase().replace(/\s+/g, '.')}@imported.noemail`,
-        }).select('id').single()
-        guestId = newGuest?.id
-      }
-    }
+    // One matching rule for every path. The fabricated @imported.noemail address
+    // this used to write is exactly the placeholder that split four guests in two.
+    const r = await resolveGuest(supabase, { name: guest_name })
+    const guestId = r?.guestId ?? null
 
     const { error } = await supabase.from('bookings').insert({
       property_id, guest_id: guestId, check_in, check_out, nights,

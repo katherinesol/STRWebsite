@@ -11,6 +11,7 @@ export const SECTIONS = [
   { id: 'stays', name: 'Stays', href: '/keyholder/stays' },
   { id: 'money', name: 'Money', href: '/keyholder/money' },
   { id: 'property', name: 'Property', href: '/keyholder/property' },
+  { id: 'people', name: 'People', href: '/keyholder/people' },
   { id: 'assistant', name: 'Assistant', href: '/keyholder/assistant' },
 ]
 
