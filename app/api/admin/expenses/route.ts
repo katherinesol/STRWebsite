@@ -29,13 +29,23 @@ export async function GET() {
     return { ...e, signed_receipt_url: signed?.signedUrl || null }
   }))
 
-  const { count: pendingCount } = await supabase.from('pending_receipts')
-    .select('id', { count: 'exact', head: true }).eq('status', 'pending')
+  /* The pending queue travels with the page. It is fed by the inbound-email
+     route, and ReceiptReviewQueue is the only UI that can approve or reject a
+     row, so it has to live wherever expenses live. */
+  const { data: pendingRaw } = await supabase.from('pending_receipts')
+    .select('*').eq('status', 'pending').order('created_at', { ascending: false })
+  const pending = await Promise.all((pendingRaw || []).map(async (p: any) => {
+    if (!p.receipt_path) return { ...p, signed_receipt_url: null }
+    const { data: sg } = await supabase.storage
+      .from('property-management').createSignedUrl(p.receipt_path, 3600)
+    return { ...p, signed_receipt_url: sg?.signedUrl || null }
+  }))
 
   return NextResponse.json({
     expenses,
     vendors: [...new Set(expenses.map((e: any) => e.vendor).filter(Boolean))].sort(),
-    pendingCount: pendingCount ?? 0,
+    pending,
+    pendingCount: pending.length,
   })
 }
 

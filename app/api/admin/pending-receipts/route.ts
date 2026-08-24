@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { isAuthed } from '@/lib/auth'
+import { normaliseCategory } from '@/lib/expense-categories'
 
 
 // approve: create real expense from pending; reject: mark rejected
@@ -18,6 +19,13 @@ export async function POST(request: NextRequest) {
   if (action === 'approve') {
     const f = fields || {}
     const amount = parseFloat(f.amount) || 0
+    /* An approved receipt becomes a real expense, so it gets the same guard as
+       one typed by hand. 'Other' — the old default here — is not a CRA
+       category at all; the list has 'Other expenses'. Approving a receipt with
+       no category was writing a value that does not exist into the field the
+       T2125 is grouped by. And a zero-amount expense is not a filing, it is a
+       blank row that has to be found and removed later. */
+    if (!amount) return NextResponse.json({ error: 'An amount is required to approve a receipt' }, { status: 400 })
     const date = f.date || new Date().toISOString().split('T')[0]
     const vendor = f.vendor || null
 
@@ -54,7 +62,7 @@ export async function POST(request: NextRequest) {
       amount,
       hst_paid: f.hst_paid ? parseFloat(f.hst_paid) : null,
       date,
-      category: f.category || 'Other',
+      category: normaliseCategory(f.category).category,
       description: f.description || f.vendor || 'Receipt',
       property_id: f.property_id || null,
       receipt_path: f.receipt_path || null,

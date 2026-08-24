@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import NewInvoiceDialog from '@/components/admin/NewInvoiceDialog'
+import UpcomingPayments from '@/components/admin/UpcomingPayments'
 import { L, F, microLabel, cardStyle, money } from '@/lib/design-tokens'
 
 const PROP_NAMES: Record<string, string> = {
@@ -56,6 +57,10 @@ export default function InvoicesPage() {
 
       {t && (
         <>
+          {/* What is owed and when, before the ledger of what exists. Renders
+              nothing when nothing is scheduled. */}
+          <UpcomingPayments onPaid={load} />
+
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: '14px', marginBottom: '24px' }}>
             <div style={{ ...cardStyle, border: `1px solid ${t.owing > 0 ? L.redLine : L.line}`, padding: '20px', display: 'flex', flexDirection: 'column', gap: '5px' }}>
               <span style={microLabel}>Still owing</span>

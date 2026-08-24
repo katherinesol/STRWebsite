@@ -3,6 +3,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { EXPENSE_CATEGORIES, HALF_DEDUCTIBLE } from '@/lib/expense-categories'
 import { PROPERTY_OPTIONS } from '@/lib/property-options'
 import ReceiptQueue from '@/components/admin/ReceiptQueue'
+import ReceiptReviewQueue from '@/components/admin/ReceiptReviewQueue'
 import { L, F, microLabel, cardStyle, money } from '@/lib/design-tokens'
 
 /* The redesigned expense ledger — replacing the dark one buried at
@@ -174,6 +175,16 @@ export default function ExpensesPage() {
               </select>
             </span>
           </div>
+
+          {/* Receipts that arrived by email and need a decision. pending_receipts
+              is written by the inbound-email route, so this queue is the only
+              way one ever gets approved — it must never be the thing left behind
+              when a page is retired. Renders nothing when the queue is empty. */}
+          {!!(d?.pending || []).length && (
+            <div style={{ marginBottom: '22px' }}>
+              <ReceiptReviewQueue initialPending={d.pending} onResolved={reload} />
+            </div>
+          )}
 
           <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr', gap: '14px', marginBottom: '22px' }}>
             <div style={{ background: L.inkCard, borderRadius: '16px', padding: '22px', color: L.onInk, display: 'flex', flexDirection: 'column', gap: '5px' }}>

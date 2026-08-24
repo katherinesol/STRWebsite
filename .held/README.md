@@ -19,3 +19,17 @@ A recorded hash cannot drift the way a moving branch can.
     done
 
 `TaxToggleField.tsx` is untracked, so its check stays "must not exist".
+
+## Before unholding — one stale thing to fix in the same pass
+
+`PlatformBookingForm.tsx` line ~376 carries a link reading **"Edit in Income →"**
+pointing at `/admin/income`. That screen was retired on 2026-08-24 and now
+redirects to `/keyholder/money/income`, which is **read-only** — income can no
+longer be edited anywhere, by design, because the route behind that link
+(`/api/admin/income/update`) accepted typed hst and mat and skipped the tax
+engine, the guest link and the payout check. It has been deleted.
+
+The link still works and does no harm; the redirect catches it. But the label
+promises something that no longer exists, and it was left alone deliberately
+rather than touch a held file to fix a caption. Correct it to point at the
+booking's figures panel — or drop it — whenever this file is unheld.
