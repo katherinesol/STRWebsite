@@ -5,8 +5,12 @@ import { createAdminClient } from '@/lib/supabase/server'
 
 const TOPICS = ['check-in', 'wifi', 'amenities', 'rules', 'local', 'troubleshooting', 'emergency', 'general']
 
+/* owner + co-owner, matching every other knowledge route. Teach is the primary
+   action on the concierge page and writes through here; leaving it owner-only
+   would mean a co-owner can edit an entry but not create one from the question
+   that just failed — the same inconsistency, on a different route. */
 export async function POST(request: NextRequest) {
-  if (!await hasRole('owner')) return NextResponse.json({ error: 'Not allowed' }, { status: 403 })
+  if (!await hasRole('owner', 'co-owner')) return NextResponse.json({ error: 'Not allowed' }, { status: 403 })
   const { property_id, question, rough_answer } = await request.json()
   if (!property_id || !rough_answer?.trim()) return NextResponse.json({ error: 'Need property and answer' }, { status: 400 })
 

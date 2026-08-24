@@ -24,8 +24,12 @@ export async function POST(request: NextRequest) {
 }
 
 // update or delete an entry
+/* owner + co-owner, matching knowledge/[id] and the GET/POST above. These two
+   handlers do exactly what the [id] route does, differing only in taking the id
+   from the body rather than the path — so a co-owner could edit an entry through
+   one and be refused by the other. Knowledge is content, not money. */
 export async function PATCH(request: NextRequest) {
-  if (!await hasRole('owner')) return NextResponse.json({ error: 'Not allowed' }, { status: 403 })
+  if (!await hasRole('owner', 'co-owner')) return NextResponse.json({ error: 'Not allowed' }, { status: 403 })
   const { id, title, content, topic, active } = await request.json()
   const supabase = createAdminClient()
   const upd: any = { updated_at: new Date().toISOString() }
@@ -39,7 +43,7 @@ export async function PATCH(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
-  if (!await hasRole('owner')) return NextResponse.json({ error: 'Not allowed' }, { status: 403 })
+  if (!await hasRole('owner', 'co-owner')) return NextResponse.json({ error: 'Not allowed' }, { status: 403 })
   const { id } = await request.json()
   const supabase = createAdminClient()
   const { error } = await supabase.from('knowledge_base').delete().eq('id', id)

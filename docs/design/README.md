@@ -17,7 +17,7 @@ file — it is a single self-contained page, six turns deep.
 | 5a | Invoices — list | **built** |
 | 5b | Invoice — edit | **built** |
 | 6a | **Haussy** | **built** · `components/keyholder/HaussyChat.tsx` |
-| 6b | Concierge (training + knowledge merged) | not built |
+| 6b | Concierge (training + knowledge merged) | **built** · `/keyholder/property/concierge` |
 | 6c | People (guests + contacts + inbox merged) | not built |
 | 6d | MAT return, as a tab under Money | **built** · `/keyholder/money/tax` |
 
@@ -109,5 +109,19 @@ Not started; needs investigation before it can be scoped.
   The card is also still in legacy dark styling on the new booking page. Adding a
   dropdown to a card that is about to be redrawn is work done twice; do both in
   one pass, and keep the booking_id-only load untouched while doing it.
+- **Concierge entry usage counts.** Design-doc 6b shows "USED 41×" per entry.
+  Nothing records a hit and `knowledge_base` has no counter column, so it needs a
+  migration plus a write when the bot cites an entry. Skipped for now; genuinely
+  useful later for spotting entries no guest ever needs.
+- **`guest_questions` is written by nothing.** The table exists with the right
+  shape — question, bot_answer, needs_followup, answered — and holds two rows
+  from some earlier path, but the concierge does not log a question when it
+  escalates. So the "questions it couldn't answer" panel is real and will never
+  grow. Logging on `[[ESCALATE]]` is the fix, and then teaching from a row should
+  mark it answered, which also needs an endpoint since nothing updates that table.
+- **Guest verification is code + surname.** A confirmation code appears in every
+  platform email and a surname is guessable; passing both releases the door code.
+  Rate-limited to 8 failed tries per IP per 15 minutes. A decision worth revisiting,
+  not a bug.
 - 6c People: guests, contacts and inbox. Guest contact details still live only
   on the legacy `/admin/guests` pages.
