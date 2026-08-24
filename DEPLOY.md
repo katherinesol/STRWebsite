@@ -48,15 +48,50 @@ Production was untouched only by luck of the naming. Symptoms, if it recurs:
 `prj_7OUGI3np6PslxYHw6erRfNmdcxGP` / `team_R13qy3zoRQOAxYe3didWSECW` is the real
 project. Verify before deploying, not after.
 
-## Pre-flight
-
-Confirm the deploy tree is what you think it is, and that held work is absent:
+## Pre-flight — check held files against `.held/*.sha`, never against a branch
 
 ```sh
-test -e "$D/components/admin/TaxToggleField.tsx" && echo "HELD FILE PRESENT — STOP"
-grep -rl TaxToggleField "$D" --exclude=DEPLOY.md | wc -l   # expect 0 (this file names it)
-cat "$D/.vercel/project.json"               # expect projectName: rental-direct
+fail=0
+for n in toronto-mat-report BookingEditForm PlatformBookingForm; do
+  case $n in
+    toronto-mat-report) p=app/api/admin/toronto-mat-report/route.ts ;;
+    *) p=components/admin/$n.tsx ;;
+  esac
+  [ "$(shasum -a 256 < "$D/$p" | cut -c1-64)" = "$(cat .held/$n.sha)" ] \
+    || { echo "HELD EDIT IS IN THE TARBALL: $p"; fail=1; }
+done
+test -e "$D/components/admin/TaxToggleField.tsx" && { echo "TaxToggleField PRESENT"; fail=1; }
+cat "$D/.vercel/project.json"      # expect projectName: rental-direct
+[ "$fail" = 0 ] || echo "DO NOT DEPLOY"
 ```
+
+### The trap this replaced, and why the old check could not see it
+
+The pre-flight used to diff the tarball against `origin/main`. That verifies the
+tarball is a faithful copy of the branch — which it always is, because
+`git archive` builds it from the branch. It says nothing about whether the branch
+should contain the file.
+
+On 2026-08-23 a wildcard stage (`git add -A … app/api …`) swept
+`app/api/admin/toronto-mat-report/route.ts` into a commit. It carried the held Q2
+`apply_tax` master switch. The pre-flight compared tarball to `origin/main`, both
+now contained the edit, and it reported clean. The switch was live for about four
+minutes. Nothing moved — no Toronto platform booking has `apply_tax` false, so it
+had nothing to act on — but the check was structurally incapable of catching it.
+
+A recorded hash cannot drift. `.held/*.sha` holds the hash of each file WITHOUT
+its held edit, so committing the edit changes the tarball hash, the comparison
+fails, and the deploy stops.
+
+This was the second time in one evening that the held-file boundary was the weak
+point; the first was an earlier commit-sweep that needed the commit split before
+deploying. Both were staging accidents. Two habits follow:
+
+- **Stage held files by name, never by directory.** `git add app/api` is how this
+  happened. `git add app/api/admin/haussy/` would not have.
+- **`git status` after committing, before deploying.** All four held files must
+  still be listed as modified or untracked. If one has vanished from that list,
+  it is in the commit.
 
 Then check `vercel ls rental-direct --prod` afterwards: the new deployment
 should be at the top, `Ready`, `Production`.
