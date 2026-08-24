@@ -1,9 +1,30 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
-import * as pdfjsLib from 'pdfjs-dist'
 
-if (typeof window !== 'undefined') {
-  pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`
+/* pdf.js is fetched on demand and never at module scope.
+ *
+ *  A static `import * as pdfjsLib from 'pdfjs-dist'` is evaluated whenever this
+ *  module is evaluated — and 'use client' does not mean browser-only: Next still
+ *  renders client components on the server for the initial HTML. pdfjs-dist
+ *  touches DOMMatrix at its own top level, which does not exist there, so the
+ *  import threw `ReferenceError: DOMMatrix is not defined` and took the entire
+ *  Finance page down with a 500. Expenses live on that page, so the whole
+ *  expense UI was unreachable.
+ *
+ *  The `if (typeof window !== 'undefined')` guard that used to sit here was
+ *  never able to help. It guarded the assignment; the crash was on the import
+ *  line above it, which runs first. Guarding the use of a module cannot save you
+ *  from importing it — only not importing it can.
+ *
+ *  Loaded once, on the first PDF, and cached. */
+let pdfjs: typeof import('pdfjs-dist') | null = null
+async function loadPdfjs() {
+  if (!pdfjs) {
+    pdfjs = await import('pdfjs-dist')
+    pdfjs.GlobalWorkerOptions.workerSrc =
+      `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.mjs`
+  }
+  return pdfjs
 }
 
 const PROPS = [
@@ -133,6 +154,7 @@ export default function ReceiptQueue({ categories, onAllSaved }: { categories: s
   // split a PDF into page images, extract each
   async function handlePdf(file: File) {
     const buf = await file.arrayBuffer()
+    const pdfjsLib = await loadPdfjs()
     const pdf = await pdfjsLib.getDocument({ data: buf }).promise
     for (let n = 1; n <= pdf.numPages; n++) {
       const page = await pdf.getPage(n)
