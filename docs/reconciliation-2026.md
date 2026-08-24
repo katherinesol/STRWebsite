@@ -30,11 +30,13 @@ stay: Brendan (23 Jan) none, Аня (16 May) taxed, Molhem (28 May) taxed, Marc
 On, then off for three weeks of June, then on again. No switch-on date explains
 that.
 
-**The mechanism is the booking date, not the stay date.** Airbnb fixes a
-reservation's tax treatment when it is booked, so a June stay reserved before
-the listing's tax settings changed carries the untaxed treatment, while a May
-stay reserved afterwards carries the taxed one. To be confirmed from the booking
-date on each receipt.
+**The mechanism is the booking date, and four booking dates now confirm it.**
+Mary Weir stays 11–18 July — two months after Аня's taxed May stay — and is
+untaxed, because she booked on **4 November 2025**. Diana booked 18 June 2026,
+Stephanie 6 August, Niki 15 August; all three are taxed. Everything reserved in
+2025 is untaxed, everything reserved from June 2026 is taxed, which rules out
+the stay date entirely. **The switch sits between 4 Nov 2025 and 18 Jun 2026**
+and would be narrowed by a booking date on Marc, Mark or Heremela.
 
 **So the sweep is every Airbnb booking for the year, ordered by booking date —
 not a pre-May window.** The exposure has no upper bound in stay date: a stay
@@ -80,6 +82,30 @@ potential MAT credit riding on the same question.
 
 ---
 
+## ⚠ THE HOST-FEE PATTERN — wrong payouts, therefore misstated income
+
+Airbnb runs **two host-fee structures**, and storing the wrong one corrupts the
+payout, which is the income figure itself rather than a tax detail.
+
+- **3.0%**, charged on room + cleaning, with the guest paying a separate service
+  fee on top.
+- **15.5%**, with the **guest service fee at $0.00** — the host absorbs it.
+
+Josh Klein was stored at 3%. Airbnb charged 15.5%. His payout read **$4,850.60**
+where the real figure is **$4,316.85** — the arithmetic is exact, `3840 + 430 +
+708.70 − 128.10 = 4850.60`, using a $128.10 fee in place of the actual $661.85.
+**The system overstated money received by $533.75 on one booking.** His
+`guest_total` was also short by exactly $473.54, the "Airbnb extended
+cancellation" line the guest paid and Airbnb kept. Both corrected.
+
+**Treat this as a pattern, not an incident.** Any booking whose stored
+`host_service_fee_pct` does not match what Airbnb actually charged has a wrong
+payout and therefore misstates income. Every remaining booking needs its fee
+percentage checked against its receipt — the default of 3 sits in the schema, so
+a 15.5% booking that nobody corrected will look normal.
+
+---
+
 ## How Airbnb's tax lines decompose
 
 Established from three receipts and confirmed to the cent on each.
@@ -111,6 +137,37 @@ itself, so only the HST is passed through. Nickel Beach passes both.
 `taxes_collected` is always the **Guest paid** figure. Taking the host figure
 understates the collection — four rows have been found with that misread so far.
 
+### Three ways stored hst/mat have been wrong
+
+Every remaining booking should be checked against all three, because they look
+nothing alike and only one of them looks obviously wrong.
+
+1. **Airbnb's formula stored as owed** — Myriam, Diana, Josh. The platform's own
+   arithmetic on room + cleaning (+ pet fee) copied into `hst`/`mat` as though it
+   were the liability.
+2. **Backed out as tax-inclusive** — Mary, Erica. Room + cleaning divided by 1.17
+   and the tax extracted from the result, as if the guest price already included
+   it. Mary: `8124 ÷ 1.17 = 6943.59`, ×13% = 902.67 and ×4% = 277.74, matching
+   her stored values exactly. Erica: `3120 ÷ 1.17 = 2666.67` → 346.67 and 106.67.
+   This understates both taxes and is the least visible of the three.
+3. **Null** — no figures at all, which at least cannot mislead a return.
+
+The rule they all miss is the same: MAT falls on the room alone, and then sits
+*inside* the HST base.
+
+### Airbnb corrected its own MAT base mid-year
+
+Early bookings bill MAT on **room + cleaning** (Аня, Molhem, Myriam, Diana);
+later ones bill it on **room only** (Josh, Niki, Stephanie), which is what the
+rules actually say. Diana booked 18 June under the old base, Stephanie 6 August
+and Niki 15 August under the new one — so this tracks the booking date too, and
+newer bookings agree with us more closely.
+
+One oddity: **Stephanie's guest-paid tax equals her host tax exactly** ($355.10)
+despite a $349.37 guest service fee, so no HST was charged on that fee — unlike
+every other 3% booking, where the difference is precisely 13% of it. Her
+`taxes_platform_remits` is therefore zero.
+
 ---
 
 ## Reconciled
@@ -124,6 +181,12 @@ understates the collection — four rows have been found with that misread so fa
 | 2026-06-12 | Mark Vallena | `HMYS5WCHCF` | Airbnb, both tabs | written · payout delta 0.00 |
 | 2026-06-15 | Heremela Molla | `HMHC9JF4XE` | Airbnb, both tabs | written · payout delta 0.00 |
 | 2026-06-27 | Myriam Donaldson | `HMSAD5M5JC` | Airbnb, both tabs | written · payout delta 0.00 |
+| 2026-07-11 | Mary Weir | `HMZHBMRCKX` | Airbnb, both tabs | written · payout delta 0.00 |
+| 2026-07-24 | Erica Yu | `HMBJNAZS4N` | Airbnb, both tabs | written · payout delta 0.00 |
+| 2026-08-18 | Josh Klein | `HMYSXQHJWP` | Airbnb, both tabs | written · payout corrected |
+| 2026-08-22 | Diana Balthasar | `HM9CBB93YM` | Airbnb, both tabs | written · payout delta 0.00 |
+| 2026-09-11 | Niki Hathaway | `HMRYR2KMDH` | Airbnb, both tabs | written · payout delta 0.00 |
+| 2026-09-18 | Stephanie Chow | `HMJ9N9SKQT` | Airbnb, both tabs | written · payout delta 0.00 |
 
 **Brendan O'Hanlon** — Nickel Beach, 23–25 January, 2 nights. Not in the system;
 shell row created through the conflict-checked block route (no conflicts), then
@@ -239,12 +302,39 @@ above sees them. All Nickel Beach.
 | `HMHC9JF4XE` | Heremela | requested **$2,028.95** | Damage, missing items, unexpected cleaning | Closed |
 | `HMHC9JF4XE` | Airbnb | **$352.30 sent** | Payment from Airbnb | — |
 
-Open questions on all of them. "Closed" does not say whether the guest paid, so
-Brendan's $175 and Heremela's $2,028.95 each need their outcome confirmed —
-income if paid, nothing if declined. Heremela's $352.30 from Airbnb looks like a
-partial settlement of the $2,028.95 claim rather than a separate payment, which
-would make the damage recovery $352.30 and not $2,028.95. Mark's $100 is
-confirmed received.
+Brendan's $175 still needs its outcome confirmed — "Closed" does not say whether
+he paid. Mark's $100 is confirmed received. Heremela's is settled and much
+larger than it first appeared; see below.
+
+### Heremela — $2,464.57 received, none of it recorded
+
+The earlier reading that $352.30 was a partial settlement was wrong. There were
+**three separate payouts**, all to Katherine Sollbach, Checking 0377 (CAD):
+
+| Sent | Amount | Resolution | Payout ID |
+|---|---|---|---|
+| 2026-08-05 | $586.77 | CLSF-06099978 | `G-O7IFKBHGEBBH4` |
+| 2026-08-06 | $352.30 | 17852536118667 | `G-IE5XF66NLZJW2` |
+| 2026-08-19 | $1,525.50 | CLSF-06099978 | `G-NIWJBBSNU6IIT` |
+| | **$2,464.57** | | |
+
+`17852536118667` is a wholly separate resolution, not part of the damage claim.
+`CLSF-06099978` was paid in two instalments totalling **$2,112.27** against a
+request of **$2,028.95** — **$83.32 more than was asked for**, which is worth
+querying with Airbnb rather than assuming in your favour.
+
+**All three are unrecorded income sitting in a bank account.** They need
+entering against Checking 0377 so they reconcile to the statement, and the
+repair and replacement costs Heremela's stay caused need entering on the other
+side so the net is visible.
+
+**Damage recovery — confirm bookkeeping treatment with the accountant.** There
+are two defensible treatments and this ledger does not choose between them:
+recovery recorded as income with the repairs as ordinary expenses, or the
+recovery applied as an offset that reduces the repair expense, with only the net
+hitting the books. The tax consequences differ. What is recorded here are the
+facts — money in, dated, with payout references; costs out; and the net — and
+the classification is the accountant's call.
 
 Then the classification question, which is genuinely open: an additional-guests
 fee is accommodation revenue and would ordinarily attract HST and MAT, whereas a
@@ -256,11 +346,14 @@ recorded in the system yet.
 
 ## Open
 
-- **Booking dates on every Airbnb receipt**, to confirm the tax treatment tracks
-  the reservation date and to order the sweep by it.
-- **Heremela's money request** — $2,028.95 claimed, $352.30 apparently sent by
-  Airbnb. Determine which figure is the real recovery: unrecorded income if
-  received, a receivable if still outstanding.
+- **Booking dates for Marc Losier, Mark Vallena and Heremela Molla** — the three
+  untaxed June stays. These would narrow the tax switch from the current window
+  of 4 Nov 2025 – 18 Jun 2026. They are only on Airbnb, so they have to be read
+  off the reservation pages.
+- **Host-fee percentage on every booking**, checked against its receipt. See the
+  host-fee pattern above; a wrong percentage means a wrong payout.
+- **Repair and replacement costs from Heremela's stay**, to sit against the
+  $2,464.57 recovered.
 - **Enter 1 Jan – 15 May 2026.** The whole period, all three properties, from
   Airbnb/VRBO/Houfy records. Prerequisite for any 2026 total being trustworthy.
 - **Full-year tax sweep by booking date.** Total exposure across every Airbnb
@@ -269,6 +362,10 @@ recorded in the system yet.
   Jia $77.22 — Guest-paid tabs to come. Аня was a fourth and Myriam a fifth, both
   corrected. Re-scan every Airbnb booking for both signatures now: the tab
   misread, and Airbnb's formula stored as owed.
+- **Stephanie Chow's row was already in the system**, synced from Airbnb on
+  2026-08-07 with `is_booking=false` and no name — the conflict check caught it
+  before a duplicate was created. A live specimen of the sweep-blindness gap in
+  the lock backlog.
 - **Elizabeth Huckabone** `2026-06-25`, `HA-Z9QCYD` — `taxes_collected` 506.91
   and `taxes_platform_remits` 54.34 with `hst`/`mat` null. Needs its receipt.
 - **Erica Yu** `2026-07-24` — queued for her receipt. Stores 453.34 where
