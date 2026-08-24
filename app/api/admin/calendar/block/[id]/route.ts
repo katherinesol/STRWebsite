@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
+import { splitName } from '@/lib/keyholder/guest-match'
 import { logCalendarActivity } from '@/lib/calendar-activity'
 import { getAuth, hasRole } from '@/lib/auth'
 import { reprogramBookingWindow, windowFromBooking } from '@/lib/seam'
@@ -58,7 +59,7 @@ export async function PATCH(
     } else {
       const { data: newGuest } = await supabase
         .from('guests')
-        .insert({ name, email: null, phone: null })
+        .insert({ name, ...splitName(name), email: null, phone: null })
         .select('id')
         .single()
       if (newGuest) body.guest_id = newGuest.id

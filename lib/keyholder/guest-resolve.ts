@@ -1,4 +1,4 @@
-import { findGuest, normaliseEmail, normalisePhone, type LinkMethod } from './guest-match'
+import { findGuest, normaliseEmail, normalisePhone, splitName, type LinkMethod } from './guest-match'
 
 /** The single entry point every booking path uses to attach a guest.
  *
@@ -47,7 +47,7 @@ export async function resolveGuest(
   }
 
   const { data: made } = await supabase.from('guests')
-    .insert({ name: name || null, email: email || null, phone: phone ? incoming.phone : null })
+    .insert({ name: name || null, ...splitName(name), email: email || null, phone: phone ? incoming.phone : null })
     .select('id').single()
   if (!made) return null
   return { guestId: made.id, created: true, on: 'new', certain: true }

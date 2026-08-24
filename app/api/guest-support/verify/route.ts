@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
+import { surnameOf } from '@/lib/keyholder/guest-match'
 
 // Verify a guest by confirmation code + last name. Checks both direct bookings and platform bookings.
 export async function POST(request: NextRequest) {
@@ -28,26 +29,32 @@ export async function POST(request: NextRequest) {
   // 1. direct bookings (join guest for name)
   const { data: direct } = await supabase
     .from('bookings')
-    .select('id, property_id, check_in, check_out, confirmation_code, status, lock_code, total, deposit_amount, deposit_paid_at, final_payment_amount, final_paid_at, guest:guests(name, phone)')
+    .select('id, property_id, check_in, check_out, confirmation_code, status, lock_code, total, deposit_amount, deposit_paid_at, final_payment_amount, final_paid_at, guest:guests(name, last_name, phone)')
     .ilike('confirmation_code', codeUp)
     .neq('status', 'cancelled')
 
   // 2. platform bookings
   const { data: platform } = await supabase
     .from('calendar_blocks')
-    .select('id, property_id, start_date, end_date, confirmation_code, guest_name, door_code, guest_total, payout_amount')
+    .select('id, property_id, start_date, end_date, confirmation_code, guest_name, door_code, guest_total, payout_amount, guest:guests(name, last_name)')
     .ilike('confirmation_code', codeUp)
 
-  // match last name
-  const nameMatches = (full: string | null | undefined) => {
-    if (!full) return false
-    const parts = full.toLowerCase().trim().split(/\s+/)
-    return parts[parts.length - 1] === lastLower || parts.includes(lastLower)
-  }
+  /* SURNAME ONLY.
+   *
+   *  This used to accept any token of the full name — `parts.includes(lastLower)`
+   *  — so "Alain Roy" verified on "alain" just as well as on "Roy". Every
+   *  additional forename was a second valid answer to the same door code, and a
+   *  two-word name needed roughly half the guesses it should. Now the surname is
+   *  the surname.
+   *
+   *  Taken from guests.last_name, backfilled and reviewed on 2026-08-24, falling
+   *  back to the last token of the full name for records created since. Both are
+   *  the surname; only the source differs. */
+  const surnameMatches = (g: any) => surnameOf(g) === lastLower
 
   let match: any = null
   for (const b of (direct || [])) {
-    if (nameMatches((b.guest as any)?.name)) {
+    if (surnameMatches(b.guest)) {
       match = {
         source: 'direct', booking_id: b.id, property_id: b.property_id,
         guest_name: (b.guest as any)?.name, check_in: b.check_in, check_out: b.check_out,
@@ -59,7 +66,7 @@ export async function POST(request: NextRequest) {
   }
   if (!match) {
     for (const b of (platform || [])) {
-      if (nameMatches(b.guest_name)) {
+      if (surnameMatches((b as any).guest || { name: b.guest_name })) {
         match = {
           source: 'platform', booking_id: b.id, property_id: b.property_id,
           guest_name: b.guest_name, check_in: b.start_date, check_out: b.end_date,

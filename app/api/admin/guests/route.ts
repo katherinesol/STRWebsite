@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
+import { splitName } from '@/lib/keyholder/guest-match'
 import { hasRole } from '@/lib/auth'
 
 
@@ -21,6 +22,7 @@ export async function POST(request: NextRequest) {
   }
 
   const { data, error } = await supabase.from('guests').insert({
+    ...splitName(name),
     name: name.trim(),
     email: email || null,
     phone: phone || null,

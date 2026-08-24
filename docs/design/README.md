@@ -179,6 +179,11 @@ Not started; needs investigation before it can be scoped.
   shows them — Apple Mail Privacy Protection pre-fetches images and inflates
   them.
 
+**Multi-guest access** — recording several people on a booking and letting them
+reach the guest-facing features. Scoped in [multi-guest.md](multi-guest.md);
+data model, the access/security approach, and the decisions still open. The
+guest-contact-edit item below is step one of it rather than a separate job.
+
 **Guest contact details cannot be edited.** There is no working path to change a
 guest's name, email or phone anywhere in the app. The People detail page shows
 them read-only; whether the control was never built or the endpoint behind it is

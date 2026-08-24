@@ -171,3 +171,29 @@ export function nameOnlyLinks(
     }))
     .sort((a, b) => b.bookings - a.bookings)
 }
+
+/** Split a full name into first and last, the same way the 2026-08-24 backfill
+ *  did. Used at guest creation so the columns are populated from the start —
+ *  five different paths create guests and none of them used to set these, which
+ *  would have left every new guest with no surname to verify against. */
+export function splitName(full: string | null | undefined): { first_name: string | null; last_name: string | null } {
+  const t = String(full || '').trim().split(/\s+/).filter(Boolean)
+  if (!t.length) return { first_name: null, last_name: null }
+  if (t.length === 1) return { first_name: t[0], last_name: null }
+  return { first_name: t.slice(0, -1).join(' '), last_name: t[t.length - 1] }
+}
+
+/** The surname to verify a guest against, normalised for comparison.
+ *
+ *  Reads last_name when it is there and falls back to the last token of the
+ *  full name when it is not. That is NOT the old any-token match — it is still
+ *  strictly the surname, only sourced differently. The fallback exists because
+ *  guests arrive from five creation paths, one of them a SQL function, and a
+ *  guest whose last_name happens to be null must not be locked out of their own
+ *  door code. */
+export function surnameOf(g: { last_name?: string | null; name?: string | null } | null | undefined): string | null {
+  const explicit = String(g?.last_name || '').trim()
+  if (explicit) return explicit.toLowerCase()
+  const derived = splitName(g?.name).last_name
+  return derived ? derived.toLowerCase() : null
+}

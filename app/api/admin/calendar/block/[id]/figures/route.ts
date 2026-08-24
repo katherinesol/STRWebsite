@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { hasRole, hasPermission } from '@/lib/auth'
 import { computeTaxSplit } from '@/lib/tax-rates'
-import { findGuest, normaliseName, nameTokens } from '@/lib/keyholder/guest-match'
+import { findGuest, normaliseName, nameTokens, splitName } from '@/lib/keyholder/guest-match'
 
 /** The only path money may take onto a platform booking.
  *
@@ -164,6 +164,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       } else if (raw.create_guest === true && !raw.preview) {
         const { data: made } = await supabase.from('guests').insert({
           name: nameIn || null,
+          ...splitName(nameIn),
           email: raw.guest_email || null,
           phone: raw.guest_phone || null,
         }).select('id').single()
