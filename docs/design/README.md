@@ -59,6 +59,50 @@ for.
 
 The parked tax batch lives in [../vrbo-airbnb-audit.md](../vrbo-airbnb-audit.md).
 
+## Locks and the door-code sweep
+
+Queued from the night of 2026-08-23, after the sweep was triggered by hand and
+proven to work: it selected exactly the one qualifying booking, programmed both
+non-Airbnb-managed locks, left the Airbnb-managed unit door and every existing
+code untouched.
+
+**The false-failure alarm — the highest priority of these.** After creating a
+code the sweep immediately re-lists and demands `status === 'set' ||
+is_scheduled_on_device`. Seam is asynchronous: at creation a code reads `unset` /
+`on_device=false`, and roughly thirty seconds later it reads `on_device=true`.
+The check runs inside that gap, so it cannot be satisfied, and a future-dated
+code can never report `set` anyway because its window has not opened. Every
+advance booking the sweep programs therefore emails a failure that is wrong —
+two arrived for a booking that had programmed perfectly. An alert that always
+fires is one that stops being read, which is precisely how a real failure gets
+through. Re-check after a delay, or treat a just-created future-dated code as
+pending rather than failed. Fix this before anything else here.
+
+**Ziyue Jia's code has not landed.** `5105` on Royal Side was created 2026-07-29
+and still reads `on_device=false` nearly four weeks later, where Kristine's went
+on within a minute. She arrives 4 September. Seam may only push a code within
+some horizon of its window, which would make this normal — but it is the one
+code that does not fit the pattern. Read Seam directly closer to the date, and
+if it has not landed by about 48 hours before, program it by hand.
+
+**The sweep cannot see freshly-synced bookings.** iCal inserts rows with
+`reason: 'manual'` and `is_booking` defaulting false, while the sweep selects on
+`is_booking = true`. Such a row is not merely uncoded — it never reaches the
+`if (!code)` branch, so it does not even raise the "no code on booking" alert.
+That is what hides the 2026-09-01 Royal York West row: no code, no guest name,
+no warning. The predicate should ask whether this is a platform reservation, not
+whether someone has finished entering its money.
+
+**A blanket property skip contradicts the per-lock flag.** `if (isAirbnb &&
+b.property_id === 'nickel-beach') continue` drops Airbnb bookings at Nickel
+Beach entirely, but Port Colborne is `airbnb_managed=false` and by the per-lock
+rule should be swept. It reads as a leftover from before the flag existed.
+Consequence: Airbnb guests at Nickel Beach only get a code if someone sets one
+by hand through `/admin/locks`, with no automation and no alert.
+
+The last two widen what the sweep touches, so they want a reviewed change rather
+than a late-night one.
+
 ## Backlog
 
 **Email stats** — open rates, click rates, unsubscribes, bounces, delivery.
