@@ -179,6 +179,14 @@ Not started; needs investigation before it can be scoped.
   shows them — Apple Mail Privacy Protection pre-fetches images and inflates
   them.
 
+**`create_booking_full` owes two fixes, to go in together.** It does not
+generate a `confirmation_code`, so a direct booking created through it has no
+guest access at all — the gate matches on that column, and `RS-1005` and
+`RS-1006` both have none. And it does not populate `first_name`/`last_name`, so
+its guests rely on the last-token fallback in `surnameOf`. Both sit in the same
+insert; details at the top of [supabase/create_booking_full.sql](../../supabase/create_booking_full.sql).
+The four TypeScript creation paths already handle both.
+
 **Multi-guest access** — recording several people on a booking and letting them
 reach the guest-facing features. Scoped in [multi-guest.md](multi-guest.md);
 data model, the access/security approach, and the decisions still open. The

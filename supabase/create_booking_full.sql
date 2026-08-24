@@ -1,3 +1,37 @@
+-- ┌──────────────────────────────────────────────────────────────────────────┐
+-- │ TWO FIXES OWED, TO GO IN TOGETHER ON THE NEXT PASS AT THIS FUNCTION      │
+-- └──────────────────────────────────────────────────────────────────────────┘
+--
+-- Both are in the guest/booking insert below, so fix them in one round trip
+-- rather than two trips to the SQL editor.
+--
+-- 1. IT DOES NOT GENERATE confirmation_code.
+--    The guest gate (app/api/guest-support/verify) matches on that column, so a
+--    direct booking created through this function has NO guest access at all —
+--    the guest cannot reach the door code, the house guide or the concierge.
+--    RS-1005 and RS-1006 (Alain Roy) both have a null code for this reason.
+--    Neither stay is current so nothing is broken today; the next one would be.
+--    The TypeScript paths build it as 'HAUS-' || 8 random chars — see
+--    app/api/bookings/route.ts. Match that.
+--
+-- 2. IT DOES NOT POPULATE first_name / last_name.
+--    Added and backfilled 2026-08-24; verification compares the surname. The
+--    insert at `insert into guests (id, name, email, phone)` leaves both null,
+--    so guests created here fall through to surnameOf()'s last-token fallback
+--    in lib/keyholder/guest-match.ts. That fallback works, which is why this is
+--    not urgent — but it exists to cover exactly this gap, and the gap should
+--    close. Split on the last whitespace: everything before is first_name,
+--    the final token is last_name, and a single-word name gets a null surname.
+--
+-- All four TypeScript guest-creation paths already do both correctly
+-- (guest-resolve, the guests POST, and the two calendar-block routes). This
+-- function is the last one that does not.
+--
+-- Before re-running: the installed signature was checked on 2026-08-24 and
+-- matches this file (one `payload` argument). merge_guests had drifted from its
+-- committed .sql and could not be re-run without erroring, so check again — the
+-- repository is not evidence of what is installed. See DEPLOY.md.
+
 -- True all-or-nothing booking creation from Haussy.
 --
 -- A booking is three tables: the booking row (bookings for direct,
