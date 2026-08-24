@@ -1,0 +1,32 @@
+{
+  "why": "Full copies of both Molhem guest records taken immediately before merge_guests(). The installed function differs from supabase/merge_guests.sql in its parameter names, so its body could not be assumed to write the guest_merges audit row. Ids preserved for restore.",
+  "taken_at_utc": "2026-08-24T01:51:28.970Z",
+  "survivor": {
+    "id": "93612632-813e-4e59-8940-4841f5087b45",
+    "name": "Molhem Taskie",
+    "email": "molhem.taskie@platform.noemail",
+    "phone": null,
+    "id_verified": false,
+    "returning_guest": false,
+    "referral_code": "80ea81cb",
+    "locked_rate_enabled": false,
+    "locked_rate_royal_york": null,
+    "locked_rate_nickel_beach": null,
+    "notes": "Added from vrbo — no email on file",
+    "created_at": "2026-06-08T21:00:29.080689+00:00"
+  },
+  "absorbed": {
+    "id": "52b6e35a-3e50-4fc4-bda2-7eb4b7346fb1",
+    "name": "Molhem",
+    "email": null,
+    "phone": null,
+    "id_verified": false,
+    "returning_guest": false,
+    "referral_code": "f8b8e708",
+    "locked_rate_enabled": false,
+    "locked_rate_royal_york": null,
+    "locked_rate_nickel_beach": null,
+    "notes": null,
+    "created_at": "2026-07-23T23:01:45.964325+00:00"
+  }
+}

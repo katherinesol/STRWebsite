@@ -16,16 +16,26 @@
 -- its own — same rule as resolveGuest, for the same reason: a value someone
 -- typed beats one an import invented.
 
+-- THE PARAMETER NAMES ARE PART OF THE CONTRACT. PostgREST resolves an RPC by
+-- the exact set of argument names in the request body, and Postgres refuses to
+-- rename a parameter on create or replace (42P13) — so these three names cannot
+-- be changed without dropping the function first. They are aliased to p_* on the
+-- first three lines of the body so the statements below can use the prefixed
+-- form without colliding with the identically-named columns of guest_merges,
+-- which is what the prefix was for in the first place.
 create or replace function merge_guests(
-  p_survivor uuid,
-  p_absorbed uuid,
-  p_merged_by uuid default null
+  survivor_id uuid,
+  absorbed_id uuid,
+  merged_by uuid default null
 )
 returns jsonb
 language plpgsql
 security definer
 as $$
 declare
+  p_survivor  uuid := survivor_id;
+  p_absorbed  uuid := absorbed_id;
+  p_merged_by uuid := merged_by;
   v_absorbed  guests%rowtype;
   v_survivor  guests%rowtype;
   v_bookings  int;
@@ -77,9 +87,16 @@ begin
     'ok', true,
     'survivor_id', p_survivor,
     'absorbed_id', p_absorbed,
-    'moved', jsonb_build_object('bookings', v_bookings, 'blocks', v_blocks, 'conversations', v_convs)
+    'bookings_moved', v_bookings,
+    'blocks_moved', v_blocks,
+    'conversations_moved', v_convs
   );
 end;
 $$;
 
+-- Lock it to the server. The revoke alone is not enough: PostgREST builds its
+-- schema cache per role, so a function the service role cannot execute is a
+-- function it reports as not existing (PGRST202) rather than as forbidden. The
+-- grant has to follow the revoke or nothing can call this at all.
 revoke all on function merge_guests(uuid, uuid, uuid) from public, anon, authenticated;
+grant execute on function merge_guests(uuid, uuid, uuid) to service_role;

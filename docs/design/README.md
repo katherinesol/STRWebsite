@@ -74,6 +74,28 @@ Not started; needs investigation before it can be scoped.
   shows them — Apple Mail Privacy Protection pre-fetches images and inflates
   them.
 
+**Guest contact details cannot be edited.** There is no working path to change a
+guest's name, email or phone anywhere in the app. The People detail page shows
+them read-only; whether the control was never built or the endpoint behind it is
+missing needs checking first. Until it exists, a wrong address can only be fixed
+in the database, which is how placeholder emails have stayed wrong.
+
+**Gift section — occasion dropdown and restyle, as one job.** The occasion
+control shown in the legacy design was never real: there is no `occasion` column
+and no dropdown. Adding the column and the control is the same piece of work as
+taking `GiftCard` off the legacy dark styling, so do them together rather than
+touching the component twice. The rule that survives both: the note text is
+never loaded into a page.
+
+**Historical stays cannot be back-filled, so repeat guests read as new.** Per,
+Alain and Jason have each stayed several times over past years, but those
+bookings predate the system and there is no way to record a completed stay after
+the fact. `guest-stats` derives `returning` from trips in the database, so all
+three show as first-time guests and always will. Needs a way to enter a
+historical stay — property, dates, and enough for the trip count, without
+implying a live booking. Related: no booking of any kind exists before
+2026-05-16, so this is not three guests, it is every guest.
+
 **Also queued, from tonight**
 
 - **Payment reminders and outbound email.** `PaymentReminderForm` POSTs to

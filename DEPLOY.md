@@ -107,3 +107,34 @@ settles what each platform actually remits:
 - `app/api/admin/toronto-mat-report/route.ts` (modified — the `apply_tax` master switch)
 
 Keep them uncommitted. If a commit sweeps them up, split it before deploying.
+
+## The repo is not the source of truth for the database
+
+Three separate incidents now share one shape: something real diverged from what
+the repository says, and the repository looked fine the whole time. Libraries
+that were deployed but never committed. Held files swept into a commit, where a
+diff against origin/main could no longer see them. And an SQL function whose
+installed signature did not match the committed `.sql`.
+
+**Installed SQL functions may not match `supabase/*.sql`.** A file in that
+directory is a record of what was *intended*, not proof of what is *running* —
+nothing enforces that the two agree, and `create or replace` will refuse to
+rename a parameter (42P13) if you try to make them agree later. Verify the
+signature against the database before calling or re-running one:
+
+    curl -s "$SUPABASE_URL/rest/v1/" -H "apikey: $SERVICE_KEY" \
+      -H "accept: application/openapi+json" | jq '.paths | keys[] | select(startswith("/rpc/"))'
+
+Add `| jq '.paths["/rpc/<name>"]'` to see the exact argument names. This matters
+because PostgREST resolves a function by the *exact set of argument names* in
+the request body: call `merge_guests` with `p_survivor` when it was created with
+`survivor_id` and the answer is PGRST202 — reported as *the function does not
+exist*, indistinguishable from it never having been installed. A permissions
+problem returns 42501 instead, so the two are easy to tell apart once you know
+to look.
+
+The same caution applies to grants. `revoke all on function ... from public`
+also strips `service_role`, because its access came through PUBLIC — and since
+PostgREST builds its schema cache per role, the function then vanishes from the
+cache rather than returning a permission error. Every revoke needs a matching
+`grant execute ... to service_role`.
