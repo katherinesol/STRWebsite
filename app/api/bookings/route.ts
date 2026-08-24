@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { randomUUID } from 'crypto'
 import { resolveGuest } from '@/lib/keyholder/guest-resolve'
 import { createAdminClient } from '@/lib/supabase/server'
 
@@ -65,33 +66,51 @@ export async function POST(request: NextRequest) {
     const accessCode = String(refNum).padStart(4, '0').slice(-4)
 
     console.log('Step 4: creating booking, ref', bookingReference)
-    console.log('STEP 4 ref:', bookingReference)
-    // 4. create booking
-    const { data: booking, error: bookingError } = await supabase
-      .from('bookings')
-      .insert({
-        property_id, guest_id: guestId,
-        check_in, check_out, nights, guests,
-        status: payment_method === 'card' ? 'confirmed' : 'pending_payment',
-        payment_method,
-        accommodation: finalAccommodation,
-        cleaning_fee, hst, mat, addon_fee, total,
-        deposit_amount, second_payment_amount, final_payment_amount,
-        second_due_date, final_due_date,
-        early_checkin, early_checkin_time,
-        late_checkout, late_checkout_time,
-        bag_drop, instacart_requested,
-        vehicle_count, plate_numbers, plates_pending, guests_adults, guests_children,
-        trip_purpose: trip_purpose || null,
-        trip_purpose_note: trip_purpose_note || null,
-        booking_reference: bookingReference,
-      })
-      .select('id')
-      .single()
 
-    if (bookingError || !booking) {
+    /* THE ID IS MINTED HERE, BEFORE THE CALL.
+     *
+     *  This used to insert and then read the id back with .select('id').single().
+     *  create_booking_full takes a client-generated booking_id instead, so the id
+     *  has to exist first — and it is used three more times below: the access
+     *  code, the referral row, and the confirmation email. Reading it back is no
+     *  longer an option, so getting this wrong would silently attach the access
+     *  code to nothing. */
+    const bookingId = randomUUID()
+
+    /* One path for creating a booking. The direct insert that used to live here
+     *  skipped confirmation_code entirely, so every public booking was created
+     *  with none — and the guest gate matches on that column, which means those
+     *  guests could not reach their own door code, house guide or concierge. The
+     *  function generates one. */
+    const { data: rpc, error: bookingError } = await supabase.rpc('create_booking_full', {
+      payload: {
+        mode: 'create', booking_id: bookingId, kind: 'direct',
+        guest_id: guestId, guest: null, added_by: null,   // a guest booked this, not a staff member
+        booking: {
+          property_id, check_in, check_out, nights, guests,
+          guests_adults, guests_children,
+          status: payment_method === 'card' ? 'confirmed' : 'pending_payment',
+          payment_method,
+          accommodation: finalAccommodation,
+          cleaning_fee, hst, mat, addon_fee, total,
+          apply_tax: false,                                // direct bookings, per defaultApplyTax
+          booking_reference: bookingReference,
+          deposit_amount, second_payment_amount, final_payment_amount,
+          second_due_date, final_due_date,
+          early_checkin, early_checkin_time,
+          late_checkout, late_checkout_time,
+          trip_purpose: trip_purpose || null,
+          trip_purpose_note: trip_purpose_note || null,
+          bag_drop, instacart_requested, vehicle_count, plate_numbers, plates_pending,
+        },
+        expenses: [],
+      },
+    })
+    if (bookingError || !(rpc as any)?.ok) {
+      console.error('create_booking_full failed:', bookingError?.message || JSON.stringify(rpc))
       return NextResponse.json({ error: 'Failed to create booking' }, { status: 500 })
     }
+    const booking = { id: bookingId }
 
     console.log('Step 5: creating access code', accessCode)
     console.log('STEP 5 code:', accessCode)

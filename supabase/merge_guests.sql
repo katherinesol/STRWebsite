@@ -41,6 +41,8 @@ declare
   v_bookings  int;
   v_blocks    int;
   v_convs     int;
+  v_access    int := 0;
+  v_promote   jsonb;
 begin
   if p_survivor = p_absorbed then
     raise exception 'A record cannot absorb itself';
@@ -81,6 +83,50 @@ begin
     id_verified = v_survivor.id_verified or v_absorbed.id_verified
   where id = p_survivor;
 
+  -- ───────── access rows ─────────
+  -- booking_guests cascades on guest delete, so without this the absorbed
+  -- guest's access simply vanishes on a merge. Repointing alone is not enough
+  -- either: where both records sit on the same booking, moving the row collides
+  -- with unique (booking_id, booking_kind, guest_id).
+  --
+  -- ORDER MATTERS, and the obvious order is wrong. Promoting the survivor to
+  -- lead while the absorbed lead row still exists puts two leads on one booking,
+  -- and booking_guests_one_lead is a plain unique index — checked per statement,
+  -- not deferred to commit — so it raises there and then. The bookings needing a
+  -- promotion are therefore recorded first, the collisions cleared, and the
+  -- promotion applied only once the old lead row is gone.
+
+  -- 1. remember where the absorbed record led and the survivor is also present
+  select coalesce(jsonb_agg(jsonb_build_object('b', a.booking_id, 'k', a.booking_kind)), '[]'::jsonb)
+    into v_promote
+    from booking_guests a
+    join booking_guests s
+      on s.booking_id = a.booking_id
+     and s.booking_kind = a.booking_kind
+     and s.guest_id = p_survivor
+   where a.guest_id = p_absorbed
+     and a.role = 'lead';
+
+  -- 2. both on the same booking: the survivor's row already covers it
+  delete from booking_guests a
+   where a.guest_id = p_absorbed
+     and exists (select 1 from booking_guests s
+                  where s.guest_id = p_survivor
+                    and s.booking_id = a.booking_id
+                    and s.booking_kind = a.booking_kind);
+
+  -- 3. the booking has no lead now — give it the survivor's row
+  update booking_guests s set role = 'lead'
+   where s.guest_id = p_survivor
+     and s.role <> 'lead'
+     and exists (select 1 from jsonb_array_elements(v_promote) e
+                  where (e->>'b')::uuid = s.booking_id
+                    and  e->>'k'        = s.booking_kind);
+
+  -- 4. everything left belongs to bookings the survivor was not on
+  update booking_guests set guest_id = p_survivor where guest_id = p_absorbed;
+  get diagnostics v_access = row_count;
+
   delete from guests where id = p_absorbed;
 
   return jsonb_build_object(
@@ -89,7 +135,8 @@ begin
     'absorbed_id', p_absorbed,
     'bookings_moved', v_bookings,
     'blocks_moved', v_blocks,
-    'conversations_moved', v_convs
+    'conversations_moved', v_convs,
+    'access_moved', v_access
   );
 end;
 $$;

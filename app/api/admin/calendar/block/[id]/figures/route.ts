@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
-import { hasRole, hasPermission } from '@/lib/auth'
+import { hasRole, hasPermission, getAuth } from '@/lib/auth'
 import { computeTaxSplit } from '@/lib/tax-rates'
 import { findGuest, normaliseName, nameTokens, splitName } from '@/lib/keyholder/guest-match'
 
@@ -190,5 +190,31 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   const { error } = await supabase.from('calendar_blocks').update(after).eq('id', id)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ ok: true, before, after, workings, guest, forced: !reconciles })
+
+  /* THE LEAD ROW TRAVELS WITH ENRICHMENT.
+   *
+   *  booking_guests was migrated from a snapshot of the bookings that existed on
+   *  2026-08-24. Nine synced platform rows were correctly left out — they were
+   *  not bookings yet — and this endpoint is what turns one into a booking. If
+   *  the lead row is not created here, the tenth booking arrives without one and
+   *  nothing notices. That is precisely how the lock sweep came to be blind to
+   *  synced rows: a snapshot does not maintain a set.
+   *
+   *  Idempotent, because figures are re-run whenever a receipt is corrected.
+   *
+   *  NON-FATAL, and deliberately so. The money is written and committed on the
+   *  line above. A failure to record access must never make a correct payout
+   *  look like it failed, and must never roll one back — it is reported in the
+   *  response instead, where it can be seen and fixed. */
+  let lead: string | null = null
+  if (guestId) {
+    const who = await getAuth()
+    const { error: lErr } = await supabase.from('booking_guests').upsert({
+      booking_id: id, booking_kind: 'platform', guest_id: guestId,
+      role: 'lead', added_by: who.ok ? who.userId : null,
+    }, { onConflict: 'booking_id,booking_kind,guest_id', ignoreDuplicates: true })
+    lead = lErr ? `NOT RECORDED — ${lErr.message}` : 'lead recorded'
+  }
+
+  return NextResponse.json({ ok: true, before, after, workings, guest, lead, forced: !reconciles })
 }

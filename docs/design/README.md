@@ -179,12 +179,27 @@ Not started; needs investigation before it can be scoped.
   shows them — Apple Mail Privacy Protection pre-fetches images and inflates
   them.
 
+**Booking import has never worked — both branches.** `/admin/bookings/import`
+is linked from `/admin/bookings`, the form offers all five platforms, and
+`/api/admin/bookings/import` fails whichever one you pick. The direct branch
+never sets `guests`, which is `NOT NULL` with no default (`23502`). The platform
+branch inserts `check_in`/`check_out` into `calendar_blocks`, which has
+`start_date`/`end_date` and no such columns (`PGRST204`) — it sets both pairs, so
+the right two are present but the wrong two poison the insert. Confirmed by
+running exactly what the route inserts, and by the absence of any row bearing
+its signature: no booking with `status='completed'` + `payment_method='etransfer'`,
+no calendar block with an `"Imported - …"` note. It has never once succeeded.
+Two one-line fixes, deliberately **not** folded into the create_booking_full
+routing — an untested repair does not belong inside a refactor.
+
 **`create_booking_full` owes two fixes, to go in together.** It does not
 generate a `confirmation_code`, so a direct booking created through it has no
 guest access at all — the gate matches on that column, and `RS-1005` and
 `RS-1006` both have none. And it does not populate `first_name`/`last_name`, so
 its guests rely on the last-token fallback in `surnameOf`. Both sit in the same
-insert; details at the top of [supabase/create_booking_full.sql](../../supabase/create_booking_full.sql).
+insert; details at the top of [supabase/create_booking_full_v2.sql](../../supabase/create_booking_full_v2.sql)
+— **v2 is the installed one**; the unsuffixed file is superseded and editing it
+changes nothing.
 The four TypeScript creation paths already handle both.
 
 **Multi-guest access** — recording several people on a booking and letting them

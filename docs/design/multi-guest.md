@@ -194,3 +194,133 @@ today, but the next one created this way would be.
 **The surname matcher accepts any name token.** Worth tightening to the actual
 last name regardless of what happens with multi-guest, since it roughly halves
 the guesses needed for a two-word name.
+
+---
+
+# Step 1 — `booking_guests`, detailed design
+
+*Design only, nothing created. Numbers below are from the live database on
+2026-08-24.*
+
+## 1. Schema
+
+```sql
+create table booking_guests (
+  id            uuid primary key default gen_random_uuid(),
+  booking_id    uuid not null,
+  booking_kind  text not null check (booking_kind in ('direct','platform')),
+  guest_id      uuid not null references guests(id) on delete cascade,
+  role          text not null default 'co_guest' check (role in ('lead','co_guest')),
+  added_at      timestamptz not null default now(),
+  added_by      uuid,
+  unique (booking_id, booking_kind, guest_id)
+);
+
+create index booking_guests_booking_idx on booking_guests (booking_id, booking_kind);
+create index booking_guests_guest_idx   on booking_guests (guest_id);
+
+-- exactly one lead per booking, enforced rather than assumed
+create unique index booking_guests_one_lead
+  on booking_guests (booking_id, booking_kind) where role = 'lead';
+```
+
+**No foreign key on `booking_id`,** because it points at one of two tables. That
+is the same trade `conversations` already makes with its own `booking_id` +
+`booking_kind` pair, and the vocabulary matches `create_booking_full`.
+
+**`guest_id` cascades on delete.** Access should not outlive the person record.
+This has a consequence for merges — see below.
+
+**The partial unique index is the important line.** Without it, "who is the
+lead" can quietly become two answers.
+
+**Access tokens are deliberately not in this table yet.** They belong to step 3,
+and adding the columns now would invite something to start writing them before
+the access model is settled.
+
+## 2. Migration for existing bookings
+
+| | |
+|---|---|
+| direct bookings | **4** — all with `guest_id`, none cancelled |
+| platform bookings (`is_booking`) | **39** — all with `guest_id` |
+| **`role='lead'` rows to insert** | **43** |
+| bookings that would end with no lead | **0** |
+
+No edge cases in the enriched set: every booking that counts as a booking has a
+guest. The insert should be `on conflict do nothing` so it is re-runnable.
+
+**Two things the migration does not cover, and both need code, not SQL.**
+
+*Nine synced platform rows have `is_booking = false` and no `guest_id`.* They are
+not bookings yet, so they correctly get no lead row — but the figures endpoint is
+what turns one into a booking and links its guest, and it would have to create
+the lead row at the same moment. Without that, every booking enriched after the
+migration has no lead. This is the same shape as the lock sweep missing synced
+rows: the migration is a snapshot, and the path that creates new members of the
+set has to maintain it.
+
+*Amanda Stanek is on two bookings* — one VRBO, one Houfy. So she gets two lead
+rows, which the `(booking_id, booking_kind, guest_id)` constraint permits and
+should. Worth stating because a naive `unique (guest_id)` would have looked
+reasonable and broken her.
+
+## 3. What will read it
+
+| Reader | What changes |
+|---|---|
+| `guest-support/verify` | The change with teeth. Today it matches the surname against the lead. After: match against **anyone** on the booking, then carry `role` into the session so the response can be scoped — the payment block becomes lead-only. |
+| Concierge / chat | Needs `role` to decide what it may say. This is where multi-guest meets the parked confidence tiers: confidence and caller-role are separate axes. |
+| People (`/keyholder/people`) | "On N bookings" today counts `guest_id`. It would need to decide whether being a co-guest counts. |
+| Booking detail (2a) | Gains a "who is on this stay" section — the natural place to add and remove co-guests. |
+| `guest-stats` | **Needs a decision.** `returning` is derived from trips. Does joining someone else's booking as a co-guest make you a returning guest? My view: no — a trip should mean a booking you led. But it must be chosen, not defaulted. |
+
+## 4. Permissions
+
+**RLS is defence in depth here, not the gate.** Every database read in this app
+is server-side through the service role; the only browser-side Supabase client
+is `set-password`, and it touches auth rather than data. So the real gate is the
+API route.
+
+- **Enable RLS with no policies** — deny by default. Service role bypasses it, so
+  nothing breaks, and if an anon client ever reaches this table it gets nothing.
+- **Writes**: `hasRole('owner','co-owner')`, and a named permission rather than
+  reusing `money`. Adding someone to a booking is not a financial act.
+- **Guest-facing reads**: scoped to the caller's own booking, selecting `name`
+  and `role` only. Never email or phone — those live on `guests` and must not be
+  reachable from a guest-facing route. This is the discipline `booking_gifts`
+  established, applied to a table that does carry identity.
+
+## 5. One thing I would push back on
+
+The agreed design mirrors the lead into `booking_guests` as a `role='lead'` row
+while `guest_id` stays on the booking. That is two places recording the same
+fact — and this codebase has just spent a migration repairing exactly that shape
+of duplication, where `guests.name` and `calendar_blocks.guest_name` drifted
+apart until three guests had short names in one table and full names in the
+other.
+
+I am **not** recommending against the mirror; the alternative (join table holds
+co-guests only, "everyone" is a union of two sources) makes every reader do more
+work and gives the lead no token of their own. But it should ship with the drift
+made hard rather than merely discouraged:
+
+- the partial unique index above, so there is never more than one lead;
+- **`merge_guests` must repoint `booking_guests.guest_id`** as it already
+  repoints bookings, calendar_blocks and conversations — otherwise the cascade
+  deletes the absorbed guest's access rows on merge. It also needs to handle both
+  guests being on the same booking, which would collide with the unique
+  constraint. **This is a third fix for the SQL round trip**, alongside the two
+  `create_booking_full` owes;
+- a consistency check in the migration, re-runnable, asserting every booking has
+  exactly one lead and that it equals the booking's `guest_id`.
+
+With those three, the mirror is safe. Without them it is the name-drift bug
+again, with a door code attached.
+
+## Decisions needed before creating anything
+
+1. Does a co-guest trip count toward `returning_guest`? (My view: no.)
+2. Is `added_by` worth carrying — is it useful to know who added a guest?
+3. Should the migration also create lead rows for the 9 unenriched synced rows
+   if they later gain a guest, or is the figures-endpoint change enough?

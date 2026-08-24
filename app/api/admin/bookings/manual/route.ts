@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { randomUUID } from 'crypto'
 import { programBookingLocks } from '@/lib/seam'
 import { chooseGuestCode } from '@/lib/lock-codes'
 import { resolveGuest } from '@/lib/keyholder/guest-resolve'
@@ -38,23 +39,44 @@ export async function POST(request: NextRequest) {
   const { data: refNum } = await supabase.rpc('get_next_booking_ref')
   const bookingReference = `RS-${String(refNum || Date.now().toString().slice(-4)).padStart(4, '0')}`
 
-  const { data: booking, error } = await supabase.from('bookings').insert({
-    property_id, guest_id: guestId,
-    check_in, check_out, nights, guests,
-    status: 'confirmed',
-    payment_method,
-    total: totalNum,
-    deposit_amount: deposit_amount ? parseFloat(deposit_amount) : depositNum,
-    deposit_paid_at: deposit_amount ? new Date().toISOString() : null,
-    second_payment_amount: secondPayment,
-    final_payment_amount: finalPayment,
-    second_due_date: secondDueDateStr,
-    final_due_date: finalDueDateStr,
-    booking_reference: bookingReference,
-    accommodation: total ? parseFloat(total) : null,
-  }).select('id').single()
-
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  /* Through the one path. The id is minted here because create_booking_full
+   *  takes a client-generated booking_id, and it is needed below for the lock
+   *  programming and the activity log. The whole payment schedule — including
+   *  deposit_paid_at, which marks a deposit taken at booking time — now travels
+   *  with the call; it used to be written here and would have been dropped on
+   *  the floor by the function.
+   *
+   *  lock_code stays a follow-up write further down, and that is not an
+   *  inconsistency: it depends on the Seam call returning, so it cannot be known
+   *  at insert time. Fields the booking already knows go in the function; fields
+   *  that depend on something external come after. */
+  const bookingId = randomUUID()
+  const { data: rpc, error } = await supabase.rpc('create_booking_full', {
+    payload: {
+      mode: 'create', booking_id: bookingId, kind: 'direct',
+      guest_id: guestId, guest: null, added_by: null,
+      booking: {
+        property_id, check_in, check_out, nights, guests,
+        status: 'confirmed',
+        payment_method,
+        total: totalNum,
+        apply_tax: false,
+        accommodation: total ? parseFloat(total) : null,
+        booking_reference: bookingReference,
+        deposit_amount: deposit_amount ? parseFloat(deposit_amount) : depositNum,
+        deposit_paid_at: deposit_amount ? new Date().toISOString() : null,
+        second_payment_amount: secondPayment,
+        final_payment_amount: finalPayment,
+        second_due_date: secondDueDateStr,
+        final_due_date: finalDueDateStr,
+      },
+      expenses: [],
+    },
+  })
+  if (error || !(rpc as any)?.ok) {
+    return NextResponse.json({ error: error?.message || 'Failed to create booking' }, { status: 500 })
+  }
+  const booking = { id: bookingId }
 
   await logCalendarActivity({
     propertyId: property_id,
