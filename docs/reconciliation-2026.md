@@ -30,13 +30,36 @@ stay: Brendan (23 Jan) none, Аня (16 May) taxed, Molhem (28 May) taxed, Marc
 On, then off for three weeks of June, then on again. No switch-on date explains
 that.
 
-**The mechanism is the booking date, and four booking dates now confirm it.**
-Mary Weir stays 11–18 July — two months after Аня's taxed May stay — and is
-untaxed, because she booked on **4 November 2025**. Diana booked 18 June 2026,
-Stephanie 6 August, Niki 15 August; all three are taxed. Everything reserved in
-2025 is untaxed, everything reserved from June 2026 is taxed, which rules out
-the stay date entirely. **The switch sits between 4 Nov 2025 and 18 Jun 2026**
-and would be narrowed by a booking date on Marc, Mark or Heremela.
+**The mechanism is the booking date, and seven booking dates confirm it.**
+
+| Booked | Guest | Stay | Tax |
+|---|---|---|---|
+| 2025-11-04 | Mary Weir | Jul 11–18 | **none** |
+| 2026-01-31 | Marc Losier | Jun 4–7 | **none** |
+| 2026-02-21 | Mark Vallena | Jun 12–14 | **none** |
+| 2026-03-23 | Heremela Molla | Jun 15–22 | **none** |
+| 2026-06-18 | Diana Balthasar | Aug 22–24 | 564.23 |
+| 2026-08-06 | Stephanie Chow | Sep 18–20 | 355.10 |
+| 2026-08-15 | Niki Hathaway | Sep 11–13 | 355.10 |
+
+Sorted by booking date the split is clean, with no interleaving at all, while
+sorted by stay date it is scattered — Mary stays in July untaxed, Аня in May
+taxed. The stay date is ruled out; the reservation date decides.
+
+**The switch happened between 23 March and 16 May 2026, and that is settled.**
+The lower bound is Heremela, booked 23 March and untaxed. The upper bound needs
+no further evidence: Аня's stay begins **16 May** and she is taxed, so she
+reserved on or before that day and after the switch.
+
+**No more work on pinning the date down.** Narrowing eight weeks to two would
+change nothing owed — every booking in hand states its own tax status on its own
+receipt, which is better evidence than any inference from a date. The mechanism
+is confirmed; the exact day is not needed.
+
+**The one place it earns its keep is the missing Jan–May reconstruction.** When
+those bookings come out of the platform exports there will be no receipts to
+read, and anything **reserved before roughly April 2026 can be treated as
+untaxed by default** — flagged in bulk rather than opened one at a time.
 
 **So the sweep is every Airbnb booking for the year, ordered by booking date —
 not a pre-May window.** The exposure has no upper bound in stay date: a stay
@@ -346,10 +369,6 @@ recorded in the system yet.
 
 ## Open
 
-- **Booking dates for Marc Losier, Mark Vallena and Heremela Molla** — the three
-  untaxed June stays. These would narrow the tax switch from the current window
-  of 4 Nov 2025 – 18 Jun 2026. They are only on Airbnb, so they have to be read
-  off the reservation pages.
 - **Host-fee percentage on every booking**, checked against its receipt. See the
   host-fee pattern above; a wrong percentage means a wrong payout.
 - **Repair and replacement costs from Heremela's stay**, to sit against the
