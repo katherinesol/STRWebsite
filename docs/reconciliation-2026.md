@@ -58,8 +58,15 @@ is confirmed; the exact day is not needed.
 
 **The one place it earns its keep is the missing Jan–May reconstruction.** When
 those bookings come out of the platform exports there will be no receipts to
-read, and anything **reserved before roughly April 2026 can be treated as
-untaxed by default** — flagged in bulk rather than opened one at a time.
+read, and anything reserved before the cutoff can be treated as untaxed by
+default — flagged in bulk rather than opened one at a time.
+
+**But the cutoff is per listing, and using one date across the account would be
+wrong.** Nickel Beach switched between 23 March and 16 May 2026. Royal York West
+switched between **4 and 6 July 2026** — Jensen booked the 4th with no HST,
+Lashley the 6th with the full amount. The listings were fixed independently, so
+each property's reconstruction needs its own cutoff. Royal York East has not
+been established at all and must not inherit either.
 
 **So the sweep is every Airbnb booking for the year, ordered by booking date —
 not a pre-May window.** The exposure has no upper bound in stay date: a stay
@@ -160,10 +167,13 @@ itself, so only the HST is passed through. Nickel Beach passes both.
 `taxes_collected` is always the **Guest paid** figure. Taking the host figure
 understates the collection — four rows have been found with that misread so far.
 
-### Three ways stored hst/mat have been wrong
+### Four ways the tax figures have been wrong
 
-Every remaining booking should be checked against all three, because they look
-nothing alike and only one of them looks obviously wrong.
+Every remaining booking should be checked against all four, because they look
+nothing alike and only one of them looks obviously wrong. The first three are
+storage errors — the figures were mis-recorded from a correct receipt. The
+fourth is different in kind: the platform itself charged the wrong rate, so the
+receipt is wrong too and no amount of care in reading it will help.
 
 1. **Airbnb's formula stored as owed** — Myriam, Diana, Josh. The platform's own
    arithmetic on room + cleaning (+ pet fee) copied into `hst`/`mat` as though it
@@ -174,9 +184,17 @@ nothing alike and only one of them looks obviously wrong.
    her stored values exactly. Erica: `3120 ÷ 1.17 = 2666.67` → 346.67 and 106.67.
    This understates both taxes and is the least visible of the three.
 3. **Null** — no figures at all, which at least cannot mislead a return.
+4. **The platform charged the wrong rate outright** — a fault in what was
+   *collected*, not in what was stored, so it survives any amount of care with
+   the receipt. Dan Kovalcik was billed HST at **11% instead of 13%** ($67.54 is
+   exactly 11% of $614) and MAT at **8.5% on a 4 August stay** after the city
+   rate had fallen to 6%. Two wrong rates on one reservation. Robert Ma carries
+   the same 11% note and has not yet been checked against his receipt. Where the
+   platform under-charges, the shortfall is owed regardless — the guest was
+   simply never asked for it.
 
-The rule they all miss is the same: MAT falls on the room alone, and then sits
-*inside* the HST base.
+What the first three miss is the same rule: MAT falls on the room alone, and
+then sits *inside* the HST base.
 
 ### Airbnb corrected its own MAT base mid-year
 
@@ -190,6 +208,106 @@ One oddity: **Stephanie's guest-paid tax equals her host tax exactly** ($355.10)
 despite a $349.37 guest service fee, so no HST was charged on that fee — unlike
 every other 3% booking, where the difference is precisely 13% of it. Her
 `taxes_platform_remits` is therefore zero.
+
+---
+
+## VRBO computes the tax correctly — no interpretation needed
+
+After four different Airbnb formulas, VRBO simply gets it right. Its **"Lodging
+taxes you remit"** matches `computeTaxSplit` on every reservation checked, with
+only rounding between them:
+
+| | VRBO says | the rules say | difference |
+|---|---|---|---|
+| Lyle Parkinson | 333.28 | 333.28 | 0.00 |
+| Elizabeth Huckabone | 506.91 | 506.90 | 0.01 |
+| Hala Kaeid | 531.26 | 531.26 | 0.00 |
+| V. Litvinovitch | 738.27 | 738.25 | 0.02 |
+| shawn robins | 419.13 | 419.13 | 0.00 |
+
+MAT on the room alone, the discount applied before tax, MAT inside the HST base
+— all of it, unprompted. **"Lodging taxes we remit"** is 13% of VRBO's own guest
+service fee every time, which is the same component Airbnb buries inside a
+single "Taxes" line but labelled honestly.
+
+So a VRBO receipt needs no decoding: the two lines map straight onto
+`taxes_you_remit` and `taxes_platform_remits`, and their sum is
+`taxes_collected`. VRBO also charges a payment-processing fee, which Airbnb does
+not; it belongs in the payout arithmetic and all five reconciled to 0.00 with it
+included.
+
+**The same tab misread exists here in VRBO clothing.** Four rows had
+`taxes_collected` holding the *you remit* figure rather than the guest-paid
+total — Hala 531.26 against a real 588.98, and the same shape on Elizabeth,
+Viatcheslav and shawn. Hala's `guest_total` also read 3,651.26 against a receipt
+of 4,152.98. All corrected.
+
+**Lyle Parkinson straddles the tax year** — 30 Dec 2025 to 2 Jan 2026 — and is
+recorded in **2026**, on the owner's instruction that the payout was received in
+2026, with no split across years.
+
+**shawn robins arrived with real contact details** — `shawnrobins19@hotmail.com`
+and `+1 905-805-7083` — the first genuine ones in this reconciliation, so his
+guest record needed no placeholder.
+
+---
+
+## Houfy — the third structure, and the simplest
+
+Neither Airbnb's two-tab modal nor VRBO's itemised remittance. Houfy charges a
+**single flat combined rate on room + cleaning**, takes no commission, adds no
+guest service fee, and remits nothing: the host collects the whole amount and
+owes the whole amount. So `taxes_collected` and `taxes_you_remit` are the same
+number and `taxes_platform_remits` is always zero.
+
+The rate is the two statutory rates added together, and it differs by city:
+
+- **Nickel Beach — 17%** (Port Colborne MAT 4% + HST 13%)
+- **Royal York West — 19%** (Toronto MAT 6% + HST 13%)
+
+**It is consistently a little short, and always for the same reason.** A flat
+combined rate applies both taxes to the same base, whereas the rules put MAT on
+the room and then *inside* the HST base, so the HST is owed on a slightly larger
+figure. The gap is small but systematic:
+
+| | Houfy charged | rules say | short by |
+|---|---|---|---|
+| Samuel Séguin | 1,052.30 | 1,069.12 | 16.82 |
+| Amanda Stanek | 151.13 | 155.75 | 4.62 |
+| Laura Escobar | 89.11 | 88.09 | *over by 1.02* |
+
+Laura's runs the other way because her stay falls after the Toronto MAT drop to
+6% while Houfy still billed 19% — the same lateness Airbnb showed, in a
+different form.
+
+**Two Houfy rows had the owed figure stored in a facts column.** Amanda's
+`taxes_you_remit` read 155.75 and Samuel's 1,069.12 — those are what the *rules*
+say, written where what was *collected* belongs. Both corrected to the amounts
+actually charged, with the owed figures now in `hst`/`mat` where they belong.
+
+**houfyProtect is not host income.** It sits outside the guest's payment total —
+Amanda's $7.00 was never paid at all, and Laura's $13.90 is Houfy's own charge
+alongside her $558.11. Excluded from all figures.
+
+**Houfy carries real guest contact details**, unlike Airbnb: Samuel, Amanda and
+Laura all arrived with a genuine email and phone, so no placeholder addresses
+were needed. Laura in fact matched an existing guest record *on email*.
+
+### Samuel Séguin was paid in two deposits, and there is nowhere to record that
+
+His stay was paid as **C$5,817.65 on 2026-02-16** and **C$1,424.65 on
+2026-05-19**, both completed Stripe payments through Houfy, together the full
+7,242.30. An earlier reading here treated the second as a refund — it was not,
+the booking was never reduced, and the tax stands on the full 6,190 base as
+billed.
+
+The two deposits are recorded in the booking's `notes` with their Stripe payment
+intent ids, because **`calendar_blocks` has no payment history**: one
+`amount_paid` column and nothing that can hold two dated deposits. Direct
+bookings have a three-instalment schedule; platform bookings have nothing. This
+is the same gap as the missing account and reference fields on invoice payments
+— a note is a stopgap, not a record that will reconcile against a bank
+statement.
 
 ---
 
@@ -210,6 +328,28 @@ every other 3% booking, where the difference is precisely 13% of it. Her
 | 2026-08-22 | Diana Balthasar | `HM9CBB93YM` | Airbnb, both tabs | written · payout delta 0.00 |
 | 2026-09-11 | Niki Hathaway | `HMRYR2KMDH` | Airbnb, both tabs | written · payout delta 0.00 |
 | 2026-09-18 | Stephanie Chow | `HMJ9N9SKQT` | Airbnb, both tabs | written · payout delta 0.00 |
+| 2025-12-30 | Lyle Parkinson | `HA-JDDR2B` | VRBO payment details | written · booked in 2026 |
+| 2026-06-25 | Elizabeth Huckabone | `HA-Z9QCYD` | VRBO payment details | written · payout delta 0.00 |
+| 2026-08-01 | Hala Kaeid | `HA-M9TW2S` | VRBO payment details | written · payout delta 0.00 |
+| 2026-08-03 | V. Litvinovitch | `HA-FRD8WC` | VRBO payment details | written · payout delta 0.00 |
+| 2026-10-10 | shawn robins | `HA-2Q1FHZ` | VRBO payment details | written · payout delta 0.00 |
+| 2026-08-29 | Jerry Wei | `HMJH8F9TJA` | Airbnb, both tabs | written · payout delta 0.00 |
+| 2026-09-01 | Aelita Sun | `HMY5M84238` | Airbnb, both tabs | written · payout delta 0.00 |
+| 2026-09-04 | Ziyue Jia | `HM9SZYNXTQ` | Airbnb, both tabs | written · payout delta 0.00 |
+| 2026-09-12 | Kevin Ronda | `HMQARQJSRT` | Airbnb, both tabs | written · payout delta 0.00 |
+| 2026-09-25 | Amber Simmons | `HMB9XQTNSQ` | Airbnb, both tabs | written · payout delta 0.00 |
+| 2026-10-02 | Claudine Krol | `HMWDW2C3P4` | Airbnb, both tabs | written · payout delta 0.00 |
+| 2026-07-16 | Jensen Yang | `HMEB5JRC9H` | Airbnb, both tabs | written · payout delta 0.00 |
+| 2026-07-30 | Lashley Winter | `HM2FM9ARZD` | Airbnb, both tabs | written · payout delta 0.00 |
+| 2026-08-04 | Dan Kovalcik | `HMCKNS99E5` | Airbnb, both tabs | written · payout delta 0.00 |
+| 2026-08-07 | Daniel Maximus | `HMSAHEMJ5F` | Airbnb, both tabs | written · payout delta 0.00 |
+| 2026-08-08 | Jasmine Denham | `HMF4FTBNCD` | Airbnb, both tabs | written · payout delta 0.00 |
+| 2026-08-10 | Brandon Lin | `HMT85MY93N` | Airbnb, both tabs | written · payout delta 0.00 |
+| 2026-08-12 | Stéphane Gosselin | `HM4M5A4D2D` | Airbnb, both tabs | written · payout delta 0.00 |
+| 2026-08-17 | Quentin Guerin | `HMH4PEXZZD` | Airbnb, both tabs | written · payout delta 0.00 |
+| 2026-07-26 | Samuel Séguin | `TGYCYMY998` | Houfy reservation | written · two deposits |
+| 2026-08-14 | Laura Escobar | `LSQUHDC829` | Houfy reservation | written · payout delta 0.00 |
+| 2026-08-16 | Amanda Stanek | `IVMUYQF047` | Houfy reservation | written · payout delta 0.00 |
 
 **Brendan O'Hanlon** — Nickel Beach, 23–25 January, 2 nights. Not in the system;
 shell row created through the conflict-checked block route (no conflicts), then
@@ -303,6 +443,71 @@ straight into a MAT return. Worth scanning for elsewhere.
 
 ---
 
+## Royal York West has its own switch date, two days wide
+
+The tax switch is **per listing, not per account**. Nickel Beach turned on
+somewhere between 23 March and 16 May 2026. Royal York West is pinned far
+tighter: **Jensen Yang booked 4 July and no HST was passed through; Lashley
+Winter booked 6 July and the full HST was.** Two days apart, same property. The
+listings were fixed independently, so the missing Jan–May reconstruction has to
+apply each property's own date, not one date across the account.
+
+### Jensen Yang — a partial collection, not an absent one
+
+His "$0.00" was never zero; it is **$125.56**, and it decomposes as MAT of
+$103.27 (8.5% of room + cleaning) plus $22.30 of HST on Airbnb's guest service
+fee. **Airbnb collected the MAT but no HST at all on the stay.** Owed is
+$266.08, so the shortfall is **$140.52**. Every previous untaxed booking had
+nothing but service-fee HST; this is a third state between fully taxed and
+untaxed, and it means "untaxed" cannot be assumed to mean "no tax line at all"
+when the Jan–May bookings are reconstructed. Both Mary Weir and Jensen Yang, the
+two rows flagged as collecting $0.00, turned out to be recording errors rather
+than genuinely zero.
+
+### Dan Kovalcik was billed wrong twice on one reservation
+
+His HST is **11%, not 13%** — $67.54 is exactly 11% of $614 — which confirms
+from the source receipt the "charged 11%" note already sitting on his row. And
+his MAT was charged at **8.5% for a stay on 4 August**, after the city rate fell
+to 6%. Two independent Airbnb errors on one booking. Robert Ma carries the same
+11% note and has not yet been checked against his receipt.
+
+**Airbnb was late on the Toronto MAT drop, and inconsistently so.** The city
+rate fell on 31 July 2026, yet the platform went on billing 8.5% well past it.
+An earlier reading here — that it switched to 6% somewhere between bookings made
+on 14 and 19 August — **is wrong**: Quentin Guerin booked on **10 August and was
+charged 6%**, while Jerry (11 Aug), Kevin (13 Aug) and Amber (14 Aug) were all
+charged 8.5%. So the two rates were being applied side by side and no clean rule
+fits; it is not the booking date, the stay date, or the fee structure. Recorded
+as an observed inconsistency rather than a mechanism.
+
+Because Airbnb remits Toronto MAT itself, the over-collection sits between
+Airbnb and the city rather than being money held here. What matters for these
+books is only what is owed, which the endpoint computes from the correct rate
+regardless of what was billed.
+
+**"Did the platform collect tax" is not a yes-or-no question.** Three distinct
+states have now been seen. Brendan and the other early Nickel Beach stays had
+**nothing** — the only tax line was HST on Airbnb's own service fee. Jensen Yang
+had a **partial collection**: MAT charged at 8.5% but **no HST at all** on the
+stay, leaving $140.52 of the $266.08 owed uncollected. And the later bookings
+were **fully taxed**. When the missing months are rebuilt, a booking showing
+*some* tax cannot be assumed to have been taxed correctly — the uncollected
+piece is still owed.
+
+**All three You-earn misreads from the original list are now cleared** — Lashley
+141.57 → 234.14, Jasmine 22.75 → 37.63, Ziyue 77.22 → 127.70 — along with Аня
+and Myriam, found later. Five in total.
+
+**Two receipt shapes worth remembering.** Daniel Maximus's bills as a flat
+"Total Stay Price" of $64.45 with no cleaning line at all. And Brandon Lin and
+Stéphane Gosselin have *identical* host-side figures — same room, cleaning,
+adjustment and $389.18 payout — differing only in the guest service fee, so only
+their guest totals separate them. That is the second such pair after Brendan
+O'Hanlon and Mark Vallena, and both are easy to cross-file.
+
+---
+
 ## Held — not written, waiting on a document or a decision
 
 **Mary Weir** and **Jensen Yang** both store `taxes_collected` = 0.00. To be
@@ -373,6 +578,10 @@ recorded in the system yet.
   host-fee pattern above; a wrong percentage means a wrong payout.
 - **Repair and replacement costs from Heremela's stay**, to sit against the
   $2,464.57 recovered.
+- **Payment history for platform bookings.** There is no structure for it —
+  Samuel's two Stripe deposits live in a free-text note. Belongs with the missing
+  account and reference fields on invoice payments; all three are the same
+  problem, which is that payments cannot be reconciled to a bank statement.
 - **Enter 1 Jan – 15 May 2026.** The whole period, all three properties, from
   Airbnb/VRBO/Houfy records. Prerequisite for any 2026 total being trustworthy.
 - **Full-year tax sweep by booking date.** Total exposure across every Airbnb
