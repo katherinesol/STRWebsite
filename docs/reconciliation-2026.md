@@ -6,6 +6,17 @@ source document is the truth — where stored figures disagree with a screenshot
 the screenshot wins and the difference is recorded here rather than smoothed
 over.
 
+**What this reconciliation does and does not cover.** Booking-level
+reconciliation is solid: every figure below was computed through the tax engine,
+checked against its source receipt, and refused unless the payout arithmetic
+closed to within two cents. **Payment-to-bank matching is not supported.** The
+system cannot yet record which account a payment moved through, a reference that
+identifies it, or more than one payment against a booking — so a figure here
+agreeing with a platform receipt does not mean it has been traced to a deposit in
+an account. Samuel Séguin's two Stripe payments sit in a free-text note as the
+workaround. Closing that gap is one piece of work, described in the design
+backlog under *Payment reconciliation*.
+
 ---
 
 ## ⚠ THE TAX-COLLECTION GAP — the largest thing on this page
@@ -578,10 +589,10 @@ recorded in the system yet.
   host-fee pattern above; a wrong percentage means a wrong payout.
 - **Repair and replacement costs from Heremela's stay**, to sit against the
   $2,464.57 recovered.
-- **Payment history for platform bookings.** There is no structure for it —
-  Samuel's two Stripe deposits live in a free-text note. Belongs with the missing
-  account and reference fields on invoice payments; all three are the same
-  problem, which is that payments cannot be reconciled to a bank statement.
+- **Payment-to-bank reconciliation** — one build, tracked in the design backlog
+  under *Payment reconciliation*. Not three separate gaps: platform bookings have
+  no payment history, invoice payments have no account, and invoice payments have
+  no reference are one problem seen three ways. See the scope note below.
 - **Enter 1 Jan – 15 May 2026.** The whole period, all three properties, from
   Airbnb/VRBO/Houfy records. Prerequisite for any 2026 total being trustworthy.
 - **Full-year tax sweep by booking date.** Total exposure across every Airbnb

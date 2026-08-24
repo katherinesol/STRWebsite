@@ -103,6 +103,50 @@ by hand through `/admin/locks`, with no automation and no alert.
 The last two widen what the sweep touches, so they want a reviewed change rather
 than a late-night one.
 
+## Payment reconciliation — one build, not three
+
+**The problem is single: a recorded payment cannot be matched to a bank
+deposit.** Reconciling to a statement needs four things about each payment —
+date, amount, which account it moved through, and a reference that identifies it
+— and the system holds at most two of them. It surfaces in three places, and
+they are the same gap seen from three angles, so fixing any one alone leaves the
+problem intact.
+
+1. **Platform bookings have no payment history.** `calendar_blocks` has a single
+   `amount_paid` and nothing that can hold two dated deposits. Samuel Séguin's
+   stay was paid as C$5,817.65 on 2026-02-16 and C$1,424.65 on 2026-05-19, both
+   completed Stripe payments through Houfy; they are recorded in the booking's
+   `notes` with their payment-intent ids. Traceable by eye, not reconcilable.
+   Direct bookings do have a three-instalment schedule, so the capability exists
+   on one side of the app and not the other.
+2. **Invoice payments have no account.** No `bank_accounts` table exists and
+   `invoice_payments` has no `account_id`. The nearest thing is `method`
+   (etransfer / billpay / card / cash / cheque) with `method_detail` and
+   `method_last4` — which says *how*, never *from where*.
+3. **Invoice payments have no reference.** `method_detail` is free text and the
+   API already accepts it, and the invoice page already renders it — but the
+   form never collects it, so nothing can ever put a value there. And
+   `method_detail` means "which card", not "e-transfer confirmation number", so
+   overloading it would be the wrong fix.
+
+**What to build:** one payment record carrying account and reference, supporting
+several payments per booking or invoice, usable from both the platform-booking
+and invoice sides. Everything above follows from that; nothing above is worth
+doing on its own.
+
+Treat it carefully — it touches the financial schema, and `invoice_payments`
+already holds real money movements.
+
+## The Money tab bar links to two pages that do not exist
+
+`app/keyholder/money/layout.tsx` declares four tabs. `/keyholder/money/invoices`
+and `/keyholder/money/tax` exist; **`/keyholder/money/income` and
+`/keyholder/money/expenses` were never built** and 404. Expenses do exist, but
+only on the old admin side at `/admin/property-management/finance`, where the
+category view is client-side state rather than a link — which is why filtering
+by category felt unreachable rather than broken. Nothing regressed here; two
+pages are simply missing from a nav that promises them.
+
 ## Backlog
 
 **Email stats** — open rates, click rates, unsubscribes, bounces, delivery.
