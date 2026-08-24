@@ -1,0 +1,83 @@
+{
+  "written_at": "2026-08-24T00:25:41.753Z",
+  "why": "Duplicate guest strays identified on the People page. Each was created by sync-platform, which fabricated a name@platform.noemail address and then matched on it. Full records kept here so any deletion can be undone by re-inserting.",
+  "restore": "POST each .guest object back to /rest/v1/guests. The id is preserved, so any surviving reference would reconnect.",
+  "records": [
+    {
+      "guest": {
+        "id": "90515314-23c8-46e6-82d6-e4e51030fbeb",
+        "name": "Mark Vallena",
+        "email": "mark.vallena@platform.noemail",
+        "phone": null,
+        "id_verified": false,
+        "returning_guest": false,
+        "referral_code": "907f32a3",
+        "locked_rate_enabled": false,
+        "locked_rate_royal_york": null,
+        "locked_rate_nickel_beach": null,
+        "notes": "Added from airbnb — no email on file",
+        "created_at": "2026-06-08T13:33:09.867542+00:00"
+      },
+      "bookings": [],
+      "calendar_blocks": [],
+      "conversations": []
+    },
+    {
+      "guest": {
+        "id": "93612632-813e-4e59-8940-4841f5087b45",
+        "name": "Molhem Taskie",
+        "email": "molhem.taskie@platform.noemail",
+        "phone": null,
+        "id_verified": false,
+        "returning_guest": false,
+        "referral_code": "80ea81cb",
+        "locked_rate_enabled": false,
+        "locked_rate_royal_york": null,
+        "locked_rate_nickel_beach": null,
+        "notes": "Added from vrbo — no email on file",
+        "created_at": "2026-06-08T21:00:29.080689+00:00"
+      },
+      "bookings": [],
+      "calendar_blocks": [],
+      "conversations": []
+    },
+    {
+      "guest": {
+        "id": "1b98d9bf-77a5-457d-a665-4cfff764b4f1",
+        "name": "Samuel Séguin",
+        "email": null,
+        "phone": null,
+        "id_verified": false,
+        "returning_guest": false,
+        "referral_code": "cd35d34d",
+        "locked_rate_enabled": false,
+        "locked_rate_royal_york": null,
+        "locked_rate_nickel_beach": null,
+        "notes": null,
+        "created_at": "2026-06-11T20:29:09.021585+00:00"
+      },
+      "bookings": [],
+      "calendar_blocks": [],
+      "conversations": []
+    },
+    {
+      "guest": {
+        "id": "eec24e4e-4f6f-4dde-8d2c-745dad69c284",
+        "name": "Heremela Moola",
+        "email": "heremela@platform.noemail",
+        "phone": null,
+        "id_verified": false,
+        "returning_guest": false,
+        "referral_code": "ac661f80",
+        "locked_rate_enabled": false,
+        "locked_rate_royal_york": null,
+        "locked_rate_nickel_beach": null,
+        "notes": "Added from airbnb — no email on file\n-WNRA!",
+        "created_at": "2026-06-07T06:28:39.190257+00:00"
+      },
+      "bookings": [],
+      "calendar_blocks": [],
+      "conversations": []
+    }
+  ]
+}
