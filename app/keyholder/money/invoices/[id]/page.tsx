@@ -18,6 +18,8 @@ type Draft = {
   amount: string
   paidAt: string
   method: string
+  methodDetail: string
+  methodLast4: string
   createExpense: boolean
   planned?: any
 }
@@ -30,6 +32,16 @@ export default function InvoiceEditor({ params }: { params: Promise<{ id: string
   const [result, setResult] = useState<any>(null)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
+  /* Payment methods already used, for the quick-pick chips. Same source the
+     legacy screen used — distinct (method, detail, last4) triples off the
+     payments themselves, so the list is whatever you have actually paid with.
+     These are LABELS, not ledger accounts: "BMO …0377" identifies a payment to
+     a human reading it, and cannot be matched to a bank statement by anything
+     automatic. The account that can is build A. */
+  const [methods, setMethods] = useState<any[]>([])
+  useEffect(() => { fetch('/api/admin/invoices/vendors').then(r => r.json())
+    .then(d => setMethods(d.methods || [])).catch(() => {}) }, [])
+  const DETAILED = ['etransfer', 'billpay', 'card']
 
   const load = () => fetch(`/api/admin/invoices/${id}`).then(r => r.json()).then(setD).catch(() => {})
   useEffect(() => { load().finally(() => setLoading(false)) }, [id])
@@ -56,11 +68,13 @@ export default function InvoiceEditor({ params }: { params: Promise<{ id: string
 
   const openSettle = (p: any) => { setResult(null); setErr(''); setDraft({
     action: 'settle', paymentId: p.id, expenseId: crypto.randomUUID(),
-    amount: String(p.amount), paidAt: today(), method: p.method || '', createExpense: !p.expense_created, planned: p,
+    amount: String(p.amount), paidAt: today(), method: p.method || '',
+    methodDetail: p.method_detail || '', methodLast4: p.method_last4 || '',
+    createExpense: !p.expense_created, planned: p,
   }) }
   const openLog = () => { setResult(null); setErr(''); setDraft({
     action: 'log', paymentId: crypto.randomUUID(), expenseId: crypto.randomUUID(),
-    amount: '', paidAt: today(), method: 'etransfer', createExpense: true,
+    amount: '', paidAt: today(), method: 'etransfer', methodDetail: '', methodLast4: '', createExpense: true,
   }) }
 
   async function commit() {
@@ -74,6 +88,8 @@ export default function InvoiceEditor({ params }: { params: Promise<{ id: string
           expense_id: draft.expenseId, create_expense: draft.createExpense,
           amount: draft.action === 'log' ? Number(draft.amount) : undefined,
           paid_at: draft.paidAt, method: draft.method || null,
+          method_detail: DETAILED.includes(draft.method) ? (draft.methodDetail || null) : null,
+          method_last4:  DETAILED.includes(draft.method) ? (draft.methodLast4 || null) : null,
         }),
       })
       const j = await res.json().catch(() => ({}))
@@ -263,6 +279,52 @@ export default function InvoiceEditor({ params }: { params: Promise<{ id: string
                 </div>
               </div>
             )}
+
+            {/* Which bank or card — restored. It was on the legacy screen and did
+                not survive the redesign, and twenty of twenty-one payments carry
+                it. The chips are the combinations already used; one click fills
+                both fields. Cash and cheque have nothing to name, so the block
+                hides for them.
+
+                This is a convenience, not reconciliation: the value is a label a
+                person reads, not an account a statement can be matched against. */}
+            {DETAILED.includes(draft.method) && (
+              <div>
+                <div style={microLabel}>Which {draft.method === 'card' ? 'card' : 'bank'}</div>
+                {(() => {
+                  const chips = methods.filter((m: any) =>
+                    m.method === draft.method && (m.method_detail || m.method_last4))
+                  return chips.length ? (
+                    <div style={{ display: 'flex', gap: '7px', flexWrap: 'wrap', marginTop: '7px' }}>
+                      {chips.map((m: any, i: number) => {
+                        const on = draft.methodDetail === m.method_detail && draft.methodLast4 === m.method_last4
+                        return (
+                          <button key={i} type="button"
+                            onClick={() => setDraft({ ...draft, methodDetail: m.method_detail || '', methodLast4: m.method_last4 || '' })}
+                            style={{ padding: '7px 13px', borderRadius: '99px', fontSize: '13px', cursor: 'pointer',
+                              fontFamily: F.sans, fontWeight: on ? 600 : 400,
+                              background: on ? L.ink : L.card, color: on ? '#fff' : L.ink,
+                              border: on ? '1px solid transparent' : `1px solid ${L.line}` }}>
+                            {m.method_detail || '—'}{m.method_last4 ? ` ···${m.method_last4}` : ''}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  ) : null
+                })()}
+                <div style={{ display: 'flex', gap: '8px', marginTop: '7px' }}>
+                  <input value={draft.methodDetail}
+                    onChange={e => setDraft({ ...draft, methodDetail: e.target.value })}
+                    placeholder={draft.method === 'card' ? 'Card (e.g. Amex)' : 'Bank (e.g. BMO)'}
+                    style={{ flex: 1, padding: '11px 13px', border: `1px solid ${L.line}`, borderRadius: '10px', fontSize: '14px', fontFamily: F.sans }} />
+                  <input value={draft.methodLast4}
+                    onChange={e => setDraft({ ...draft, methodLast4: e.target.value.replace(/\D/g, '').slice(0, 4) })}
+                    placeholder="Last 4" inputMode="numeric"
+                    style={{ width: '104px', padding: '11px 13px', border: `1px solid ${L.line}`, borderRadius: '10px', fontSize: '14px', fontFamily: F.mono }} />
+                </div>
+              </div>
+            )}
+
             <div>
               <div style={microLabel}>Paid on</div>
               <input type="date" value={draft.paidAt} onChange={e => setDraft({ ...draft, paidAt: e.target.value })}

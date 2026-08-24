@@ -129,6 +129,19 @@ problem intact.
    `method_detail` means "which card", not "e-transfer confirmation number", so
    overloading it would be the wrong fix.
 
+**The saved-method chips are not this.** The legacy invoice screen let you pick
+from `(method, method_detail, method_last4)` combinations you had used before —
+"BMO ···0377", "Wealthsimple ···5836" — and the redesigned payment panel dropped
+that control. It has been restored, because twenty of twenty-one payments carry
+those values and losing the picker made every payment a retype.
+
+**Restoring it closed a convenience gap, not the reconciliation gap, and the two
+are easy to confuse.** "BMO ···0377" is a label a person reads. It is not an
+account: nothing can take it and match a row against a bank statement, because
+there is no account record to match to and no reference identifying the
+individual transfer. A screen that now looks complete still cannot reconcile.
+The feature below is what would.
+
 **What to build:** one payment record carrying account and reference, supporting
 several payments per booking or invoice, usable from both the platform-booking
 and invoice sides. Everything above follows from that; nothing above is worth
