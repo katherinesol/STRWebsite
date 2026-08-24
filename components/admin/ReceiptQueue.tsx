@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
+import { L, F } from '@/lib/design-tokens'
 
 /* pdf.js is fetched on demand and never at module scope.
  *
@@ -186,42 +187,42 @@ export default function ReceiptQueue({ categories, onAllSaved }: { categories: s
     if (e.dataTransfer.files.length) intake(e.dataTransfer.files)
   }
 
-  if (loading) return <div style={{ fontSize: '13px', color: '#666660' }}>Loading queue…</div>
+  if (loading) return <div style={{ fontSize: '13px', color: L.inkFaint }}>Loading queue…</div>
 
   return (
     <div>
-      <div style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '.12em', color: 'var(--amber)', marginBottom: '10px' }}>
+      <div style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '.12em', color: L.gold, marginBottom: '10px' }}>
         Receipt queue {drafts.length > 0 && `· ${drafts.length}`}
       </div>
 
       <div onDrop={onDrop} onDragOver={e => e.preventDefault()} onPaste={onPaste} tabIndex={0}
-        style={{ border: '1px dashed #4A4A48', borderRadius: '8px', padding: '20px', textAlign: 'center', marginBottom: '14px', cursor: 'pointer', outline: 'none' }}
+        style={{ border: `1px dashed ${L.line}`, borderRadius: '8px', padding: '20px', textAlign: 'center', marginBottom: '14px', cursor: 'pointer', outline: 'none' }}
         onClick={() => fileRef.current?.click()}>
         <input ref={fileRef} type="file" accept="image/*,application/pdf" multiple style={{ display: 'none' }}
           onChange={e => { if (e.target.files?.length) intake(e.target.files); e.target.value = '' }} />
         <input ref={cameraRef} type="file" accept="image/*" capture="environment" style={{ display: 'none' }}
           onChange={e => { if (e.target.files?.length) intake(e.target.files); e.target.value = '' }} />
-        <div style={{ fontSize: '13px', color: '#AEAEA6' }}>{busy ? 'Reading…' : 'Drop receipts, paste a screenshot, or tap to choose'}</div>
-        <div style={{ fontSize: '11px', color: '#666660', marginTop: '4px' }}>Images or PDFs — a multi-page PDF splits into one card per page</div>
+        <div style={{ fontSize: '13px', color: L.inkBody }}>{busy ? 'Reading…' : 'Drop receipts, paste a screenshot, or tap to choose'}</div>
+        <div style={{ fontSize: '11px', color: L.inkFaint, marginTop: '4px' }}>Images or PDFs — a multi-page PDF splits into one card per page</div>
         <button onClick={e => { e.stopPropagation(); cameraRef.current?.click() }}
-          style={{ marginTop: '12px', padding: '9px 18px', background: 'var(--amber)', color: '#242422', border: 'none', fontSize: '12px', fontWeight: 600, cursor: 'pointer', borderRadius: '6px' }}>
+          style={{ marginTop: '12px', padding: '9px 18px', background: L.gold, color: L.card, border: 'none', fontSize: '12px', fontWeight: 600, cursor: 'pointer', borderRadius: '6px' }}>
           📷 Take photo
         </button>
       </div>
 
       {drafts.length === 0 && (
-        <div style={{ fontSize: '12px', color: '#9A9A92' }}>No receipts queued. (Upload wiring comes next.)</div>
+        <div style={{ fontSize: '12px', color: L.inkMuted }}>No receipts queued. (Upload wiring comes next.)</div>
       )}
 
       {drafts.length > 0 && (
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
-          <span style={{ fontSize: '11px', color: '#9A9A92' }}>Assign all to:</span>
+          <span style={{ fontSize: '11px', color: L.inkMuted }}>Assign all to:</span>
           <select onChange={e => e.target.value && assignAll(e.target.value)} defaultValue=""
-            style={{ padding: '6px 10px', background: '#242422', border: '0.5px solid #4A4A48', color: '#F0EDE6', fontSize: '12px', borderRadius: '4px' }}>
+            style={{ padding: '6px 10px', background: L.card, border: `0.5px solid ${L.line}`, color: L.ink, fontSize: '12px', borderRadius: '4px' }}>
             <option value="">—</option>
             {PROPS.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
-          <button onClick={saveAll} disabled={busy} style={{ marginLeft: 'auto', padding: '8px 18px', background: 'var(--amber)', color: '#242422', border: 'none', fontSize: '12px', fontWeight: 600, cursor: 'pointer', borderRadius: '6px' }}>
+          <button onClick={saveAll} disabled={busy} style={{ marginLeft: 'auto', padding: '8px 18px', background: L.gold, color: L.card, border: 'none', fontSize: '12px', fontWeight: 600, cursor: 'pointer', borderRadius: '6px' }}>
             {busy ? 'Saving…' : `Save all to expenses`}
           </button>
         </div>
@@ -229,28 +230,28 @@ export default function ReceiptQueue({ categories, onAllSaved }: { categories: s
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
         {drafts.map((d, i) => (
-          <div key={d.id || i} style={{ background: '#242422', border: '0.5px solid #363634', borderRadius: '6px', padding: '12px 14px' }}>
+          <div key={d.id || i} style={{ background: L.card, border: `0.5px solid ${L.line}`, borderRadius: '6px', padding: '12px 14px' }}>
             <div style={{ display: 'grid', gridTemplateColumns: '1.2fr .8fr .8fr auto', gap: '8px', alignItems: 'center' }}>
               <input value={d.vendor || ''} onChange={e => edit(i, { vendor: e.target.value })} placeholder="Vendor"
-                style={{ padding: '6px 8px', background: '#1E1E1C', border: '0.5px solid #4A4A48', color: '#F0EDE6', fontSize: '12px', borderRadius: '3px' }} />
+                style={{ padding: '6px 8px', background: L.cardAlt, border: `0.5px solid ${L.line}`, color: L.ink, fontSize: '12px', borderRadius: '3px' }} />
               <input value={d.amount ?? ''} onChange={e => edit(i, { amount: e.target.value })} placeholder="Amount"
-                style={{ padding: '6px 8px', background: '#1E1E1C', border: '0.5px solid #4A4A48', color: '#F0EDE6', fontSize: '12px', borderRadius: '3px' }} />
+                style={{ padding: '6px 8px', background: L.cardAlt, border: `0.5px solid ${L.line}`, color: L.ink, fontSize: '12px', borderRadius: '3px' }} />
               <select value={d.property_id || ''} onChange={e => edit(i, { property_id: e.target.value })}
-                style={{ padding: '6px 8px', background: '#1E1E1C', border: '0.5px solid #4A4A48', color: '#F0EDE6', fontSize: '12px', borderRadius: '3px' }}>
+                style={{ padding: '6px 8px', background: L.cardAlt, border: `0.5px solid ${L.line}`, color: L.ink, fontSize: '12px', borderRadius: '3px' }}>
                 <option value="">Property…</option>
                 {PROPS.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
               </select>
-              <button onClick={() => remove(i)} style={{ background: 'none', border: 'none', color: '#c47b7b', fontSize: '11px', cursor: 'pointer' }}>remove</button>
+              <button onClick={() => remove(i)} style={{ background: 'none', border: 'none', color: L.red, fontSize: '11px', cursor: 'pointer' }}>remove</button>
             </div>
             {d.line_items && d.line_items.length > 0 && (
-              <div style={{ fontSize: '10px', color: '#666660', marginTop: '6px' }}>{d.line_items.length} item{d.line_items.length === 1 ? '' : 's'} extracted</div>
+              <div style={{ fontSize: '10px', color: L.inkFaint, marginTop: '6px' }}>{d.line_items.length} item{d.line_items.length === 1 ? '' : 's'} extracted</div>
             )}
-            {d._status === 'extracting' && <div style={{ fontSize: '10px', color: '#8A8A82', marginTop: '6px' }}>Reading…</div>}
-            {d._status === 'error' && <div style={{ fontSize: '10px', color: '#c47b7b', marginTop: '6px' }}>{d._error}</div>}
+            {d._status === 'extracting' && <div style={{ fontSize: '10px', color: L.inkMuted, marginTop: '6px' }}>Reading…</div>}
+            {d._status === 'error' && <div style={{ fontSize: '10px', color: L.red, marginTop: '6px' }}>{d._error}</div>}
             {d._dup && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '6px', fontSize: '10px', color: d._dupOk ? '#8A8A82' : '#e6a86a' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '6px', fontSize: '10px', color: d._dupOk ? L.inkMuted : L.amber }}>
                 <span>⚠️ {d._dup}</span>
-                <button onClick={() => edit(i, { _dupOk: !d._dupOk } as any)} style={{ background: 'none', border: '0.5px solid #4A4A48', color: d._dupOk ? '#7bc47b' : '#e6a86a', fontSize: '9px', padding: '2px 8px', borderRadius: '3px', cursor: 'pointer' }}>{d._dupOk ? 'will save' : 'save anyway'}</button>
+                <button onClick={() => edit(i, { _dupOk: !d._dupOk } as any)} style={{ background: 'none', border: `0.5px solid ${L.line}`, color: d._dupOk ? L.green : L.amber, fontSize: '9px', padding: '2px 8px', borderRadius: '3px', cursor: 'pointer' }}>{d._dupOk ? 'will save' : 'save anyway'}</button>
               </div>
             )}
           </div>

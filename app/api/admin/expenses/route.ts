@@ -1,7 +1,45 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
-import { isAuthed } from '@/lib/auth'
+import { isAuthed, hasRole } from '@/lib/auth'
+import { normaliseCategory } from '@/lib/expense-categories'
 
+
+/** Everything the expenses screen needs, in one request.
+ *
+ *  Gated with hasRole('co-owner') to match the rest of the Money section —
+ *  mat-return and invoices-summary both use it, and an owner passes any role
+ *  check. The POST below is deliberately looser (isAuthed) because cleaners
+ *  file receipts; reading the whole expense ledger is not the same act.
+ *
+ *  Receipt URLs are signed here rather than in the page so the bucket stays
+ *  private; they last an hour, which is longer than anyone spends on this
+ *  screen and shorter than a link worth leaking. */
+export async function GET() {
+  if (!await hasRole('co-owner')) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const supabase = createAdminClient()
+
+  const { data: rows, error } = await supabase.from('expenses')
+    .select('*').order('date', { ascending: false }).limit(500)
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  const expenses = await Promise.all((rows || []).map(async (e: any) => {
+    if (!e.receipt_path) return { ...e, signed_receipt_url: null }
+    const { data: signed } = await supabase.storage
+      .from('property-management').createSignedUrl(e.receipt_path, 3600)
+    return { ...e, signed_receipt_url: signed?.signedUrl || null }
+  }))
+
+  const { count: pendingCount } = await supabase.from('pending_receipts')
+    .select('id', { count: 'exact', head: true }).eq('status', 'pending')
+
+  return NextResponse.json({
+    expenses,
+    vendors: [...new Set(expenses.map((e: any) => e.vendor).filter(Boolean))].sort(),
+    pendingCount: pendingCount ?? 0,
+  })
+}
+
+const n = (v: unknown) => { const x = Number(v); return Number.isFinite(x) ? Math.round(x * 100) / 100 : 0 }
 
 export async function POST(request: NextRequest) {
   if (!await isAuthed()) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -64,7 +102,26 @@ export async function POST(request: NextRequest) {
   }
 
   delete body.force
-  const { data, error } = await supabase.from('expenses').insert(body).select().single()
+  /* An expense is built from named fields, never from the request body.
+     `insert(body)` used to put whatever arrived straight into the table, so any
+     column was settable and any string could land in `category` — which is the
+     one field the CRA return is grouped by. normaliseCategory maps near-misses
+     ("Motor vehicle" → "Motor vehicle (not CCA)") and falls back rather than
+     writing something that is not a real category. */
+  const cat = normaliseCategory(body.category)
+  const row = {
+    date: body.date, vendor: body.vendor || null, description: body.description,
+    amount: n(body.amount), hst_paid: n(body.hst_paid),
+    category: cat.category,
+    property_id: body.property_id || null, notes: body.notes || null,
+    receipt_url: body.receipt_url || null, receipt_path: body.receipt_path || null,
+    line_items: body.line_items ?? null,
+    ai_extracted: body.ai_extracted === true, confirmed: body.confirmed === true,
+  }
+  if (!row.date || !row.description || !row.amount) {
+    return NextResponse.json({ error: 'date, description and amount are required' }, { status: 400 })
+  }
+  const { data, error } = await supabase.from('expenses').insert(row).select().single()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ expense: data })
 }

@@ -4,7 +4,11 @@ import { createAdminClient } from '@/lib/supabase/server'
 
 // Merged income rows from direct bookings + platform bookings, with data-quality flags.
 export async function GET() {
-  if (!await hasRole('owner')) return NextResponse.json({ error: 'Not allowed' }, { status: 403 })
+  // Owner + co-owner, matching mat-return, invoices-summary and the expenses
+  // GET. This was owner-only while every other Money screen allowed co-owner,
+  // so a co-owner could read tax and invoices and then hit a 403 on income —
+  // the same read-only data class, locked for no reason.
+  if (!await hasRole('owner', 'co-owner')) return NextResponse.json({ error: 'Not allowed' }, { status: 403 })
   const supabase = createAdminClient()
 
   const { data: direct } = await supabase

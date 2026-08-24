@@ -147,6 +147,23 @@ category view is client-side state rather than a link — which is why filtering
 by category felt unreachable rather than broken. Nothing regressed here; two
 pages are simply missing from a nav that promises them.
 
+## Combined P&L — wanted eventually, not part of the Money rebuild
+
+Income minus expenses equals net profit, as its own screen. Deliberately **not**
+part of building `/keyholder/money/income` and `/keyholder/money/expenses`,
+which stay a revenue list and an expense list respectively.
+
+**When it is built it must include non-booking income, or it will be wrong.**
+That money is real, received, and appears on no reservation: Mark's $100
+additional-guests fee, Brendan's $175, and Heremela's $2,464.57 damage recovery
+across three payouts. `/keyholder/money/income` is bookings-only by decision, so
+nothing else in the app will surface these — a P&L drawn only from bookings and
+expenses would silently omit them. There is also no table for them yet, so the
+P&L work carries a schema piece with it.
+
+Related: damage recovery may be income or an expense offset, which changes the
+net. That is the accountant's call, recorded in the reconciliation ledger.
+
 ## Backlog
 
 **Email stats** — open rates, click rates, unsubscribes, bounces, delivery.
