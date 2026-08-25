@@ -8,6 +8,7 @@ import GrantsField from './GrantsField'
 import { ConfirmationCodeField } from './BookingControls'
 import FiguresPanel from './FiguresPanel'
 import GiftCard from '@/components/admin/GiftCard'
+import CoGuests from '@/components/keyholder/CoGuests'
 import StayChecklist from '@/components/admin/StayChecklist'
 import ParkingControl from '@/components/admin/ParkingControl'
 
@@ -278,6 +279,9 @@ export default function BookingDetail({ kind, b, locks, guest, conversation, mes
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            {sectionHead('Who is on this stay', 'everyone here can be given a door code')}
+            <CoGuests bookingId={b.id} kind={kind} />
+
             {sectionHead('Gift', 'never shown to the guest')}
             <GiftCard bookingId={b.id} bookingKind={kind} />
           </div>
