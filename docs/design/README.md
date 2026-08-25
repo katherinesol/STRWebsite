@@ -160,6 +160,41 @@ category view is client-side state rather than a link — which is why filtering
 by category felt unreachable rather than broken. Nothing regressed here; two
 pages are simply missing from a nav that promises them.
 
+## Retire the two legacy booking pages — its own piece of work
+
+`/admin/bookings/[id]` and `/admin/bookings/block/[id]` are the last dark screens
+with a redesigned component living inside them. A coverage check on 2026-08-24
+ruled out a straight redirect: **six capabilities exist only there**, and none
+of them appears in `BookingDetail` under any name.
+
+| Component | Lines | Page | Note |
+|---|---|---|---|
+| `BookingActions` | 323 | direct | **The critical one.** Cancel with a reason, refund amount, mark active / completed, mark deposit received, mark final payment received, grant early check-in and late checkout. There is nowhere else to cancel a booking or mark a payment received. `GrantsField` already covers the grants half; the rest has no equivalent. |
+| `GuestEditCard` | 123 | direct | Guest contact editing from the booking. Also closes the "port guest edit into People" backlog item — `/keyholder/people/[id]` has no edit UI at all, and this is the component to move. |
+| `WindLogCard` | 97 | both | Wind history — damage evidence for Nickel Beach. |
+| `PaymentReminderForm` | 94 | direct | **Already broken** — POSTs to `/api/admin/bookings/[id]/send-reminder`, which does not exist. Retiring the page would delete a broken feature silently. Fix it or drop it deliberately; do not let the retirement decide by accident. |
+| `BookingSupportCard` | 52 | both | The guest's support access code and the link to `/support` — directly tied to the verification gate. |
+| `WaterUsageCard` | 49 | direct | Cistern usage across the stay. |
+
+### The dependency that sets the timing
+
+**`BookingEditForm` and `PlatformBookingForm` are mounted only on these two
+pages**, and both are held from deploy pending the VRBO/Airbnb audit — they carry
+the tax toggle. Retiring the pages would leave the toggle with nowhere to live
+*even after the audit unholds it*, which would turn a finished piece of work into
+a stranded one.
+
+So either **retire after the audit resolves**, or **give the toggle a new home
+first** (most likely inside `FiguresPanel`, where the rest of the tax figures
+already are). This is the constraint that makes it post-audit work rather than a
+tidy-up.
+
+### Not urgent
+
+Until then `GiftCard` renders in light tokens inside two dark pages. It looks
+dated rather than broken, and that is the accepted cost of not carrying two
+palettes — the same trade the Money retirement made.
+
 ## Combined P&L — wanted eventually, not part of the Money rebuild
 
 Income minus expenses equals net profit, as its own screen. Deliberately **not**

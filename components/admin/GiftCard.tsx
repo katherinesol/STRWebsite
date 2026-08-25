@@ -1,19 +1,33 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
+import { GIFT_OCCASIONS, occasionLabel } from '@/lib/gift-occasions'
+import { L, F, microLabel, cardStyle, money } from '@/lib/design-tokens'
 
-// Private gift tracking. Admin-only — the guest never sees any of this.
+/* Private gift tracking — owner and co-owner only, and never rendered anywhere
+ * a guest could see. The note and the occasion both live in booking_gifts
+ * rather than on the booking, and the dashboards deliberately select only
+ * booking_id from it, using presence as a silent badge. An occasion is as
+ * revealing as the note: "anniversary" on a booking row tells anyone glancing
+ * at the screen that a surprise is coming, which is the thing being prevented.
+ *
+ * Restyled to the keyholder tokens. It is mounted on two legacy dark pages as
+ * well, where it will now look out of place — those are heading for retirement
+ * the way Finance and Income did, and carrying a second palette to postpone
+ * that would mean maintaining both forever. */
+
 const inputStyle: React.CSSProperties = {
-  width: '100%', padding: '8px 10px',
-  background: '#363634', border: '0.5px solid #4A4A48',
-  color: '#F5F2EC', fontFamily: 'var(--sans)', fontSize: '13px',
-  outline: 'none', borderRadius: '2px', boxSizing: 'border-box',
+  width: '100%', padding: '10px 12px',
+  background: L.card, border: `1px solid ${L.line}`,
+  color: L.ink, fontFamily: F.sans, fontSize: '14px',
+  outline: 'none', borderRadius: '10px', boxSizing: 'border-box',
 }
-const labelStyle: React.CSSProperties = { fontSize: '10px', letterSpacing: '.1em', textTransform: 'uppercase', color: '#9A9A92', marginBottom: '5px' }
+const labelStyle: React.CSSProperties = { ...microLabel, marginBottom: '5px', display: 'block' }
 
 type Expense = { id: string; date: string; vendor: string; amount: number; category: string; description: string; receipt_path: string | null }
 
 export default function GiftCard({ bookingId, bookingKind }: { bookingId: string; bookingKind: 'direct' | 'platform' }) {
   const [note, setNote] = useState('')
+  const [occasion, setOccasion] = useState('')
   const [loaded, setLoaded] = useState(false)
   const [savingNote, setSavingNote] = useState(false)
   const [noteSaved, setNoteSaved] = useState(false)
@@ -33,7 +47,7 @@ export default function GiftCard({ bookingId, bookingKind }: { bookingId: string
   useEffect(() => {
     fetch(`/api/admin/bookings/gift?booking_id=${bookingId}&booking_kind=${bookingKind}`)
       .then(r => r.json())
-      .then(d => { setNote(d.gift?.note || ''); setExpense(d.expense || null) })
+      .then(d => { setNote(d.gift?.note || ''); setOccasion(d.gift?.occasion || ''); setExpense(d.expense || null) })
       .catch(() => {})
       .finally(() => setLoaded(true))
   }, [bookingId, bookingKind])
@@ -43,7 +57,7 @@ export default function GiftCard({ bookingId, bookingKind }: { bookingId: string
     try {
       const res = await fetch('/api/admin/bookings/gift', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ booking_id: bookingId, booking_kind: bookingKind, note }),
+        body: JSON.stringify({ booking_id: bookingId, booking_kind: bookingKind, note, occasion: occasion || null }),
       })
       const d = await res.json().catch(() => ({}))
       if (!res.ok) { setErr(d.error || 'Could not save'); return }
@@ -85,30 +99,38 @@ export default function GiftCard({ bookingId, bookingKind }: { bookingId: string
   if (!loaded) return null
 
   return (
-    <div style={{ background: '#242422', border: '0.5px solid #363634', padding: '20px', marginTop: '16px' }}>
-      <div style={{ fontSize: '10px', fontWeight: 500, letterSpacing: '.14em', textTransform: 'uppercase', color: 'var(--amber)', marginBottom: '4px' }}>Gift · private</div>
-      <div style={{ fontSize: '11px', color: '#666660', marginBottom: '14px' }}>Never shown to the guest.</div>
+    <div style={{ ...cardStyle, padding: '22px', marginTop: '16px' }}>
+      <div style={{ ...microLabel, color: L.amber, marginBottom: '4px' }}>Gift · private</div>
+      <div style={{ fontSize: '12px', color: L.inkMuted, marginBottom: '16px' }}>
+        Never shown to the guest, and never on a dashboard — only the fact that a gift exists.
+      </div>
 
-      <div style={{ marginBottom: '12px' }}>
+      <div style={{ marginBottom: '14px' }}>
+        <div style={labelStyle}>Occasion</div>
+        <select value={occasion} onChange={e => setOccasion(e.target.value)}
+          style={{ ...inputStyle, background: L.card, marginBottom: '12px' }}>
+          <option value="">— none —</option>
+          {GIFT_OCCASIONS.map(o => <option key={o} value={o}>{occasionLabel(o)}</option>)}
+        </select>
         <div style={labelStyle}>Gift note</div>
         <textarea value={note} onChange={e => setNote(e.target.value)} rows={2} placeholder="e.g. bottle of wine"
-          style={{ ...inputStyle, resize: 'vertical' }} />
+          style={{ ...inputStyle, resize: 'vertical', fontFamily: F.sans }} />
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '8px' }}>
           <button onClick={saveNote} disabled={savingNote}
-            style={{ padding: '7px 16px', background: '#363634', color: '#F5F2EC', border: '0.5px solid #4A4A48', fontFamily: 'var(--sans)', fontSize: '10px', letterSpacing: '.1em', textTransform: 'uppercase', cursor: 'pointer' }}>
-            {savingNote ? 'Saving…' : 'Save note'}
+            style={{ padding: '10px 18px', borderRadius: '10px', background: L.ink, color: '#fff', border: 'none', fontFamily: F.sans, fontSize: '14px', fontWeight: 600, cursor: 'pointer' }}>
+            {savingNote ? 'Saving…' : 'Save'}
           </button>
-          {noteSaved && <span style={{ fontSize: '11px', color: '#2ecc71' }}>✓ Saved</span>}
+          {noteSaved && <span style={{ fontSize: '13px', color: L.green }}>Saved</span>}
         </div>
       </div>
 
       {expense ? (
-        <div style={{ background: '#1E1E1C', border: '0.5px solid #363634', padding: '12px 14px' }}>
-          <div style={{ fontSize: '10px', letterSpacing: '.1em', textTransform: 'uppercase', color: '#9A9A92', marginBottom: '6px' }}>Logged as expense</div>
-          <div style={{ fontSize: '13px', color: '#F5F2EC' }}>${Number(expense.amount).toFixed(2)} · {expense.vendor}</div>
-          <div style={{ fontSize: '11px', color: '#9A9A92', marginTop: '3px' }}>{expense.date} · {expense.category}</div>
-          {expense.receipt_path && <div style={{ fontSize: '11px', color: '#666660', marginTop: '3px' }}>📎 receipt attached</div>}
-          <div style={{ fontSize: '11px', color: '#666660', marginTop: '8px' }}>
+        <div style={{ background: L.cardAlt, border: `1px solid ${L.lineSoft}`, borderRadius: '12px', padding: '14px 16px' }}>
+          <div style={{ ...microLabel, marginBottom: '6px' }}>Logged as expense</div>
+          <div style={{ fontSize: '15px', color: L.ink, fontVariantNumeric: 'tabular-nums' }}>{money(expense.amount)} · {expense.vendor}</div>
+          <div style={{ fontSize: '12px', color: L.inkMuted, marginTop: '3px' }}>{expense.date} · {expense.category}</div>
+          {expense.receipt_path && <div style={{ fontSize: '12px', color: L.inkFaint, marginTop: '3px' }}>Receipt attached</div>}
+          <div style={{ fontSize: '12px', color: L.inkFaint, marginTop: '10px' }}>
             Editing the note above won&rsquo;t change this expense — it&rsquo;s a financial record. Adjust it in Expenses if needed.
           </div>
         </div>
@@ -133,23 +155,23 @@ export default function GiftCard({ bookingId, bookingKind }: { bookingId: string
             onChange={e => { const f = e.target.files?.[0]; if (f) uploadReceipt(f); e.target.value = '' }} />
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
             <button onClick={() => fileRef.current?.click()} disabled={uploading}
-              style={{ padding: '7px 14px', background: '#363634', color: '#F5F2EC', border: '0.5px solid #4A4A48', fontFamily: 'var(--sans)', fontSize: '10px', letterSpacing: '.1em', textTransform: 'uppercase', cursor: 'pointer' }}>
+              style={{ padding: '9px 16px', borderRadius: '10px', background: L.card, color: L.ink, border: `1px solid ${L.line}`, fontFamily: F.sans, fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}>
               {uploading ? 'Uploading…' : 'Attach receipt'}
             </button>
-            {receiptName && <span style={{ fontSize: '11px', color: '#9A9A92' }}>📎 {receiptName}</span>}
+            {receiptName && <span style={{ fontSize: '12px', color: L.inkMuted }}>{receiptName}</span>}
           </div>
 
           <button onClick={logExpense} disabled={logging || !amount || !date}
-            style={{ padding: '9px 20px', background: amount && date ? 'var(--amber)' : '#363634', color: amount && date ? '#1A1A18' : '#9A9A92', border: 'none', fontFamily: 'var(--sans)', fontSize: '10px', letterSpacing: '.1em', textTransform: 'uppercase', fontWeight: 500, cursor: amount && date ? 'pointer' : 'not-allowed' }}>
+            style={{ padding: '11px 20px', borderRadius: '10px', background: amount && date ? L.ink : L.lineSoft, color: amount && date ? '#fff' : L.inkFaint, border: 'none', fontFamily: F.sans, fontSize: '14px', fontWeight: 600, cursor: amount && date ? 'pointer' : 'not-allowed' }}>
             {logging ? 'Logging…' : 'Log as expense'}
           </button>
-          <div style={{ fontSize: '11px', color: '#666660', marginTop: '8px' }}>
+          <div style={{ fontSize: '12px', color: L.inkFaint, marginTop: '10px' }}>
             Files under Supplies (cleaning, guest) — CRA-aligned. Save the note first.
           </div>
         </div>
       )}
 
-      {err && <div style={{ fontSize: '12px', color: '#e74c3c', marginTop: '10px' }}>{err}</div>}
+      {err && <div style={{ fontSize: '13px', color: L.red, marginTop: '12px' }}>{err}</div>}
     </div>
   )
 }

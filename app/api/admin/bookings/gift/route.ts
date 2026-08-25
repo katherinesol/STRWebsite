@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { isAuthed, hasRole } from '@/lib/auth'
+import { normaliseOccasion } from '@/lib/gift-occasions'
 
 // Private gift notes. ADMIN-ONLY — this is surprise data the guest must never see,
 // which is why it lives in its own table rather than on the booking row.
@@ -54,6 +55,9 @@ export async function POST(request: NextRequest) {
   const booking_id = String(body?.booking_id || '')
   const booking_kind = String(body?.booking_kind || '')
   const note = typeof body?.note === 'string' ? body.note.trim().slice(0, 2000) : ''
+  // Validated against the list in lib/gift-occasions, not by the database —
+  // anything unrecognised becomes null rather than being stored as typed.
+  const occasion = normaliseOccasion(body?.occasion)
 
   if (!booking_id || !KINDS.includes(booking_kind)) {
     return NextResponse.json({ error: 'booking_id and booking_kind required' }, { status: 400 })
@@ -63,7 +67,7 @@ export async function POST(request: NextRequest) {
   const { data, error } = await supabase
     .from('booking_gifts')
     .upsert(
-      { booking_id, booking_kind, note: note || null, updated_at: new Date().toISOString() },
+      { booking_id, booking_kind, note: note || null, occasion, updated_at: new Date().toISOString() },
       { onConflict: 'booking_id,booking_kind' }
     )
     .select()
