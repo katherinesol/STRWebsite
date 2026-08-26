@@ -43,26 +43,46 @@ export async function GET() {
 // mark a planned payment paid (today) — creates the expense like the invoice flow does
 export async function PATCH(request: NextRequest) {
   if (!await hasRole('owner', 'co-owner')) return NextResponse.json({ error: 'Not allowed' }, { status: 403 })
-  const { id } = await request.json()
+  /*  Marking a scheduled payment paid used to take an id and nothing else, so
+      it recorded WHEN money moved but never from WHERE. That is how a $2,000
+      billpay reached the ledger with no detail on it and the payments migration
+      had to ask which account it left from. The method fields are optional here
+      because a planned row may already carry them from the invoice panel — what
+      is sent overrides, what is not sent leaves the existing value alone. */
+  const body = await request.json()
+  const { id } = body
   if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
+  const EDITABLE = new Set(['id', 'method', 'method_detail', 'method_last4'])
+  const rejected = Object.keys(body || {}).filter(k => !EDITABLE.has(k))
+  if (rejected.length) {
+    return NextResponse.json({ error: 'Marking paid sets the method only', rejected }, { status: 400 })
+  }
   const supabase = createAdminClient()
   const today = new Date().toISOString().split('T')[0]
 
   const { data: pay } = await supabase.from('invoice_payments').select('*').eq('id', id).maybeSingle()
   if (!pay) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  await supabase.from('invoice_payments').update({ status: 'paid', paid_at: today, due_date: null }).eq('id', id)
+  const patch: Record<string, any> = { status: 'paid', paid_at: today, due_date: null }
+  if (body.method) patch.method = body.method
+  if ('method_detail' in body) patch.method_detail = body.method_detail || null
+  if ('method_last4' in body) patch.method_last4 = body.method_last4 || null
+  await supabase.from('invoice_payments').update(patch).eq('id', id)
+
+  // re-read, so the expense description below names what was actually stored
+  const { data: fresh } = await supabase.from('invoice_payments').select('*').eq('id', id).maybeSingle()
+  const rec = fresh || pay
 
   // create the expense (mirror of the invoice save flow)
   if (!pay.expense_created) {
     const { data: inv } = await supabase.from('invoices').select('contractor_name, company, property_id, title, hst_amount, category').eq('id', pay.invoice_id).single()
-    const methodStr = pay.method ? `${pay.method}${pay.method_detail ? ' ' + pay.method_detail : ''}${pay.method_last4 ? ' …' + pay.method_last4 : ''}` : ''
+    const methodStr = rec.method ? `${rec.method}${rec.method_detail ? ' ' + String(rec.method_detail).trim() : ''}${rec.method_last4 ? ' …' + rec.method_last4 : ''}` : ''
     await supabase.from('expenses').insert({
       property_id: inv?.property_id || null,
       date: today,
       vendor: inv?.contractor_name || inv?.company,
       description: `Payment — ${inv?.title}${methodStr ? ' (' + methodStr + ')' : ''}`,
-      amount: Number(pay.amount) || 0,
+      amount: Number(rec.amount) || 0,
       category: inv?.category || 'Repairs & maintenance',
       hst_paid: inv?.hst_amount ?? null,
       notes: 'From invoice tracker',

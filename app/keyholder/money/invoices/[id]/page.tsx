@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect, use } from 'react'
 import Link from 'next/link'
+import MethodPicker, { DETAILED } from '@/components/admin/MethodPicker'
 import { L, F, microLabel, cardStyle, money } from '@/lib/design-tokens'
 import InvoiceLineEditor from '@/components/keyholder/InvoiceLineEditor'
 
@@ -32,16 +33,6 @@ export default function InvoiceEditor({ params }: { params: Promise<{ id: string
   const [result, setResult] = useState<any>(null)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
-  /* Payment methods already used, for the quick-pick chips. Same source the
-     legacy screen used — distinct (method, detail, last4) triples off the
-     payments themselves, so the list is whatever you have actually paid with.
-     These are LABELS, not ledger accounts: "BMO …0377" identifies a payment to
-     a human reading it, and cannot be matched to a bank statement by anything
-     automatic. The account that can is build A. */
-  const [methods, setMethods] = useState<any[]>([])
-  useEffect(() => { fetch('/api/admin/invoices/vendors').then(r => r.json())
-    .then(d => setMethods(d.methods || [])).catch(() => {}) }, [])
-  const DETAILED = ['etransfer', 'billpay', 'card']
 
   const load = () => fetch(`/api/admin/invoices/${id}`).then(r => r.json()).then(setD).catch(() => {})
   useEffect(() => { load().finally(() => setLoading(false)) }, [id])
@@ -280,50 +271,10 @@ export default function InvoiceEditor({ params }: { params: Promise<{ id: string
               </div>
             )}
 
-            {/* Which bank or card — restored. It was on the legacy screen and did
-                not survive the redesign, and twenty of twenty-one payments carry
-                it. The chips are the combinations already used; one click fills
-                both fields. Cash and cheque have nothing to name, so the block
-                hides for them.
-
-                This is a convenience, not reconciliation: the value is a label a
-                person reads, not an account a statement can be matched against. */}
-            {DETAILED.includes(draft.method) && (
-              <div>
-                <div style={microLabel}>Which {draft.method === 'card' ? 'card' : 'bank'}</div>
-                {(() => {
-                  const chips = methods.filter((m: any) =>
-                    m.method === draft.method && (m.method_detail || m.method_last4))
-                  return chips.length ? (
-                    <div style={{ display: 'flex', gap: '7px', flexWrap: 'wrap', marginTop: '7px' }}>
-                      {chips.map((m: any, i: number) => {
-                        const on = draft.methodDetail === m.method_detail && draft.methodLast4 === m.method_last4
-                        return (
-                          <button key={i} type="button"
-                            onClick={() => setDraft({ ...draft, methodDetail: m.method_detail || '', methodLast4: m.method_last4 || '' })}
-                            style={{ padding: '7px 13px', borderRadius: '99px', fontSize: '13px', cursor: 'pointer',
-                              fontFamily: F.sans, fontWeight: on ? 600 : 400,
-                              background: on ? L.ink : L.card, color: on ? '#fff' : L.ink,
-                              border: on ? '1px solid transparent' : `1px solid ${L.line}` }}>
-                            {m.method_detail || '—'}{m.method_last4 ? ` ···${m.method_last4}` : ''}
-                          </button>
-                        )
-                      })}
-                    </div>
-                  ) : null
-                })()}
-                <div style={{ display: 'flex', gap: '8px', marginTop: '7px' }}>
-                  <input value={draft.methodDetail}
-                    onChange={e => setDraft({ ...draft, methodDetail: e.target.value })}
-                    placeholder={draft.method === 'card' ? 'Card (e.g. Amex)' : 'Bank (e.g. BMO)'}
-                    style={{ flex: 1, padding: '11px 13px', border: `1px solid ${L.line}`, borderRadius: '10px', fontSize: '14px', fontFamily: F.sans }} />
-                  <input value={draft.methodLast4}
-                    onChange={e => setDraft({ ...draft, methodLast4: e.target.value.replace(/\D/g, '').slice(0, 4) })}
-                    placeholder="Last 4" inputMode="numeric"
-                    style={{ width: '104px', padding: '11px 13px', border: `1px solid ${L.line}`, borderRadius: '10px', fontSize: '14px', fontFamily: F.mono }} />
-                </div>
-              </div>
-            )}
+            {/* Which bank or card. One implementation, shared with the
+                mark-paid flow — see components/admin/MethodPicker.tsx. */}
+            <MethodPicker method={draft.method} detail={draft.methodDetail} last4={draft.methodLast4}
+              onChange={(d, l) => setDraft({ ...draft, methodDetail: d, methodLast4: l })} />
 
             <div>
               <div style={microLabel}>Paid on</div>

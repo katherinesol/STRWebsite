@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { EXPENSE_CATEGORIES, HALF_DEDUCTIBLE } from '@/lib/expense-categories'
 import { PROPERTY_OPTIONS } from '@/lib/property-options'
 import ReceiptQueue from '@/components/admin/ReceiptQueue'
@@ -47,6 +47,21 @@ export default function ExpensesPage() {
   const [busy, setBusy] = useState(false)
   const [note, setNote] = useState('')
   const [hstTouched, setHstTouched] = useState(false)
+
+  /*  The form panel renders after the table, and the table is every expense in
+      the filtered year — fifty-eight rows, about 2,500px. So "New expense" set
+      the state correctly and the form opened two and a half screens below the
+      button that opened it, which reads exactly like a dead button. Bring it
+      into view instead of moving it: the panel belongs below the list it adds
+      to, and a reader who scrolls back up should still find the table where it
+      was. */
+  const panelRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!panel) return
+    const id = requestAnimationFrame(() =>
+      panelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+    return () => cancelAnimationFrame(id)
+  }, [panel])
 
   const reload = () => fetch('/api/admin/expenses').then(r => r.json()).then(setD).catch(() => {})
 
@@ -280,7 +295,7 @@ export default function ExpensesPage() {
           </div>
 
           {panel === 'new' && form && (
-            <div style={{ ...cardStyle, padding: '22px', marginTop: '20px' }}>
+            <div ref={panelRef} style={{ ...cardStyle, padding: '22px', marginTop: '20px', scrollMarginTop: '18px' }}>
               <span style={{ ...microLabel, display: 'block', marginBottom: '14px' }}>{form.id ? 'Edit expense' : 'New expense'}</span>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px' }}>
                 <label style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}><span style={microLabel}>Date</span>
@@ -313,7 +328,7 @@ export default function ExpensesPage() {
           )}
 
           {panel === 'receipts' && (
-            <div style={{ ...cardStyle, padding: '22px', marginTop: '20px' }}>
+            <div ref={panelRef} style={{ ...cardStyle, padding: '22px', marginTop: '20px' }}>
               <span style={{ ...microLabel, display: 'block', marginBottom: '10px' }}>Add receipts</span>
               <p style={{ fontSize: '13px', color: L.inkBody, maxWidth: '620px', marginTop: 0 }}>
                 Drop images or PDFs. Multi-page PDFs are split a page at a time, each page read
