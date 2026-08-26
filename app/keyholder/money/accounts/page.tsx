@@ -22,6 +22,32 @@ export default function AccountsPage() {
   const [d, setD] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [open, setOpen] = useState<string | null>(null)
+  const [assigning, setAssigning] = useState<string | null>(null)
+  const [pick, setPick] = useState<string>('')
+  const [ref, setRef] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+
+  function reload() {
+    setLoading(true)
+    fetch(`/api/admin/accounts?year=${year}`)
+      .then(r => r.json()).then(setD).catch(() => {}).finally(() => setLoading(false))
+  }
+
+  async function assign(paymentId: string) {
+    setBusy(true); setErr(null)
+    try {
+      const res = await fetch(`/api/admin/payments/${paymentId}/assign`, {
+        method: 'PATCH', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ account_id: pick, reference: ref.trim() || null }),
+      })
+      const j = await res.json()
+      if (!res.ok) { setErr(j.detail || j.error || 'Could not assign'); return }
+      setAssigning(null); setPick(''); setRef('')
+      reload()   // the row leaves ⚠ Unrecorded and joins its account
+    } catch (e: any) { setErr(e?.message || 'Could not assign') }
+    finally { setBusy(false) }
+  }
 
   useEffect(() => {
     setLoading(true)
@@ -49,6 +75,19 @@ export default function AccountsPage() {
         Movement, not balance — money that moved in this window. There are no opening
         balances, so these totals are not a position and will not reconcile to a statement.
       </p>
+
+      {!loading && d?.staleness?.count > 0 && (
+        <div style={{ ...cardStyle, padding: '14px 18px', marginBottom: '18px',
+          background: L.amberWash, border: `1px solid ${L.amberLine}` }}>
+          <div style={{ ...microLabel, color: L.amber, marginBottom: '3px' }}>Not everything is here yet</div>
+          <div style={{ fontSize: '13px', color: L.inkBody, lineHeight: 1.5 }}>
+            <strong>{d.staleness.count} payment{d.staleness.count === 1 ? '' : 's'}</strong>{' '}
+            ({money(d.staleness.total)}) logged since this view was built {d.staleness.count === 1 ? 'is' : 'are'} not
+            included. Invoice payments are still recorded separately, so anything logged there
+            after the migration will not appear on this page until the two are joined up.
+          </div>
+        </div>
+      )}
 
       {loading && <div style={{ fontSize: '13px', color: L.inkFaint }}>Loading…</div>}
 
@@ -87,15 +126,47 @@ export default function AccountsPage() {
                 this money landed somewhere and the destination was never written down.
               </div>
               {d.unknown.rows.map((p: any) => (
-                <div key={p.id} style={{ display: 'flex', gap: '10px', alignItems: 'center', padding: '6px 0', borderTop: `1px solid ${L.amberLine}`, fontSize: '13px' }}>
-                  <span style={{ ...num, color: L.inkBody }}>{(p.paid_at || '').slice(0, 10)}</span>
-                  <span style={{ ...num, fontWeight: 600 }}>{money(p.amount)}</span>
-                  <span style={{ color: L.inkFaint }}>{p.method}{p.slot ? ` · ${p.slot}` : ''}</span>
-                  <button disabled title="Assigning an account writes to payments — not part of this read-only surface"
-                    style={{ marginLeft: 'auto', padding: '4px 10px', fontSize: '12px', borderRadius: '99px',
-                      border: `1px solid ${L.line}`, background: L.card, color: L.inkFaint, cursor: 'not-allowed', fontFamily: 'inherit' }}>
-                    Assign
-                  </button>
+                <div key={p.id} style={{ padding: '6px 0', borderTop: `1px solid ${L.amberLine}`, fontSize: '13px' }}>
+                  <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                    <span style={{ ...num, color: L.inkBody }}>{(p.paid_at || '').slice(0, 10)}</span>
+                    <span style={{ ...num, fontWeight: 600 }}>{money(p.amount)}</span>
+                    <span style={{ color: L.inkFaint }}>{p.method}{p.slot ? ` · ${p.slot}` : ''}</span>
+                    <button onClick={() => { setAssigning(assigning === p.id ? null : p.id); setPick(''); setRef(''); setErr(null) }}
+                      style={{ marginLeft: 'auto', padding: '4px 11px', fontSize: '12px', borderRadius: '99px',
+                        border: `1px solid ${L.amberLine}`, background: assigning === p.id ? L.ink : L.card,
+                        color: assigning === p.id ? '#fff' : L.ink, cursor: 'pointer', fontFamily: 'inherit' }}>
+                      {assigning === p.id ? 'Cancel' : 'Assign'}
+                    </button>
+                  </div>
+
+                  {assigning === p.id && (
+                    <div style={{ padding: '10px 0 4px', display: 'flex', flexDirection: 'column', gap: '9px' }}>
+                      <div style={{ ...microLabel }}>Which account received this?</div>
+                      <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                        {accounts.map((a: any) => (
+                          <button key={a.id} onClick={() => setPick(a.id)} style={pill(pick === a.id)}>
+                            {a.name} ····{a.last4}
+                          </button>
+                        ))}
+                      </div>
+                      <input value={ref} onChange={e => setRef(e.target.value)}
+                        placeholder="Reference (optional) — for matching a bank statement later"
+                        style={{ padding: '8px 11px', fontSize: '13px', border: `1px solid ${L.line}`,
+                          borderRadius: '7px', background: L.card, color: L.ink, fontFamily: 'inherit' }} />
+                      {err && <div style={{ fontSize: '12px', color: L.red }}>{err}</div>}
+                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                        <button disabled={!pick || busy} onClick={() => assign(p.id)}
+                          style={{ padding: '7px 14px', fontSize: '13px', borderRadius: '99px', fontFamily: 'inherit',
+                            border: 'none', background: pick && !busy ? L.ink : L.line,
+                            color: pick && !busy ? '#fff' : L.inkFaint, cursor: pick && !busy ? 'pointer' : 'not-allowed' }}>
+                          {busy ? 'Saving…' : 'Save account'}
+                        </button>
+                        <span style={{ fontSize: '12px', color: L.inkFaint }}>
+                          Sets the account only — the amount and date are not editable here.
+                        </span>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

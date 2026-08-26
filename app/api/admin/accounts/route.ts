@@ -35,11 +35,12 @@ export async function GET(request: NextRequest) {
   const supabase = createAdminClient()
   const year = request.nextUrl.searchParams.get('year')   // '2026' | 'all'
 
-  const [{ data: accounts }, { data: rows }] = await Promise.all([
+  const [{ data: accounts }, { data: rows }, { data: sourceRows }] = await Promise.all([
     supabase.from('bank_accounts').select('*').order('sort_order'),
     supabase.from('payments').select(
-      'id, direction, amount, status, paid_at, due_date, method, account_id, reference, slot, note, invoice_id, booking_id, booking_kind',
+      'id, direction, amount, status, paid_at, due_date, method, account_id, reference, slot, note, invoice_id, booking_id, booking_kind, source_payment_id',
     ).order('paid_at', { ascending: false }),
+    supabase.from('invoice_payments').select('id, amount, paid_at'),
   ])
 
   const all = rows || []
@@ -79,8 +80,25 @@ export async function GET(request: NextRequest) {
 
   const years = [...new Set(all.filter(r => r.paid_at).map(r => r.paid_at.slice(0, 4)))].sort().reverse()
 
+  /*  STALENESS. The invoice panel still writes invoice_payments and nothing
+   *  writes payments, so a payment logged after the migration appears on the
+   *  Invoices screen and is invisible here — this view would quietly understate
+   *  what left an account, with nothing on screen to say so.
+   *
+   *  Counting the invoice_payments rows no payments row claims turns that
+   *  silence into a number. It is read-only and cannot drift; it simply makes
+   *  the growing gap visible until the invoice read/write switch closes it.
+   *  Right now it is zero, which is the honest answer, not a hidden one. */
+  const claimed = new Set(all.map(r => r.source_payment_id).filter(Boolean))
+  const unmirrored = (sourceRows || []).filter(r => !claimed.has(r.id))
+  const staleness = {
+    count: unmirrored.length,
+    total: r2(unmirrored.reduce((a, b) => a + n(b.amount), 0)),
+    rows: unmirrored.map(r => ({ amount: n(r.amount), paid_at: r.paid_at })),
+  }
+
   return NextResponse.json({
-    accounts: cards, cash, unknown, grid, years,
+    accounts: cards, cash, unknown, grid, years, staleness,
     total: tally(scoped),
     payments: scoped,
     generated_at: new Date().toISOString(),

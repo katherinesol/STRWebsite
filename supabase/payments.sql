@@ -172,3 +172,49 @@ update payments p
 set    expense_created = ip.expense_created
 from   invoice_payments ip
 where  p.source_payment_id = ip.id;
+
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- STAGE 4a — the account-assignment invariant, enforced in the database
+--
+-- Twenty-one payments were copied from invoice_payments and still carry
+-- source_payment_id. For those rows the account of record lives in
+-- invoice_payments.method_last4, because the invoice panel still writes there
+-- and nothing has switched. Changing account_id on such a row would leave the
+-- two disagreeing with no way to tell which was right.
+--
+-- The assign endpoint already refuses them. This exists because an invariant
+-- about money should not rest on every future caller remembering it — a script,
+-- a console session or a later endpoint would bypass the check and nothing
+-- would notice. Here it is impossible rather than discouraged.
+--
+-- A CHECK constraint cannot express this: it sees only the candidate row, not
+-- whether the UPDATE changed account_id, so it would also reject the untouched
+-- rows it is meant to leave alone. Hence a BEFORE UPDATE trigger.
+--
+-- INSERT is deliberately NOT guarded. Stage 2 legitimately inserted mirrored
+-- rows with both source_payment_id and account_id set; blocking that would have
+-- made the migration itself impossible. Only later CHANGES are refused.
+-- ═══════════════════════════════════════════════════════════════════════════
+
+create or replace function payments_block_account_change_on_mirrored()
+returns trigger
+language plpgsql
+as $$
+begin
+  if new.source_payment_id is not null
+     and new.account_id is distinct from old.account_id then
+    raise exception
+      'account_id cannot be changed on a payment mirrored from invoice_payments (source_payment_id %). Its account of record is invoice_payments.method_last4 until the invoice read/write switch.',
+      new.source_payment_id
+      using errcode = 'check_violation';
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists payments_account_guard on payments;
+create trigger payments_account_guard
+  before update on payments
+  for each row
+  execute function payments_block_account_change_on_mirrored();
