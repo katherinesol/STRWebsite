@@ -165,7 +165,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       ok: false, applied: false,
       error: missing
-        ? 'create_booking_full is not installed. Run supabase/create_booking_full.sql — nothing was written.'
+        ? 'create_booking_full is not installed. Run supabase/create_booking_full_v2.sql — nothing was written.'
         : error.message,
     }, { status: missing ? 501 : 500 })
   }
