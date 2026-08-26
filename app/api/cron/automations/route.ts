@@ -125,7 +125,6 @@ export async function GET(request: NextRequest) {
 
       for (const b of plat || []) {
         const isAirbnb = b.platform === 'airbnb'
-        if (isAirbnb && b.property_id === 'nickel-beach') continue
         const code = String(b.door_code || '').replace(/\D/g, '').slice(-4)
         if (!code) { results.lockSweep.failures.push({ guest: b.guest_name, property: b.property_id, start: b.start_date, issue: 'no code on booking' }); continue }
         results.lockSweep.checked++

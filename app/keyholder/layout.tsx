@@ -15,7 +15,7 @@ export default async function KeyholderLayout({ children }: { children: React.Re
 
   return (
     <div style={{ minHeight: '100vh', background: L.page, color: L.ink, fontFamily: F.sans }}>
-      <KeyholderNav initial={(auth.name || 'K').slice(0, 1).toUpperCase()} />
+      <KeyholderNav initial={(auth.name || 'K').slice(0, 1).toUpperCase()} role={auth.role} />
       <main style={{ ...container, paddingTop: '4px', paddingBottom: '72px' }}>{children}</main>
     </div>
   )

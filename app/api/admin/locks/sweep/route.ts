@@ -43,7 +43,6 @@ export async function GET() {
   for (const b of plat || []) {
     if (b.start_date < today) continue // stay already underway — code is live, don't flag
     const isAirbnb = b.platform === 'airbnb'
-    if (isAirbnb && b.property_id === 'nickel-beach') continue // airbnb owns it, nothing to track
     const code = String(b.door_code || '').replace(/\D/g, '').slice(-4)
     const doors: any[] = []
     for (const lock of locksFor(b.property_id)) {
