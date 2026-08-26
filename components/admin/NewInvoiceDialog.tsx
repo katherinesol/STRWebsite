@@ -1,5 +1,6 @@
 'use client'
 import { useState } from 'react'
+import MethodPicker, { DETAILED } from '@/components/admin/MethodPicker'
 import { L, F, microLabel, cardStyle, money } from '@/lib/design-tokens'
 // The invoice category becomes the expense category when a payment is logged,
 // so it must come from the CRA-aligned list, never a local one.
@@ -37,12 +38,34 @@ export default function NewInvoiceDialog({ onClose, onCreated }: { onClose: () =
   const [contact, setContact] = useState('')
   const [property, setProperty] = useState('royal-york-west')
   const [category, setCategory] = useState('Repairs & maintenance')
+  /*  TAX IS A RATE YOU PICK, NOT AN AMOUNT YOU TYPE.
+   *
+   *  This was a bare HST box. Typing a dollar figure is how a wrong rate gets in
+   *  and stays in — the reconciliation turned up 11% charged where 13% was due,
+   *  and it is invisible once it is only a number. The legacy screen already had
+   *  a mode picker; the redesign dropped it, which is also why two invoices sit
+   *  in the database marked 'auto' with zero tax and disagree between screens.
+   *
+   *  THE BASE. HST is charged on the pre-tax amount actually billed, which is the
+   *  line items less any deductions — never on a total that already contains tax.
+   *  Getting that base wrong is precisely the error the reconciliation cleaned up.
+   *
+   *      subtotal = Σ items − Σ deductions
+   *      HST      = rate × subtotal
+   *      total    = subtotal + HST
+   *
+   *  The mode is stored alongside the amount, so both screens read the same
+   *  intent instead of inferring one. */
+  const [taxMode, setTaxMode] = useState<'auto' | 'none' | 'manual'>('auto')
+  const [taxRate, setTaxRate] = useState('13')
   const [hst, setHst] = useState('')
   const [items, setItems] = useState<Line[]>([newLine()])
   const [adjustments, setAdjustments] = useState<Line[]>([])
   const [withPayment, setWithPayment] = useState(false)
   const [payAmount, setPayAmount] = useState('')
   const [payMethod, setPayMethod] = useState('etransfer')
+  const [payDetail, setPayDetail] = useState('')
+  const [payLast4, setPayLast4] = useState('')
   const [payStatus, setPayStatus] = useState<'paid' | 'planned'>('paid')
   const [payDate, setPayDate] = useState(today())
   const [createExpense, setCreateExpense] = useState(true)
@@ -52,13 +75,18 @@ export default function NewInvoiceDialog({ onClose, onCreated }: { onClose: () =
   const validAdj = adjustments.filter(l => l.description.trim() && num(l.amount) > 0)
   const lineTotal = r2(validItems.reduce((s, l) => s + num(l.amount), 0))
   const heldBack = r2(validAdj.reduce((s, l) => s + num(l.amount), 0))
-  const hstAmt = r2(num(hst))
+  const taxable = r2(lineTotal - heldBack)
+  const hstAmt = taxMode === 'none' ? 0
+    : taxMode === 'manual' ? r2(num(hst))
+      : r2(taxable * (num(taxRate) / 100))
   const total = r2(lineTotal - heldBack + hstAmt)
   const payAmt = withPayment ? r2(num(payAmount)) : 0
   const paidNow = withPayment && payStatus === 'paid' ? payAmt : 0
   const outstanding = r2(total - paidNow)
 
-  const canPreview = title.trim() && validItems.length > 0 && (!withPayment || payAmt > 0)
+  const accountNamed = !DETAILED.includes(payMethod) || !!payDetail.trim() || !!payLast4
+  const canPreview = title.trim() && validItems.length > 0
+    && (!withPayment || (payAmt > 0 && accountNamed))
 
   async function create() {
     setBusy(true); setErr('')
@@ -71,8 +99,13 @@ export default function NewInvoiceDialog({ onClose, onCreated }: { onClose: () =
           property_id: property || null, category, hst_amount: hstAmt,
           items: validItems.map(l => ({ id: l.id, description: l.description.trim(), amount: num(l.amount) })),
           adjustments: validAdj.map(l => ({ id: l.id, description: l.description.trim(), amount: num(l.amount), reason: l.reason || 'other' })),
+          tax_mode: taxMode,
           payment: withPayment ? {
             id: ids.payment, amount: payAmt, method: payMethod, status: payStatus,
+            // which account it left from. Absent until 2026-08-26, which is how
+            // two billpays reached the ledger with no account named at all.
+            method_detail: DETAILED.includes(payMethod) ? (payDetail.trim() || null) : null,
+            method_last4: DETAILED.includes(payMethod) ? (payLast4 || null) : null,
             paid_at: payStatus === 'paid' ? payDate : null,
             due_date: payStatus === 'planned' ? payDate : null,
           } : null,
@@ -141,9 +174,34 @@ export default function NewInvoiceDialog({ onClose, onCreated }: { onClose: () =
               {adjustments.map(l => lineRow(l, adjustments, setAdjustments, true))}
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '160px 1fr', gap: '12px', alignItems: 'end' }}>
-              <div><div style={microLabel}>HST</div><input type="number" value={hst} onChange={e => setHst(e.target.value)} placeholder="0.00" min="0" step="0.01" style={{ ...inputStyle, marginTop: '5px' }} /></div>
-              <span style={{ fontSize: '13px', color: L.inkMuted, paddingBottom: '12px' }}>Leave blank if the contractor doesn&rsquo;t charge tax.</span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '9px' }}>
+              <div style={microLabel}>Tax</div>
+              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
+                {([['auto', 'HST 13%'], ['none', 'No tax / exempt'], ['manual', 'Enter the amount']] as const).map(([m, label]) => (
+                  <button key={m} type="button" onClick={() => { setTaxMode(m); if (m === 'auto') setTaxRate('13') }}
+                    style={{ padding: '7px 13px', borderRadius: '99px', fontSize: '13px', cursor: 'pointer', fontFamily: F.sans,
+                      fontWeight: taxMode === m ? 600 : 400,
+                      background: taxMode === m ? L.ink : L.card, color: taxMode === m ? '#fff' : L.ink,
+                      border: taxMode === m ? '1px solid transparent' : `1px solid ${L.line}` }}>{label}</button>
+                ))}
+                {taxMode === 'auto' && (
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: L.inkBody }}>
+                    at
+                    <input value={taxRate} onChange={e => setTaxRate(e.target.value.replace(/[^\d.]/g, ''))}
+                      inputMode="decimal" style={{ ...inputStyle, width: '68px', textAlign: 'right' }} />
+                    %
+                  </span>
+                )}
+                {taxMode === 'manual' && (
+                  <input type="number" value={hst} onChange={e => setHst(e.target.value)} placeholder="0.00" min="0" step="0.01"
+                    style={{ ...inputStyle, width: '120px' }} />
+                )}
+              </div>
+              <span style={{ fontSize: '13px', color: L.inkMuted }}>
+                {taxMode === 'none' ? 'No tax on this invoice.'
+                  : taxMode === 'manual' ? 'Typed straight in — use this only when the invoice states an amount that no rate reproduces.'
+                    : <>{money(taxable)} &times; {num(taxRate)}% = <strong style={{ color: L.ink }}>{money(hstAmt)}</strong> — charged on the subtotal after deductions, never on a total that already includes tax.</>}
+              </span>
             </div>
 
             <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', fontSize: '14px' }}>
@@ -159,6 +217,15 @@ export default function NewInvoiceDialog({ onClose, onCreated }: { onClose: () =
                   <option value="paid">already paid</option><option value="planned">scheduled</option></select></div>
                 <div style={{ gridColumn: '1 / -1' }}><div style={microLabel}>{payStatus === 'paid' ? 'Paid on' : 'Due on'}</div>
                   <input type="date" value={payDate} onChange={e => setPayDate(e.target.value)} style={{ ...inputStyle, marginTop: '5px', width: '200px' }} /></div>
+                <div style={{ gridColumn: '1 / -1' }}>
+                  <MethodPicker method={payMethod} detail={payDetail} last4={payLast4}
+                    onChange={(d, l) => { setPayDetail(d); setPayLast4(l) }} />
+                  {DETAILED.includes(payMethod) && !accountNamed && (
+                    <div style={{ fontSize: '12px', color: L.amber, marginTop: '6px' }}>
+                      Name the account — an {payMethod} came from somewhere, and a payment recorded without one cannot be matched to a statement later.
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 

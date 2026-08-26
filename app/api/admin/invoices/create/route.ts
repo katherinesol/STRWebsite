@@ -73,6 +73,9 @@ export async function POST(request: NextRequest) {
     category: b?.category || null,
     notes: b?.notes || null,
     hst_amount: hst,
+    // the declared tax intent travels with the amount, so the list and the editor
+    // read the same thing instead of one recomputing what the other stored
+    tax_mode: ['auto', 'none', 'manual'].includes(b?.tax_mode) ? b.tax_mode : 'auto',
     due_date: b?.due_date || null,
     items, adjustments, payment,
   }
@@ -96,7 +99,7 @@ export async function POST(request: NextRequest) {
       id: invoice_id, title,
       contractor_name: payload.contractor_name, contractor_contact: payload.contractor_contact,
       company: payload.company, property_id: payload.property_id, category: payload.category,
-      notes: payload.notes, hst_amount: hst, status: 'open',
+      notes: payload.notes, hst_amount: hst, tax_mode: payload.tax_mode, status: 'open',
       share_token: crypto.randomUUID().replace(/-/g, '').slice(0, 16),
       due_date: payload.due_date,
     })
@@ -120,6 +123,10 @@ export async function POST(request: NextRequest) {
         const { error: payErr } = await supabase.from('invoice_payments').insert({
           id: payment.id, invoice_id, amount: n(payment.amount),
           paid_at: payment.paid_at || null, method: payment.method || null,
+          // which account it came from. Dropped here until 2026-08-26, which is
+          // how two billpays reached the ledger with nothing naming the account.
+          method_detail: payment.method_detail || null,
+          method_last4: payment.method_last4 || null,
           status: payment.status || 'paid', due_date: payment.due_date || null,
         })
         if (payErr) { await undo(); return NextResponse.json({ error: `Nothing was created — payment failed: ${payErr.message}`, rolledBack: true }, { status: 500 }) }

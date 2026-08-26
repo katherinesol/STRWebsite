@@ -128,15 +128,23 @@ function InvoiceEditor({ editing, setEditing, saveAll, error, onCancel, onDelete
   const taxMode = e.tax_mode || 'auto'
   const hst = taxMode === 'none' ? 0 : taxMode === 'manual' ? (Number(e.hst_amount) || 0) : (itemTotal - adjTotal) * 0.13
   const total = itemTotal - adjTotal + hst
-  // keep editing.hst_amount in sync with auto mode; clear it when 'none'
-  useEffect(() => {
-    if (taxMode === 'auto') {
-      const computed = Number(((itemTotal - adjTotal) * 0.13).toFixed(2))
-      setEditing((prev: any) => prev.hst_amount === computed ? prev : { ...prev, hst_amount: computed })
-    } else if (taxMode === 'none') {
-      setEditing((prev: any) => prev.hst_amount === 0 ? prev : { ...prev, hst_amount: 0 })
-    }
-  }, [itemTotal, adjTotal, taxMode])
+  /*  HST IS DERIVED AT SAVE, NOT ON VIEW.
+   *
+   *  This used to be an effect that wrote the computed HST into the form
+   *  whenever the totals or the mode changed — including on first render, before
+   *  anyone had touched anything. Opening an invoice therefore STAGED a change to
+   *  its tax, and the next save for any reason at all committed it. Gas Line and
+   *  Solid Waste both carried tax_mode 'auto' with hst_amount 0; merely opening
+   *  either one here and then correcting a typo elsewhere would have rewritten
+   *  their HST to 45.50 and 32.48 without a word.
+   *
+   *  A screen must not change a record because it was looked at. The value is now
+   *  computed in flushAndSave, from the mode as it stands at the moment of
+   *  saving, so viewing is inert and saving is explicit. */
+  const hstForSave = () =>
+    taxMode === 'none' ? 0
+      : taxMode === 'manual' ? (Number(e.hst_amount) || 0)
+        : Number(((itemTotal - adjTotal) * 0.13).toFixed(2))
   const shareUrl = typeof window !== 'undefined' && e.share_token ? `${window.location.origin}/invoice/${e.share_token}` : ''
 
   const lbl: React.CSSProperties = { fontSize: '10px', textTransform: 'uppercase', letterSpacing: '.1em', margin: '16px 0 8px' }
@@ -199,6 +207,9 @@ function InvoiceEditor({ editing, setEditing, saveAll, error, onCancel, onDelete
     if (itemDesc && itemAmt) next = { ...next, items: [...next.items, { description: itemDesc, amount: itemAmt }] }
     if (adjDesc && adjAmt) next = { ...next, adjustments: [...next.adjustments, { description: adjDesc, amount: adjAmt }] }
     if (payAmt) next = { ...next, payments: [...next.payments, { amount: payAmt, status: payStatus, paid_at: payStatus === 'paid' ? payDate : null, due_date: payStatus === 'planned' ? payDue : null, method: payMethod, method_detail: (payMethod === 'credit' || payMethod === 'debit' || payMethod === 'etransfer' || payMethod === 'billpay') ? payDetail : null, method_last4: (payMethod === 'credit' || payMethod === 'debit' || payMethod === 'etransfer' || payMethod === 'billpay') ? payLast4 : null }] }
+    // the tax comes from the declared mode, resolved here rather than staged by a
+    // render — see the note above hstForSave
+    next = { ...next, hst_amount: hstForSave() }
     setEditing(next)
     // clear the inputs
     setItemDesc(''); setItemAmt(''); setAdjDesc(''); setAdjAmt(''); setPayAmt(''); setPayDetail(''); setPayLast4('')
