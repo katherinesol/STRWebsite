@@ -185,11 +185,25 @@ being built as standalone `in` rows on `payments`, not as a property problem.
 - **Tudor's $243.54** — tax collected on a refunded night, still in hand. Refund
   the guest or remit the full 738.27. **A decision, not a task.**
 - **MAT return treatment** — the credit to confirm at filing.
-- **Heremela repair costs** — to sit against the $2,464.57 recovered.
+- **Heremela's $83.32 overpayment — query with Airbnb, do not assume.** Airbnb
+  settled **$2,112.27** on damage claim `CLSF-06099978` against a request of
+  **$2,028.95** — $83.32 more than was asked for. **This does not change the
+  recording**: the money arrived and all three payouts are entered as
+  non-booking income (2026-08-26). But an overpayment is money a platform may
+  reclaim, and treating a surplus as good news because it is in your favour is
+  how it turns into a surprise deduction later. Raise it with Airbnb and get the
+  answer in writing. Payout ids `G-O7IFKBHGEBBH4` and `G-NIWJBBSNU6IIT`.
+- **Heremela repair costs** — to sit against the $2,464.57 recovered. **Until
+  these are entered the P&L shows the recovery as pure gain**, which overstates
+  what the stay actually netted.
 - **Molhem's VRBO trace** — a note pointing at a booking in the missing months.
 - **Per and Mikaela stay at $0 deliberately.** The flag doing its job is the point.
 
 ## Parked decisions
+
+- **Heremela's $83.32** — parked on Airbnb's answer, not on ours. Recorded and
+  reconciled; the only open question is whether they intended to pay it. See the
+  reconciliation list above.
 
 - **VRBO/Airbnb tax audit** — four files held from deploy pending it:
   `TaxToggleField.tsx` (untracked), `BookingEditForm.tsx`,
