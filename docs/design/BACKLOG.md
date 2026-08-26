@@ -25,6 +25,7 @@ gaps · **SHELL** the UI exists but nothing behind it · **SPEC** not started.
 | **Shared-door misattribution** | `app/api/webhooks/seam/route.ts` | FIXED, awaiting deploy. One device under two properties; RYW guests never matched, and a guest entering via the shared door first got no `checked_in_at`. |
 | **Import route** | `app/api/admin/bookings/import/route.ts` | RETIRED 410, awaiting deploy. Never once succeeded. Not repaired deliberately — a working version bypasses the tax engine. |
 | **Blanket Nickel Beach skip** | both sweeps | FIXED 2026-08-26. The per-lock + per-platform rule (skip only if the booking is Airbnb **and** that lock is `airbnb_managed`) already existed in all three code paths — `seam.ts:161` and both sweep inner loops — so the blanket line was a special case short-circuiting logic that was already correct. Deleting it was the whole fix. Note Nickel Beach has **one** lock, `Port Colborne`, and it is **not** `airbnb_managed`: there was never an Airbnb-coded door there, which is why Airbnb guests got no code from anyone. |
+| **A guest who owes money with no due dates is invisible on Today** | `app/keyholder/page.tsx` overdue predicate | The overdue card requires a due date in the past, so a booking that owes with `second_due_date` and `final_due_date` both null never appears — `unpaid()` says true and the amount is right, but nothing surfaces it. **Alain Roy (RS-1006) owes $4,440.00 this way.** His stay also ended 2026-07-23, before the page's window, so he is doubly invisible. Two separate questions: should an overdue card fire on a booking with no schedule at all, and should the page look further back than the current window for money still owed. Found 2026-08-26 while verifying the comp flag; predates that work and is unrelated to it. |
 | **`reprogramBookingWindow` is called once per unhealthy lock** | `automations/route.ts` ~line 141 | It sits **inside** the per-lock loop but **itself loops every lock of the property**, so with two unhealthy locks it runs twice, each pass touching every eligible lock — locks programmed twice per sweep and `reprogrammed` inflated. Not harmful: the second pass updates rather than duplicates, and it never touches an `airbnb_managed` door for an Airbnb booking (guarded in both layers). Hoist it out of the loop. **Own focused change — it touches real lock programming.** Logged 2026-08-26. |
 | **Ziyue Jia's code never landed** | Seam, booking 2026-09-04 | `5105` created 2026-07-29, still `on_device=false`. Check directly ~48h before 4 Sep; program by hand if absent. **Open, dated.** |
 | **Card bookings take no money** | `app/api/bookings/route.ts:92` | See Part 2. A guest choosing "card" gets `status: 'confirmed'` with nothing charged. **The most serious item in this file.** |
@@ -63,9 +64,27 @@ anything not in the doc was dropped. Three found by complaint, one by search.
    should become per-property configuration first.
 4. *(A fourth was mentioned but never named — ask.)*
 
+## Shipped since this file was written
+
+- **Payment reconciliation, stages 1–4a** (2026-08-26). `bank_accounts` and a
+  unified `payments` table; 25 rows migrated with `invoice_payments` byte-identical
+  throughout; `expense_created` + `source_payment_id` backfilled; the **Accounts**
+  surface live at `/keyholder/money/accounts`; the **Assign** write with its rule
+  enforced by a database trigger. Design and stage records in
+  [payment-reconciliation.md](payment-reconciliation.md).
+- **Free stays** (2026-08-26). `bookings.is_comp` separates a comped stay from an
+  unfinished one, so the no-total warning still fires on the second. Guest portal
+  no longer shows a comped booking an instalment schedule.
+- **Lock fixes and the nav restore** (2026-08-25/26). The always-firing sweep
+  alarm, the synced-arrivals blind spot, shared-door attribution, the retired
+  import route, the blanket Nickel skip, and Locks & Access back in the nav.
+
 ## Big builds
 
-- **Payment reconciliation — ONE build, not three.** Platform bookings have no
+- **Payment reconciliation — remaining stages.** 4b (payment-logging UI, account
+  mandatory for anything that is not cash) is **blocked on the invoice
+  read/write-switch decision**, path (a) switch together or (b) mirror with a
+  trigger. The 19-file booking-side switch is separate and larger. Original scope: Platform bookings have no
   payment history, invoice payments have no account, invoice payments have no
   reference: one problem seen three ways. Scoped in [README.md](README.md).
   **Highest-leverage item here** — it is what made this week's 39-booking
@@ -88,6 +107,74 @@ anything not in the doc was dropped. Three found by complaint, one by search.
   and run. Their UI is `WindLogCard` / `WaterUsageCard` on the legacy page — so
   **the monitoring has no home in the new shell** and is part of the retirement
   blocker above.
+
+## Royal York property model is incomplete — its own piece of work
+
+Recorded 2026-08-26. **Royal York has four units; the system models two.**
+
+**They are not four properties of this business.** Confirmed 2026-08-26:
+
+| unit | entity | status |
+|---|---|---|
+| Unit 1 — `royal-york-east` | this sole prop | STR. Locks and a listing, but **zero bookings and zero iCal feeds** |
+| Unit 2 — `royal-york-west` | this sole prop | STR, fully modelled and actively booked |
+| **Unit 3** — below unit 2 | this sole prop | **not rented yet**, no id anywhere. Future STR, to decide |
+| **Commercial** — below unit 1 | **a SEPARATE CORP** | **not an STR property here at all** |
+
+### The commercial unit is a different legal entity
+
+It is used by the owner's corporation, which is separate from this sole
+proprietorship. **Its revenue must never appear in this P&L** — mixing entities
+would be wrong for tax, not merely untidy. Modelling it as a fourth property here
+would invite exactly that error.
+
+Its **expenses are this business's**, confirmed 2026-08-26: the owner pays the
+commercial unit's improvements personally, so they are sole-prop costs and count
+normally. Commercial is therefore **just another `property_id`** — **no exclusion
+logic anywhere**, and none should ever be added. The entity boundary is held by
+the fact that its income has no path into this system at all, not by a filter
+that could be mis-set.
+
+Because of this, revenue for this business is **Nickel Beach + Royal York West
+only**, both fully in the system, so nothing is silently missing from a combined
+P&L.
+
+Confirmed by reading every table that carries a `property_id`: `calendar_blocks`,
+`bookings`, `expenses`, `invoices`, `property_locks`, `ical_feeds`, `supplies`.
+Nothing references a third or fourth unit. There is **no `properties` table** at
+all — the canonical list is `lib/properties.ts`, with a second, different list in
+`lib/property-options.ts` and a third inside `NewInvoiceDialog`.
+
+**This blocks the expense placements.** Costs belonging to unit 3 or the
+commercial unit have nowhere correct to go, so the `royal-york` /
+`royal-york-both` id cleanup must wait — consolidating first would bury those
+rows in a shared bucket they would have to be dug back out of.
+
+### What the work has to answer
+
+- **Are units 3 and commercial rented, and how?** The data cannot say — it can
+  only say they are absent. This decides whether they are full properties
+  (locks, calendars, iCal feeds, booking capability, guest access) or simply
+  attribution buckets for expenses. Note that `royal-york-east` is itself a
+  half-case: locks and a listing, but never booked through this system.
+- **Commercial may not be a short-term rental at all.** A commercial tenant is a
+  lease, not a stay — recurring rent received rather than nightly bookings, and
+  probably a different tax treatment. Modelling it as a fourth STR property could
+  be wrong in kind, not just in detail.
+- **Every place a property id is used** must be reviewed: the three disagreeing
+  code lists, `property_locks`, Seam device registration, `ical_feeds`,
+  `PROPERTY_NAMES` maps scattered across screens, and the expense/invoice forms.
+- **Whether a `properties` table should exist**, so the list stops being three
+  hand-maintained arrays that drift — which is what produced the
+  `royal-york` / `royal-york-both` split in the first place.
+
+### The P&L dependency
+
+**Resolved 2026-08-26: combined P&L can proceed.** Unit 3 earns nothing yet and
+the commercial unit's income belongs to another entity, so the only income this
+business has is Nickel Beach and Royal York West — both fully captured. The
+remaining gap is non-booking income (damage recoveries and the like), which is
+being built as standalone `in` rows on `payments`, not as a property problem.
 
 ## Data & reconciliation remaining
 
