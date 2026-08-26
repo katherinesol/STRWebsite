@@ -103,6 +103,77 @@ by hand through `/admin/locks`, with no automation and no alert.
 The last two widen what the sweep touches, so they want a reviewed change rather
 than a late-night one.
 
+## Door activity — the display was orphaned, the data never stopped
+
+Investigated 2026-08-25 after the door log was reported missing. It was reported
+as a "worked before, gone now" regression, the same shape as the invoice
+bank-selection one, and that reading was right.
+
+**Nothing was deleted.** `/admin/door-activity` and its API were built in one
+commit — `ead01e2`, 2026-08-02, *"per-property code-entry + check-in log, grouped
+by day, Toronto time; backfilled 29 historical entries from Seam"* — and no
+commit has touched either file since. The live page returns 200 with 150 entries.
+
+**The data is healthy.** A Seam webhook at
+[app/api/webhooks/seam/route.ts](../../app/api/webhooks/seam/route.ts) writes
+`door.entry` and `booking.checked_in` into **`system_log`** — not a
+`lock_events` table, which is why searching the obvious names finds nothing. 176
+door and check-in events between 2026-07-29 and now. It is also what sets
+`checked_in_at` on the booking.
+
+### 1. The Locks & Access group was left behind by the shell migration
+
+`KeyholderNav` carries six tabs — Today, Stays, Money, Property, People,
+Assistant. The legacy `AdminNav` has a **Locks & Access** group that has no
+equivalent in the new shell: **Locks, Door Activity, Staff Access, System
+Activity**. Four owner-only screens, reachable only through the small `/admin`
+link in the nav corner.
+
+Not the calendar redesign, not the sync-to-cron move, not any lock work — the
+screens were simply not carried across. **Restore the group in `KeyholderNav`.**
+Smallest of these fixes and the one that gives back what was noticed missing.
+
+### 2. Shared-door entries are attributed to the wrong property
+
+The shared front door is **one physical Seam device registered under both
+properties**:
+
+    353f9825-0c5a-4940…  →  royal-york-east/Royal Side  +  royal-york-west/Royal Side
+
+The webhook resolves it with `.eq('seam_device_id', …).limit(1).maybeSingle()`,
+which arbitrarily returns royal-york-east, then filters candidate bookings to
+that property. **A Royal York West guest can therefore never match on that
+door.** Observed live: `Royal Side opened with an unknown code's code (6286)`
+while 6286 was Kristine Nguyen's active RYW code.
+
+Two consequences, the second worse than the first. Every shared-door entry is
+misattributed and reads as an unknown code. And because `checked_in_at` is only
+set on a *matched* booking, **a guest whose first entry is the shared door never
+gets a check-in recorded.** Kristine only got one because she also opened Apt 2.
+
+The fix is to stop assuming one device means one property: match the code against
+bookings at *any* property the device is registered to, and attribute to the
+booking that matches. The malformed `"an unknown code's code"` string is worth
+fixing in the same pass.
+
+### 3. "Doors, this stay" was skipped on a false premise
+
+The design doc draws a per-stay event log on booking detail — *"Royal Side opened
+with Jerry's code, 4:07 PM"*. It was not built, and the comment at
+[components/keyholder/BookingDetail.tsx:23](../../components/keyholder/BookingDetail.tsx)
+records why:
+
+> *"There is no lock_events table and no activity_log in this database; those
+> events live in Seam and would need a live per-lock call."*
+
+**That is wrong, and it is sitting in the codebase as a justification for the
+gap.** The events are in `system_log`, indexed by property and timestamp. A
+per-stay view is a query bounded by the stay's dates — no Seam call. Build the
+view and **delete the comment**, so the false claim cannot justify the gap twice.
+
+Fix order: nav restore (smallest, restores what was lost), then the shared-door
+bug (it is misattributing entries right now), then the per-stay view.
+
 ## Payment reconciliation — one build, not three
 
 **The problem is single: a recorded payment cannot be matched to a bank
@@ -160,6 +231,51 @@ category view is client-side state rather than a link — which is why filtering
 by category felt unreachable rather than broken. Nothing regressed here; two
 pages are simply missing from a nav that promises them.
 
+## Booking detail & People — four issues from using it
+
+Captured 2026-08-25 while reconciling. Not started; the reconciliation finishes
+first.
+
+**1. Early check-in and late checkout cannot be edited — only granted.**
+Confirmed rather than assumed: `GrantsField` writes `early_checkin_granted` and
+`late_checkout_granted` and nothing else. It *displays* the requested time as
+read-only text and offers Granted / Refused chips. There is no control anywhere
+on the redesigned page to change 4:00 PM to 3:00 PM.
+
+**This is not the port-BookingActions work.** `BookingActions` on the legacy page
+also only grants. The times themselves are already in the `EDITABLE` allowlist on
+both PATCH endpoints — changing one is a single request, and doing exactly that
+by hand is how Kristine Nguyen's check-in moved to 3pm on 24 August, which also
+reprogrammed both locks. So the endpoint is finished and only the control is
+missing: a small piece of work on `GrantsField`, independent of the retirement.
+
+Worth pairing with the lock consequence, because editing a time reprograms the
+door: the PATCH triggers `reprogramBookingWindow` whenever a timing field
+changes, so the control should say so rather than silently moving a code window.
+
+**2. The People page has no search and no filters.** It loads every guest
+ordered by name and splits them into three fixed groups — returning, stayed
+once, never stayed. With 42 guests that is already awkward and it only grows.
+
+At minimum a name/email search box. Worth considering beyond that: property
+(who has stayed at which), has an upcoming stay, missing contact details — that
+last one is genuinely useful now, since a guest with no surname cannot verify
+and a guest with no email cannot be sent anything. Sorting by last stay or by
+lifetime value rather than only alphabetically.
+
+**3. Early/late times should say "standard" when they are standard.** The card
+prints `asked for 4:00 PM` whenever a time is present, which reads as a special
+request even when 4:00 PM *is* the standard check-in. It should compare against
+the property's standard and only call it a request when it is genuinely earlier
+or later — otherwise show "standard 4pm" and "standard 11am".
+
+This needs the standard times to live somewhere. They are currently implicit:
+`windowFromBooking` in `lib/seam.ts` defaults to 16:00 check-in and 11:00
+checkout when no time is set, and nothing else declares them. They should be
+per-property configuration, since Nickel Beach and the Royal York suites need not
+share a check-in hour, and the comparison should read from that rather than from
+a constant buried in the lock helper.
+
 ## Retire the two legacy booking pages — its own piece of work
 
 `/admin/bookings/[id]` and `/admin/bookings/block/[id]` are the last dark screens
@@ -213,6 +329,13 @@ Related: damage recovery may be income or an expense offset, which changes the
 net. That is the accountant's call, recorded in the reconciliation ledger.
 
 ## Backlog
+
+**Parking is old UI and thin on features.** `ParkingControl` and `/admin/parking`
+predate the redesign and were never carried into the new shell's visual
+language. Beyond the restyle it wants a proper scoping pass of its own: what a
+parking record should hold, how plates arrive and get confirmed, what the guest
+sees, and how it relates to `vehicle_count` / `plate_numbers` / `plates_pending`
+on the booking. Not a restyle job dressed up as a feature — scope first.
 
 **Email stats** — open rates, click rates, unsubscribes, bounces, delivery.
 Not started; needs investigation before it can be scoped.

@@ -324,3 +324,162 @@ again, with a door code attached.
 2. Is `added_by` worth carrying — is it useful to know who added a guest?
 3. Should the migration also create lead rows for the 9 unenriched synced rows
    if they later gain a guest, or is the figures-endpoint change enough?
+
+---
+
+# Step 3 — access. Scope only, nothing built.
+
+*Written 2026-08-25. All four decisions are settled; this is how they land.*
+
+## 1. The token model
+
+Four columns on `booking_guests`:
+
+```sql
+alter table booking_guests
+  add column if not exists access_token      text unique,
+  add column if not exists token_issued_at   timestamptz,
+  add column if not exists token_revoked_at  timestamptz,
+  add column if not exists token_last_used_at timestamptz;
+```
+
+**Generation.** 32 random bytes, base64url — 43 characters, ~192 bits. Not a
+UUID: v4 has 122 bits and reads like an identifier people expect to be
+guessable-adjacent. Minted only when access is granted, so a recorded co-guest
+with no token is a normal state — step 2 records, step 3 admits.
+
+**Storage: plain, not hashed** — with the reason stated so it is a choice rather
+than an oversight. Hashing would mean the host can never re-display a link, only
+mint a new one, and re-sending "the link I already gave you" is the common case.
+Door codes are already stored plain in the same database, so hashing tokens
+alone buys less than it costs. `booking_guests` has RLS enabled with no
+policies, and every read goes through the service role behind an API gate.
+
+**Revocation is `token_revoked_at`, never a delete.** A revoked row is the
+record that somebody once had access and no longer does; deleting it destroys
+exactly the audit the host asked for. Lookups filter `token_revoked_at is null`.
+
+**`token_last_used_at`** turns the audit from "who was given access" into "who
+actually used it", which is the more useful question after something goes wrong.
+
+**The `/support?t=…` flow.** The token identifies a *person on a booking*, so it
+resolves booking and role in one step — no code, no surname. A new
+`POST /api/guest-support/verify-token` looks the token up, applies the same
+window rules as the main gate, and returns the same shape with `role` attached.
+The lead keeps code + surname; nothing about their path changes.
+
+## 2. Lead-invite, and the host control that matters more
+
+**One extra column**, because `added_by` cannot carry this: it holds an auth
+user id, and a lead is a guest, not a user. Overloading it would make "who added
+this person" unanswerable.
+
+```sql
+alter table booking_guests
+  add column if not exists invited_by_guest_id uuid references guests(id);
+```
+
+Null means the host added them. Populated means a lead did, and names which one.
+
+**The flow.** The lead, already verified, adds a name and email. The system mints
+a token and shows them **a link to forward** — it does not send email. Sending
+would mean outbound mail to an address the lead typed, from your domain,
+triggered by a guest. A link the lead pastes into their own group chat is the
+same outcome without that.
+
+**A cap of 6 per booking.** Nickel Beach sleeps ten, so six co-guests plus the
+lead covers a full house while stopping a lead handing out fifty links. It should
+be a constant in one place, not scattered, so raising it is a one-line change.
+
+**The host surface — the piece to get right.** On the booking's co-guest list,
+each row gains: who added them (**"added by Kristine"** vs host-added), whether a
+token is issued, when it was last used, and **Revoke**. Revoke kills the token
+and leaves the row. A separate **Remove** still deletes the record entirely.
+Those are different actions and should look different — revoking access and
+erasing that access existed are not the same.
+
+Lead-invited people should be visually distinct in the list, because that is the
+set the host did not choose. Worth surfacing on Today as well —
+*"2 people were given access by guests this week"* — so it is noticed rather
+than discovered.
+
+## 3. The concierge caller-role
+
+**Filter the data, not the prompt.** A system-prompt instruction is not a
+security boundary: if the model can see the balance, some phrasing will get it
+out. The context builder omits money entirely for a co-guest, so there is
+nothing to leak. The prompt instruction is then a courtesy that shapes the
+refusal, not the thing enforcing it.
+
+| | Lead | Co-guest |
+|---|---|---|
+| Door code, wifi, times, guide, local recommendations | yes | **yes** |
+| Balance, total, deposit status, payment questions | yes | **no — not in context** |
+| Changing dates, cancelling, anything chargeable | yes | **no** |
+
+The refusal names who can help rather than stonewalling: *"I can't see the
+booking's payment details — the lead guest can check those."*
+
+This is the caller-role axis the parked confidence tiers need. The two multiply:
+tiers answer *how sure must I be*, role answers *who is asking*. A confident
+answer can still be the wrong thing to say to the wrong person.
+
+## 4. The two-tier window, and its three messages
+
+Measured against `check_in`, in the property's timezone:
+
+| When | Verifies? | Sees | Message |
+|---|---|---|---|
+| **> 30 days** | no | — | *"Check-in details become available 30 days before arrival. Your booking is confirmed."* |
+| **30 – 7 days** | yes | guide, wifi, times, local, concierge | code field reads *"Available 7 days before check-in"* |
+| **< 7 days** | yes | everything | — |
+| **after checkout + 3d** | no | — | *"This booking has ended."* (existing) |
+
+The 30-day state must be a **specific message, not a 404**. A guest twenty days
+out who sees "no booking found" concludes the system is broken and messages you;
+one who sees "available 7 days before arrival" waits.
+
+**And that specificity has a cost worth naming.** Saying "this booking exists but
+it is too early" confirms to anyone holding a code-and-surname pair that the pair
+is valid — an oracle a bare 404 does not give. The existing limit is 8 failed
+attempts per IP per 15 minutes, which is IP-based and so not much against a
+distributed attempt. Recommendation: ship the clear message, and tighten the
+limit at the same time. Do not ship the message and leave the limit as it is.
+
+## 5. Blast radius — this changes every guest, not only co-guests
+
+Of the 13 live bookings on 2026-08-25:
+
+| | count | who |
+|---|---|---|
+| **Lose access entirely** (>30d) | **3** | Amber Simmons (31d), Claudine Krol (38d), shawn robins (46d) |
+| **Lose the door code** (7–30d) | **4** | Ziyue Jia (10d), Niki Hathaway (17d), Kevin Ronda (18d), Stephanie Chow (24d) |
+| Unaffected | 6 | in-stay, past, or inside 7 days |
+
+Seven of thirteen see less than they do today. None of them is harmed — none can
+use a code weeks early — but if any has already opened the portal and bookmarked
+it, the change is visible to them. **Amber Simmons sits at exactly 31 days**,
+which is the boundary: it should be tested at 30 and 31, not only in the middle,
+and the comparison must be on the property's local date rather than UTC or a
+guest checking in tomorrow flips a day early.
+
+## SQL this needs — one round trip, five columns
+
+```sql
+alter table booking_guests
+  add column if not exists access_token       text unique,
+  add column if not exists token_issued_at    timestamptz,
+  add column if not exists token_revoked_at   timestamptz,
+  add column if not exists token_last_used_at timestamptz,
+  add column if not exists invited_by_guest_id uuid references guests(id);
+```
+
+## Build order
+
+1. Columns, then the token mint/revoke endpoints and the host surface — testable
+   without changing the shared gate at all.
+2. `/support?t=` and `verify-token`, still leaving the main gate alone.
+3. The concierge role filter.
+4. **The window last, and on its own**, because it is the only part that changes
+   behaviour for existing guests. Shipping it separately means the blast radius
+   is not tangled with four other changes if something needs backing out.
