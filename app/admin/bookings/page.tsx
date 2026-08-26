@@ -123,9 +123,6 @@ export default async function BookingsPage({
           <h1 style={{ fontFamily: 'var(--serif)', fontSize: '32px', fontWeight: 300, color: '#F5F2EC', lineHeight: 1 }}>Bookings.</h1>
         </div>
         <div style={{ display: 'flex', gap: '8px' }}>
-          <Link href="/admin/bookings/import" style={{ padding: '10px 20px', background: '#363634', color: '#9A9A92', fontSize: '11px', letterSpacing: '.1em', textTransform: 'uppercase', textDecoration: 'none' }}>
-            Import historical
-          </Link>
           <Link href="/admin/bookings/new" style={{ padding: '10px 20px', background: 'var(--amber)', color: '#1A1A18', fontSize: '11px', letterSpacing: '.1em', textTransform: 'uppercase', textDecoration: 'none', fontWeight: 500 }}>
             + Manual booking
           </Link>

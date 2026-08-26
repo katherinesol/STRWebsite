@@ -31,9 +31,14 @@ export async function GET() {
   const rows: any[] = []
 
   // platform bookings
+  // Same predicate as the cron sweep, for the same reason: a synced reservation
+  // has is_booking false until someone enters its money, and a dashboard that
+  // hides it is how an uncoded arrival goes unnoticed. See the note in
+  // app/api/cron/automations/route.ts.
   const { data: plat } = await supabase.from('calendar_blocks')
     .select('id, property_id, platform, start_date, end_date, door_code, guest_name, checked_in_at')
-    .eq('is_booking', true).gte('end_date', today).order('start_date')
+    .or('is_booking.eq.true,ical_uid.not.is.null')
+    .gte('end_date', today).order('start_date')
 
   for (const b of plat || []) {
     if (b.start_date < today) continue // stay already underway — code is live, don't flag

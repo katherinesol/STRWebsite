@@ -5,6 +5,7 @@ import { syncAllICal } from '@/lib/ical-sync'
 import { createAdminClient } from '@/lib/supabase/server'
 import { Seam } from 'seam'
 import { reprogramBookingWindow, windowFromBooking } from '@/lib/seam'
+import { classifyCode } from '@/lib/lock-code-status'
 import { Resend } from 'resend'
 
 export async function GET(request: NextRequest) {
@@ -84,7 +85,11 @@ export async function GET(request: NextRequest) {
 
   // 3. Lock sweep — verify codes are set-or-scheduled for check-ins within 72h;
   //    re-program gaps; email host about anything that still won't confirm.
-  results.lockSweep = { checked: 0, reprogrammed: 0, failures: [] as any[] }
+  // How close to check-in a code may still be unconfirmed before it counts as a
+  // failure rather than as settling. Inside this window there is no runway left,
+  // so an unconfirmed code is worth waking someone for.
+  const PENDING_GRACE_HOURS = 12
+  results.lockSweep = { checked: 0, reprogrammed: 0, confirmed: 0, failures: [] as any[], pending: [] as any[] }
   try {
     const seam = process.env.SEAM_API_KEY ? new Seam({ apiKey: process.env.SEAM_API_KEY }) : null
     if (seam) {
@@ -102,9 +107,21 @@ export async function GET(request: NextRequest) {
       }
 
       // platform bookings checking in within the window
+      // WHAT COUNTS AS NEEDING A CODE. This asked `is_booking = true`, which is a
+      // question about whether someone has finished entering a booking's money —
+      // not about whether a guest is arriving. iCal inserts a reservation with
+      // `reason: 'manual'` and no `is_booking`, so it defaults false: such a row
+      // was not merely uncoded, it never reached the `if (!code)` branch either,
+      // so it raised no "no code on booking" alert. Silence, for a real arrival.
+      //
+      // `ical_uid` is the honest marker of a platform reservation, because
+      // parseICal already drops "not available" / "unavailable" / "blocked"
+      // events — so a row carrying a feed UID is a stay, never an owner block.
+      // In-app owner blocks have no UID and no is_booking, and stay excluded.
       const { data: plat } = await supabase.from('calendar_blocks')
         .select('id, property_id, platform, start_date, end_date, early_checkin_time, late_checkout_time, door_code, guest_name')
-        .eq('is_booking', true).gte('start_date', todayStr).lte('start_date', horizon)
+        .or('is_booking.eq.true,ical_uid.not.is.null')
+        .gte('start_date', todayStr).lte('start_date', horizon)
 
       for (const b of plat || []) {
         const isAirbnb = b.platform === 'airbnb'
@@ -131,9 +148,27 @@ export async function GET(request: NextRequest) {
               results.lockSweep.reprogrammed++
               deviceCodes[lock.seam_device_id] = await sc.accessCodes.list({ device_id: lock.seam_device_id })
               const recheck = deviceCodes[lock.seam_device_id].find((x: any) => x.code === code)
-              if (!recheck || (recheck.status !== 'set' && !recheck.is_scheduled_on_device)) {
-                results.lockSweep.failures.push({ guest: b.guest_name, property: b.property_id, lock: lock.lock_name, start: b.start_date, issue: 'still not confirmed after reprogram' })
-              }
+
+              // SEAM CONFIRMS ASYNCHRONOUSLY, so the old check here could not
+              // succeed. A code created seconds ago reads status 'unset' with
+              // is_scheduled_on_device false, and a future-dated code cannot
+              // report 'set' at all until its window opens. Demanding
+              // set-or-scheduled immediately after creating it therefore emailed
+              // a failure for every advance booking the sweep programmed
+              // correctly — two arrived for one booking that was perfectly fine.
+              // An alert that always fires is one that stops being read, which
+              // is exactly how a real failure gets through.
+              //
+              // So classify rather than demand confirmation. Only the genuinely
+              // wrong states alert; a code still settling is recorded as pending
+              // and re-checked by the next morning's run. Pending still escalates
+              // to a failure once there is no runway left before check-in, so a
+              // code that never lands is not quietly tolerated forever.
+              const who = { guest: b.guest_name, property: b.property_id, lock: lock.lock_name, start: b.start_date }
+              const verdict = classifyCode(recheck, hrsUntilStart, PENDING_GRACE_HOURS)
+              if (verdict.outcome === 'failed') results.lockSweep.failures.push({ ...who, issue: verdict.issue })
+              else if (verdict.outcome === 'pending') results.lockSweep.pending.push({ ...who, hours_until_checkin: Math.round(hrsUntilStart), note: 'created, waiting on Seam to confirm' })
+              else results.lockSweep.confirmed++
             } catch (e: any) {
               results.lockSweep.failures.push({ guest: b.guest_name, lock: lock.lock_name, start: b.start_date, issue: e?.message || 'reprogram error' })
             }
