@@ -1,5 +1,6 @@
 'use client'
 import { useState } from 'react'
+import TaxRatePicker, { computeHst, type TaxMode } from '@/components/admin/TaxRatePicker'
 import { L, F, microLabel, cardStyle, money } from '@/lib/design-tokens'
 import { EXPENSE_CATEGORIES } from '@/lib/expense-categories'
 
@@ -33,6 +34,12 @@ export default function InvoiceLineEditor({ invoice, items, adjustments, onSaved
   const [it, setIt] = useState<Row[]>([])
   const [adj, setAdj] = useState<Row[]>([])
   const [category, setCategory] = useState(invoice.category || '')
+  /*  Tax on the EDIT path, through the same component the new-invoice dialog
+      uses, so the two cannot compute differently. The mode travels with the
+      amount: storing only the amount is what let a screen recompute 13% over a
+      stored 0 and disagree with itself. */
+  const [taxMode, setTaxMode] = useState<TaxMode>((invoice.tax_mode as TaxMode) || 'auto')
+  const [taxRate, setTaxRate] = useState('13')
   const [hst, setHst] = useState(String(invoice.hst_amount ?? 0))
   const [preview, setPreview] = useState<any>(null)
   const [busy, setBusy] = useState(false)
@@ -42,15 +49,21 @@ export default function InvoiceLineEditor({ invoice, items, adjustments, onSaved
   function start() {
     setIt(toRows(items)); setAdj(toRows(adjustments, true))
     setCategory(invoice.category || ''); setHst(String(invoice.hst_amount ?? 0))
+    setTaxMode((invoice.tax_mode as TaxMode) || 'auto'); setTaxRate('13')
     setErr(''); setPreview(null); setDone(null); setOpen(true)
   }
 
   const n = (v: string) => Number(v) || 0
   const r2 = (v: number) => Math.round(v * 100) / 100
-  const draftTotal = r2(it.reduce((s, r) => s + n(r.amount), 0) - adj.reduce((s, r) => s + n(r.amount), 0) + n(hst))
+  // the pre-tax base: line items less anything held back. The picker computes on
+  // this and never on a total that already contains tax.
+  const subtotal = r2(it.reduce((s, r) => s + n(r.amount), 0) - adj.reduce((s, r) => s + n(r.amount), 0))
+  const hstAmt = computeHst(taxMode, subtotal, Number(taxRate), n(hst))
+  const draftTotal = r2(subtotal + hstAmt)
 
   const payload = () => ({
-    invoice_id: invoice.id, category, hst_amount: n(hst),
+    invoice_id: invoice.id, category, tax_mode: taxMode,
+    hst_amount: hstAmt,
     items: it.filter(r => r.description.trim()).map(r => ({ id: r.id, description: r.description, amount: n(r.amount) })),
     adjustments: adj.filter(r => r.description.trim()).map(r => ({ id: r.id, description: r.description, amount: n(r.amount), reason: r.reason || 'other' })),
   })
@@ -147,19 +160,15 @@ export default function InvoiceLineEditor({ invoice, items, adjustments, onSaved
         </button>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 150px', gap: '10px' }}>
-        <div>
-          <div style={microLabel}>Category</div>
-          <select value={category} onChange={e => setCategory(e.target.value)} style={{ ...input, width: '100%', marginTop: '5px' }}>
-            {EXPENSE_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-          </select>
-        </div>
-        <div>
-          <div style={microLabel}>HST</div>
-          <input type="number" value={hst} min="0" step="0.01" onChange={e => setHst(e.target.value)}
-            style={{ ...input, width: '100%', marginTop: '5px', fontFamily: F.mono, textAlign: 'right' }} />
-        </div>
+      <div>
+        <div style={microLabel}>Category</div>
+        <select value={category} onChange={e => setCategory(e.target.value)} style={{ ...input, width: '100%', marginTop: '5px' }}>
+          {EXPENSE_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+        </select>
       </div>
+
+      <TaxRatePicker mode={taxMode} rate={taxRate} manualAmount={hst} subtotal={subtotal}
+        onChange={({ mode, rate, manualAmount }) => { setTaxMode(mode); setTaxRate(rate); setHst(manualAmount) }} />
 
       <div style={{ display: 'flex', alignItems: 'baseline', paddingTop: '14px', borderTop: `1px solid ${L.lineSoft}` }}>
         <span style={{ fontSize: '14px', color: L.inkMuted }}>Draft total</span>

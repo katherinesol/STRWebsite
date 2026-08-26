@@ -124,6 +124,8 @@ export async function POST(request: NextRequest) {
     amount: n(body.amount), hst_paid: n(body.hst_paid),
     category: cat.category,
     property_id: body.property_id || null, notes: body.notes || null,
+    // an e-transfer confirmation or cheque number, for matching a statement later
+    reference: body.reference || null,
     receipt_url: body.receipt_url || null, receipt_path: body.receipt_path || null,
     line_items: body.line_items ?? null,
     ai_extracted: body.ai_extracted === true, confirmed: body.confirmed === true,

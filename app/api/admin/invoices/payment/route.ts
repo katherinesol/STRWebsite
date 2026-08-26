@@ -88,6 +88,8 @@ export async function POST(request: NextRequest) {
       method: b?.method || null,
       method_detail: b?.method_detail || null,
       method_last4: b?.method_last4 || null,
+      // the confirmation number you can quote back at a bank statement
+      reference: b?.reference || null,
     })
     // 23505 = the same client-generated id already landed; this is a repeat submit
     if (error && error.code !== '23505') return NextResponse.json({ error: error.message }, { status: 500 })

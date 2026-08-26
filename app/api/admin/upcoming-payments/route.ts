@@ -52,7 +52,7 @@ export async function PATCH(request: NextRequest) {
   const body = await request.json()
   const { id } = body
   if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
-  const EDITABLE = new Set(['id', 'method', 'method_detail', 'method_last4'])
+  const EDITABLE = new Set(['id', 'method', 'method_detail', 'method_last4', 'reference'])
   const rejected = Object.keys(body || {}).filter(k => !EDITABLE.has(k))
   if (rejected.length) {
     return NextResponse.json({ error: 'Marking paid sets the method only', rejected }, { status: 400 })
@@ -67,6 +67,7 @@ export async function PATCH(request: NextRequest) {
   if (body.method) patch.method = body.method
   if ('method_detail' in body) patch.method_detail = body.method_detail || null
   if ('method_last4' in body) patch.method_last4 = body.method_last4 || null
+  if ('reference' in body) patch.reference = body.reference || null
   await supabase.from('invoice_payments').update(patch).eq('id', id)
 
   // re-read, so the expense description below names what was actually stored

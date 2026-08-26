@@ -1,6 +1,7 @@
 'use client'
 import { useState } from 'react'
 import MethodPicker, { DETAILED } from '@/components/admin/MethodPicker'
+import TaxRatePicker, { computeHst, type TaxMode } from '@/components/admin/TaxRatePicker'
 import { L, F, microLabel, cardStyle, money } from '@/lib/design-tokens'
 // The invoice category becomes the expense category when a payment is logged,
 // so it must come from the CRA-aligned list, never a local one.
@@ -56,7 +57,7 @@ export default function NewInvoiceDialog({ onClose, onCreated }: { onClose: () =
    *
    *  The mode is stored alongside the amount, so both screens read the same
    *  intent instead of inferring one. */
-  const [taxMode, setTaxMode] = useState<'auto' | 'none' | 'manual'>('auto')
+  const [taxMode, setTaxMode] = useState<TaxMode>('auto')
   const [taxRate, setTaxRate] = useState('13')
   const [hst, setHst] = useState('')
   const [items, setItems] = useState<Line[]>([newLine()])
@@ -66,6 +67,7 @@ export default function NewInvoiceDialog({ onClose, onCreated }: { onClose: () =
   const [payMethod, setPayMethod] = useState('etransfer')
   const [payDetail, setPayDetail] = useState('')
   const [payLast4, setPayLast4] = useState('')
+  const [payReference, setPayReference] = useState('')
   const [payStatus, setPayStatus] = useState<'paid' | 'planned'>('paid')
   const [payDate, setPayDate] = useState(today())
   const [createExpense, setCreateExpense] = useState(true)
@@ -76,9 +78,7 @@ export default function NewInvoiceDialog({ onClose, onCreated }: { onClose: () =
   const lineTotal = r2(validItems.reduce((s, l) => s + num(l.amount), 0))
   const heldBack = r2(validAdj.reduce((s, l) => s + num(l.amount), 0))
   const taxable = r2(lineTotal - heldBack)
-  const hstAmt = taxMode === 'none' ? 0
-    : taxMode === 'manual' ? r2(num(hst))
-      : r2(taxable * (num(taxRate) / 100))
+  const hstAmt = computeHst(taxMode, taxable, num(taxRate), num(hst))
   const total = r2(lineTotal - heldBack + hstAmt)
   const payAmt = withPayment ? r2(num(payAmount)) : 0
   const paidNow = withPayment && payStatus === 'paid' ? payAmt : 0
@@ -106,6 +106,7 @@ export default function NewInvoiceDialog({ onClose, onCreated }: { onClose: () =
             // two billpays reached the ledger with no account named at all.
             method_detail: DETAILED.includes(payMethod) ? (payDetail.trim() || null) : null,
             method_last4: DETAILED.includes(payMethod) ? (payLast4 || null) : null,
+            reference: payReference.trim() || null,
             paid_at: payStatus === 'paid' ? payDate : null,
             due_date: payStatus === 'planned' ? payDate : null,
           } : null,
@@ -174,35 +175,8 @@ export default function NewInvoiceDialog({ onClose, onCreated }: { onClose: () =
               {adjustments.map(l => lineRow(l, adjustments, setAdjustments, true))}
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '9px' }}>
-              <div style={microLabel}>Tax</div>
-              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
-                {([['auto', 'HST 13%'], ['none', 'No tax / exempt'], ['manual', 'Enter the amount']] as const).map(([m, label]) => (
-                  <button key={m} type="button" onClick={() => { setTaxMode(m); if (m === 'auto') setTaxRate('13') }}
-                    style={{ padding: '7px 13px', borderRadius: '99px', fontSize: '13px', cursor: 'pointer', fontFamily: F.sans,
-                      fontWeight: taxMode === m ? 600 : 400,
-                      background: taxMode === m ? L.ink : L.card, color: taxMode === m ? '#fff' : L.ink,
-                      border: taxMode === m ? '1px solid transparent' : `1px solid ${L.line}` }}>{label}</button>
-                ))}
-                {taxMode === 'auto' && (
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: L.inkBody }}>
-                    at
-                    <input value={taxRate} onChange={e => setTaxRate(e.target.value.replace(/[^\d.]/g, ''))}
-                      inputMode="decimal" style={{ ...inputStyle, width: '68px', textAlign: 'right' }} />
-                    %
-                  </span>
-                )}
-                {taxMode === 'manual' && (
-                  <input type="number" value={hst} onChange={e => setHst(e.target.value)} placeholder="0.00" min="0" step="0.01"
-                    style={{ ...inputStyle, width: '120px' }} />
-                )}
-              </div>
-              <span style={{ fontSize: '13px', color: L.inkMuted }}>
-                {taxMode === 'none' ? 'No tax on this invoice.'
-                  : taxMode === 'manual' ? 'Typed straight in — use this only when the invoice states an amount that no rate reproduces.'
-                    : <>{money(taxable)} &times; {num(taxRate)}% = <strong style={{ color: L.ink }}>{money(hstAmt)}</strong> — charged on the subtotal after deductions, never on a total that already includes tax.</>}
-              </span>
-            </div>
+            <TaxRatePicker mode={taxMode} rate={taxRate} manualAmount={hst} subtotal={taxable}
+              onChange={({ mode, rate, manualAmount }) => { setTaxMode(mode); setTaxRate(rate); setHst(manualAmount) }} />
 
             <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', fontSize: '14px' }}>
               <input type="checkbox" checked={withPayment} onChange={e => setWithPayment(e.target.checked)} />
@@ -217,6 +191,9 @@ export default function NewInvoiceDialog({ onClose, onCreated }: { onClose: () =
                   <option value="paid">already paid</option><option value="planned">scheduled</option></select></div>
                 <div style={{ gridColumn: '1 / -1' }}><div style={microLabel}>{payStatus === 'paid' ? 'Paid on' : 'Due on'}</div>
                   <input type="date" value={payDate} onChange={e => setPayDate(e.target.value)} style={{ ...inputStyle, marginTop: '5px', width: '200px' }} /></div>
+                <div style={{ gridColumn: '1 / -1' }}><div style={microLabel}>Reference</div>
+                  <input value={payReference} onChange={e => setPayReference(e.target.value)}
+                    placeholder="confirmation or cheque number" style={{ ...inputStyle, marginTop: '5px' }} /></div>
                 <div style={{ gridColumn: '1 / -1' }}>
                   <MethodPicker method={payMethod} detail={payDetail} last4={payLast4}
                     onChange={(d, l) => { setPayDetail(d); setPayLast4(l) }} />

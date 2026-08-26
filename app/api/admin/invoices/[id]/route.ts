@@ -22,7 +22,22 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   if (!await hasRole('owner', 'co-owner')) return NextResponse.json({ error: 'Not allowed' }, { status: 403 })
   const { id } = await params
   const body = await request.json()
-  const allowed = ['contractor_name', 'contractor_contact', 'property_id', 'title', 'notes', 'status']
+  /*  HEADER ONLY, AND THAT IS THE POINT.
+   *
+   *  This route updates the invoices row and nothing else — no items, no
+   *  payments, no expenses. That matters because the obvious alternative,
+   *  /api/admin/invoices/save, is a FULL REPLACE: it deletes every item,
+   *  adjustment and payment absent from the posted arrays, and every expense
+   *  linked to a deleted payment. Posting identity fields there without also
+   *  round-tripping the money would erase it. Editing a contractor's phone
+   *  number must not be able to do that, so identity edits come here instead.
+   *
+   *  company, category and due_date were missing from this list, which is why
+   *  the redesigned screen could not edit them at all. */
+  const allowed = [
+    'contractor_name', 'company', 'contractor_contact',
+    'title', 'property_id', 'category', 'due_date', 'notes', 'status',
+  ]
   const updates: any = {}
   for (const k of allowed) if (k in body) updates[k] = body[k]
   const supabase = createAdminClient()

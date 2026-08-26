@@ -15,7 +15,7 @@ import { normaliseCategory } from '@/lib/expense-categories'
  *  list or falls back, because that field is what the T2125 is grouped by. */
 
 const n = (v: unknown) => { const x = Number(v); return Number.isFinite(x) ? Math.round(x * 100) / 100 : 0 }
-const EDITABLE = ['date', 'vendor', 'description', 'amount', 'hst_paid', 'category', 'property_id', 'notes'] as const
+const EDITABLE = ['date', 'vendor', 'description', 'amount', 'hst_paid', 'category', 'property_id', 'notes', 'reference'] as const
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   if (!await hasRole('owner', 'co-owner')) return NextResponse.json({ error: 'Not allowed' }, { status: 403 })

@@ -66,7 +66,7 @@ export default function ExpensesPage() {
   const reload = () => fetch('/api/admin/expenses').then(r => r.json()).then(setD).catch(() => {})
 
   const blank = () => ({ id: null, date: new Date().toISOString().slice(0, 10), vendor: '', description: '',
-    amount: '', hst_paid: '', category: EXPENSE_CATEGORIES[0], property_id: '', notes: '' })
+    amount: '', hst_paid: '', category: EXPENSE_CATEGORIES[0], property_id: '', notes: '', reference: '' })
 
   /* HST follows the amount until it is typed over — the same rule the legacy
      screen used, kept because 13/113 of a receipt total is right often enough
@@ -87,7 +87,8 @@ export default function ExpensesPage() {
     setBusy(true); setNote('')
     const body = { date: form.date, vendor: form.vendor || null, description: form.description,
       amount: Number(form.amount), hst_paid: Number(form.hst_paid) || 0, category: form.category,
-      property_id: form.property_id || null, notes: form.notes || null }
+      property_id: form.property_id || null, notes: form.notes || null,
+      reference: form.reference?.trim() || null }
     const r = form.id
       ? await fetch(`/api/admin/expenses/${form.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
       : await fetch('/api/admin/expenses', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...body, force: true }) })
@@ -315,6 +316,9 @@ export default function ExpensesPage() {
                 <label style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}><span style={microLabel}>Property</span>
                   <select value={form.property_id || ''} onChange={e => setField('property_id', e.target.value)} style={field}>
                     {PROPERTY_OPTIONS.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
+                <label style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}><span style={microLabel}>Reference</span>
+                  <input value={form.reference || ''} onChange={e => setField('reference', e.target.value)} style={field}
+                    placeholder="e-transfer or cheque no." /></label>
               </div>
               <div style={{ display: 'flex', gap: '10px', marginTop: '16px', alignItems: 'center' }}>
                 <button onClick={save} disabled={busy}

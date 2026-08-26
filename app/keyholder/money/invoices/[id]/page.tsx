@@ -4,6 +4,7 @@ import Link from 'next/link'
 import MethodPicker, { DETAILED } from '@/components/admin/MethodPicker'
 import { L, F, microLabel, cardStyle, money } from '@/lib/design-tokens'
 import InvoiceLineEditor from '@/components/keyholder/InvoiceLineEditor'
+import InvoiceIdentityEditor from '@/components/keyholder/InvoiceIdentityEditor'
 
 const PROP_NAMES: Record<string, string> = {
   'royal-york': 'Royal York', 'royal-york-west': 'Royal York West',
@@ -21,6 +22,7 @@ type Draft = {
   method: string
   methodDetail: string
   methodLast4: string
+  reference: string
   createExpense: boolean
   planned?: any
 }
@@ -60,12 +62,12 @@ export default function InvoiceEditor({ params }: { params: Promise<{ id: string
   const openSettle = (p: any) => { setResult(null); setErr(''); setDraft({
     action: 'settle', paymentId: p.id, expenseId: crypto.randomUUID(),
     amount: String(p.amount), paidAt: today(), method: p.method || '',
-    methodDetail: p.method_detail || '', methodLast4: p.method_last4 || '',
+    methodDetail: p.method_detail || '', methodLast4: p.method_last4 || '', reference: p.reference || '',
     createExpense: !p.expense_created, planned: p,
   }) }
   const openLog = () => { setResult(null); setErr(''); setDraft({
     action: 'log', paymentId: crypto.randomUUID(), expenseId: crypto.randomUUID(),
-    amount: '', paidAt: today(), method: 'etransfer', methodDetail: '', methodLast4: '', createExpense: true,
+    amount: '', paidAt: today(), method: 'etransfer', methodDetail: '', methodLast4: '', reference: '', createExpense: true,
   }) }
 
   async function commit() {
@@ -81,6 +83,7 @@ export default function InvoiceEditor({ params }: { params: Promise<{ id: string
           paid_at: draft.paidAt, method: draft.method || null,
           method_detail: DETAILED.includes(draft.method) ? (draft.methodDetail || null) : null,
           method_last4:  DETAILED.includes(draft.method) ? (draft.methodLast4 || null) : null,
+          reference: draft.reference?.trim() || null,
         }),
       })
       const j = await res.json().catch(() => ({}))
@@ -107,14 +110,28 @@ export default function InvoiceEditor({ params }: { params: Promise<{ id: string
           </span>
           <span style={{ fontSize: '14px', color: L.inkBody }}>
             {propName(inv.property_id)} · {inv.category || 'uncategorised'} · created {String(inv.created_at).slice(0, 10)}
+            {inv.company ? ` · ${inv.company}` : ''}{inv.contractor_contact ? ` · ${inv.contractor_contact}` : ''}
+            {inv.due_date ? ` · due ${inv.due_date}` : ''}
           </span>
         </div>
-        <span style={{
-          marginLeft: 'auto', padding: '8px 14px', borderRadius: '99px', fontSize: '13px', fontWeight: 600,
-          background: outstanding > 0.005 ? 'oklch(0.965 0.02 30)' : 'oklch(0.94 0.05 155)',
-          color: outstanding > 0.005 ? L.red : 'oklch(0.38 0.10 155)',
-        }}>{outstanding > 0.005 ? `${money(outstanding)} outstanding` : 'Paid in full'}</span>
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <InvoiceIdentityEditor invoice={inv} onSaved={load} />
+          <span style={{
+            padding: '8px 14px', borderRadius: '99px', fontSize: '13px', fontWeight: 600,
+            background: outstanding > 0.005 ? 'oklch(0.965 0.02 30)' : 'oklch(0.94 0.05 155)',
+            color: outstanding > 0.005 ? L.red : 'oklch(0.38 0.10 155)',
+          }}>{outstanding > 0.005 ? `${money(outstanding)} outstanding` : 'Paid in full'}</span>
+        </div>
       </div>
+
+      {/* The note, finally shown. The column and the API have always accepted one;
+          no screen ever rendered it, which is why all eleven invoices have none. */}
+      {inv.notes && (
+        <div style={{ ...cardStyle, padding: '14px 18px', marginBottom: '18px', background: L.cardAlt }}>
+          <div style={{ ...microLabel, marginBottom: '4px' }}>Note</div>
+          <div style={{ fontSize: '14px', color: L.ink, lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>{inv.notes}</div>
+        </div>
+      )}
 
       <div style={{ display: 'flex', gap: '20px', alignItems: 'flex-start', flexWrap: 'wrap' }}>
 
@@ -275,6 +292,15 @@ export default function InvoiceEditor({ params }: { params: Promise<{ id: string
                 mark-paid flow — see components/admin/MethodPicker.tsx. */}
             <MethodPicker method={draft.method} detail={draft.methodDetail} last4={draft.methodLast4}
               onChange={(d, l) => setDraft({ ...draft, methodDetail: d, methodLast4: l })} />
+
+            <div>
+              {/* Something to quote back at a statement. An e-transfer confirmation
+                  number, a bill-pay reference, a cheque number. */}
+              <div style={microLabel}>Reference</div>
+              <input value={draft.reference} onChange={e => setDraft({ ...draft, reference: e.target.value })}
+                placeholder="confirmation or cheque number"
+                style={{ width: '100%', padding: '11px 13px', border: `1px solid ${L.line}`, borderRadius: '10px', fontSize: '14px', fontFamily: F.sans, marginTop: '5px' }} />
+            </div>
 
             <div>
               <div style={microLabel}>Paid on</div>

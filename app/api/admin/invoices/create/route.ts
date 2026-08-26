@@ -127,6 +127,7 @@ export async function POST(request: NextRequest) {
           // how two billpays reached the ledger with nothing naming the account.
           method_detail: payment.method_detail || null,
           method_last4: payment.method_last4 || null,
+          reference: payment.reference || null,
           status: payment.status || 'paid', due_date: payment.due_date || null,
         })
         if (payErr) { await undo(); return NextResponse.json({ error: `Nothing was created — payment failed: ${payErr.message}`, rolledBack: true }, { status: 500 }) }

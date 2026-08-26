@@ -70,6 +70,9 @@ export async function POST(request: NextRequest) {
   const rawCategory = b?.category != null ? String(b.category) : inv.category
   const { category, matched } = normaliseCategory(rawCategory)
   const hst_amount = b?.hst_amount != null ? r2(n(b.hst_amount)) : n(inv.hst_amount)
+  // The declared tax intent travels with the amount. Storing only the amount is
+  // what let one screen recompute 13% over a stored 0 and disagree with another.
+  const tax_mode = ['auto', 'none', 'manual'].includes(b?.tax_mode) ? b.tax_mode : undefined
   const title = b?.title != null && String(b.title).trim() ? String(b.title).trim().slice(0, 200) : inv.title
 
   const [{ data: dbItems }, { data: dbAdj }, { data: dbPays }] = await Promise.all([
@@ -150,7 +153,7 @@ export async function POST(request: NextRequest) {
   if (preview) return NextResponse.json(body)
 
   const { data: rpc, error } = await supabase.rpc('edit_invoice_full', {
-    payload: { invoice_id, title, category, hst_amount, items, adjustments, notes: b?.notes ?? inv.notes },
+    payload: { invoice_id, title, category, hst_amount, ...(tax_mode ? { tax_mode } : {}), items, adjustments, notes: b?.notes ?? inv.notes },
   })
 
   if (error) {

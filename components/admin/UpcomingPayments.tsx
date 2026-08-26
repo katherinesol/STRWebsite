@@ -39,18 +39,18 @@ export default function UpcomingPayments({ onPaid }: { onPaid?: () => void }) {
       hole that let a $2,000 billpay into the ledger unattributed. The picker is
       the same component the invoice panel uses, not a second copy of it. */
   const [confirming, setConfirming] = useState<string | null>(null)
-  const [pm, setPm] = useState({ method: 'etransfer', detail: '', last4: '' })
+  const [pm, setPm] = useState({ method: 'etransfer', detail: '', last4: '', reference: '' })
 
   function openConfirm(p: any) {
     setConfirming(p.id)
-    setPm({ method: p.method || 'etransfer', detail: (p.method_detail || '').trim(), last4: p.method_last4 || '' })
+    setPm({ method: p.method || 'etransfer', detail: (p.method_detail || '').trim(), last4: p.method_last4 || '', reference: p.reference || '' })
   }
 
   async function markPaid(id: string) {
     setMarking(id)
     await fetch('/api/admin/upcoming-payments', {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, method: pm.method, method_detail: pm.detail || null, method_last4: pm.last4 || null }),
+      body: JSON.stringify({ id, method: pm.method, method_detail: pm.detail || null, method_last4: pm.last4 || null, reference: pm.reference.trim() || null }),
     })
     setMarking(null); setConfirming(null); load(); onPaid?.()
   }
@@ -111,6 +111,9 @@ export default function UpcomingPayments({ onPaid }: { onPaid?: () => void }) {
             </div>
             <MethodPicker method={pm.method} detail={pm.detail} last4={pm.last4}
               onChange={(d, l) => setPm({ ...pm, detail: d, last4: l })} />
+            <input value={pm.reference} onChange={e => setPm({ ...pm, reference: e.target.value })}
+              placeholder="Reference (optional) — confirmation or cheque number"
+              style={{ padding: '8px 11px', fontSize: '13px', border: `1px solid ${L.line}`, borderRadius: '7px', background: L.card, color: L.ink, fontFamily: 'inherit' }} />
             <div style={{ display: 'flex', gap: '9px', alignItems: 'center' }}>
               <button onClick={() => markPaid(p.id)}
                 disabled={marking === p.id || (DETAILED.includes(pm.method) && !pm.detail.trim() && !pm.last4)}
