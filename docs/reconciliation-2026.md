@@ -565,10 +565,24 @@ The earlier reading that $352.30 was a partial settlement was wrong. There were
 request of **$2,028.95** — **$83.32 more than was asked for**, which is worth
 querying with Airbnb rather than assuming in your favour.
 
-**All three are unrecorded income sitting in a bank account.** They need
-entering against Checking 0377 so they reconcile to the statement, and the
-repair and replacement costs Heremela's stay caused need entering on the other
-side so the net is visible.
+**RECORDED 2026-08-26.** All three are now entered as non-booking income against
+BMO ···0377, `kind = damage_recovery`, property `nickel-beach`, each carrying its
+resolution and payout id in `reference`. They appear in the P&L as non-booking
+income and on the Accounts surface as three `in` rows, raising BMO ···0377 from
+$7,242.30 to **$9,706.87** — the sum exactly, nothing double-counted.
+
+The booking's property was checked before recording rather than assumed: it is
+`nickel-beach`, and the 4.00% MAT applied to it (214.91 on room 5,372.80)
+confirms Port Colborne independently of the label, since Toronto would be 8.5%
+or 6%.
+
+All three are filed as `damage_recovery` by the owner's decision, though
+`17852536118667` is a separate resolution rather than part of the damage claim —
+the `reference` preserves that distinction where the kind does not.
+
+**Still outstanding on the other side:** the repair and replacement costs
+Heremela's stay caused are not entered, so the *net* of this recovery is not yet
+visible. And the $83.32 overpayment below remains unqueried.
 
 **Damage recovery — confirm bookkeeping treatment with the accountant.** There
 are two defensible treatments and this ledger does not choose between them:
