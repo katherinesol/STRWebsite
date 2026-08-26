@@ -5,6 +5,7 @@ const TABS = [
   { name: 'Expenses', href: '/keyholder/money/expenses' },
   { name: 'Invoices', href: '/keyholder/money/invoices' },
   { name: 'Tax & filing', href: '/keyholder/money/tax' },
+  { name: 'Accounts', href: '/keyholder/money/accounts' },
 ]
 
 export default function MoneyLayout({ children }: { children: React.ReactNode }) {
