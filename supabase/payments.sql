@@ -121,3 +121,54 @@ insert into bank_accounts (name, institution, last4, kind, sort_order) values
   ('Wealthsimple',      'Wealthsimple', '5836', 'chequing', 2),
   ('BMO Business',      'BMO Business', '8671', 'chequing', 3)
 on conflict do nothing;
+
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- STAGE 2b — expense_created, and the provenance column Stage 2 should have had
+--
+-- Run 2026-08-26, after the migration. Two problems, one block.
+--
+-- expense_created was missed in the Stage 2 mapping and is NOT derivable from
+-- expense_id: one row (2026-08-24, $2,000) carries expense_created = true with a
+-- null expense_id. It is the guard against filing the same expense twice, so a
+-- read switching to payments without it would silently lose that protection —
+-- the failure mode being a duplicate expense in the books.
+--
+-- source_payment_id is the column Stage 2 should have written. Without it the
+-- backfill below needs a four-column value join, which worked but is fragile:
+-- (invoice_id, amount) alone collides four times, and one of those collisions is
+-- a planned/paid pair on the same invoice for the same $1,277 whose
+-- expense_created values are OPPOSITE. Only paid_at and status separate them.
+-- Storing the id makes every future backfill trivial and auditable.
+--
+-- The unique index is created BEFORE the backfill deliberately: if the value
+-- join were ambiguous, two payments rows would receive the same source id and
+-- the UPDATE would error rather than silently mis-assign.
+--
+-- `at time zone 'UTC'` is not optional. invoice_payments.paid_at is a DATE while
+-- payments.paid_at is a TIMESTAMPTZ at midnight UTC; a bare ::date cast resolves
+-- in the session timezone, so in America/Toronto every row shifts a day back and
+-- matches nothing.
+-- ═══════════════════════════════════════════════════════════════════════════
+
+alter table payments
+  add column if not exists expense_created   boolean not null default false,
+  add column if not exists source_payment_id uuid references invoice_payments(id);
+
+create unique index if not exists payments_source_payment_uniq
+  on payments (source_payment_id) where source_payment_id is not null;
+
+update payments p
+set    source_payment_id = ip.id
+from   invoice_payments ip
+where  p.direction = 'out'
+  and  p.source_payment_id is null
+  and  p.invoice_id = ip.invoice_id
+  and  p.amount     = ip.amount
+  and  p.status     = ip.status
+  and  (p.paid_at at time zone 'UTC')::date is not distinct from ip.paid_at;
+
+update payments p
+set    expense_created = ip.expense_created
+from   invoice_payments ip
+where  p.source_payment_id = ip.id;

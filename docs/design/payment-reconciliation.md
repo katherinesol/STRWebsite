@@ -326,3 +326,37 @@ reconciliation surface rather than showing one "no account" bucket.
 **Needed: which account received RS-1002's deposit and final payment.** Once
 answered they can be set directly, and the payment-logging UI in Stage 3 should
 make the account mandatory for anything that is not cash.
+
+
+---
+
+# Stage 2b — `expense_created` and `source_payment_id`, run 2026-08-26
+
+Found while scoping Stage 3: `expense_created` had not been migrated, and it is
+**not derivable** from `expense_id`. One row — 2026-08-24, $2,000 — carries
+`expense_created = true` with a null `expense_id`. Since that flag is what stops
+an expense being filed twice, a read switching to `payments` without it would
+have quietly lost the guard, with a duplicate expense as the failure mode.
+
+`source_payment_id` was added in the same pass. Stage 2 stored no link back to
+the source row, so the backfill needed a value join on
+`(invoice_id, amount, paid_at, status)`. That join is 1:1 across all 21 rows —
+but only just: `(invoice_id, amount)` alone collides **four** times, and one
+collision is a planned/paid pair on the same invoice for the same $1,277 **whose
+`expense_created` values are opposite**. A weaker key would have set the flag on
+the wrong row.
+
+| check | result |
+|---|---|
+| row-by-row flag copy | 21/21, **0 mismatches** ✓ |
+| the underivable row | `true` with null `expense_id` — genuinely copied ✓ |
+| `source_payment_id` populated | 21/21, **21 distinct**, all valid ✓ |
+| `in` rows given a source | 0 ✓ |
+| distribution | out 20 true / 1 false · in 0 / 4 ✓ |
+| `payments` rows | still 25 ✓ |
+| `invoice_payments` SHA | `574ccb2dc359…` — **identical** ✓ |
+
+The unique partial index on `source_payment_id` was created *before* the
+backfill, so an ambiguous join would have errored rather than mis-assigned. It
+held, which means the 1:1 mapping is now guaranteed by the database rather than
+inferred by a script.
