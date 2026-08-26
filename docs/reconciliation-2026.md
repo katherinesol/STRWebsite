@@ -358,9 +358,13 @@ statement.
 | 2026-08-10 | Brandon Lin | `HMT85MY93N` | Airbnb, both tabs | written · payout delta 0.00 |
 | 2026-08-12 | Stéphane Gosselin | `HM4M5A4D2D` | Airbnb, both tabs | written · payout delta 0.00 |
 | 2026-08-17 | Quentin Guerin | `HMH4PEXZZD` | Airbnb, both tabs | written · payout delta 0.00 |
+| 2026-08-19 | Robert Ma | `HMS3BAXN2K` | Airbnb, both tabs | written · payout delta 0.00 · 11% undertax |
+| 2026-08-24 | Kristine Nguyen | `HMRCADMJJN` | Airbnb, both tabs | written · payout delta 0.00 · MAT-base pattern, queued for audit |
 | 2026-07-26 | Samuel Séguin | `TGYCYMY998` | Houfy reservation | written · two deposits |
 | 2026-08-14 | Laura Escobar | `LSQUHDC829` | Houfy reservation | written · payout delta 0.00 |
 | 2026-08-16 | Amanda Stanek | `IVMUYQF047` | Houfy reservation | written · payout delta 0.00 |
+| 2026-08-07 | Tudor Bertiean | `HA-202HPF` | VRBO receipt | written · payout delta 0.00 · refund case |
+| 2026-08-14 | Amanda Stanek | `HA-GKFDWP` | VRBO receipt | written · payout delta 0.00 |
 
 **Brendan O'Hanlon** — Nickel Beach, 23–25 January, 2 nights. Not in the system;
 shell row created through the conflict-checked block route (no conflicts), then
@@ -414,7 +418,6 @@ figures.
 
 Owed 726.08, collected 797.11, **over by 71.03**. Payout 4,824.48 computed and
 given. Linked to `93612632` (Molhem Taskie).
-
 
 **Marc Losier** — 4–7 June, 3 nights. Untaxed. Room 2,524.00, cleaning 340.00,
 collected 52.56 against 486.40 owed, **under by 433.84**.
@@ -585,6 +588,34 @@ recorded in the system yet.
 
 ## Open
 
+### In-system reconciliation is CLOSED
+
+Verified against the database on 2026-08-25, not against this list: **39 platform
+bookings, none missing `taxes_collected` or `guest_total`.** Every one has been
+through the figures endpoint, and every payout reconciles.
+
+The last three:
+
+- **Robert Ma** `HMS3BAXN2K` · Airbnb. The 11% undertax confirmed from source —
+  11% x 1,034.00 = 113.74 exactly. Collected 220.60, owed 198.49, over by 22.11.
+- **Tudor Bertiean** `HA-202HPF` · VRBO. **The half-done correction.**
+  `accommodation` had been cut to the two nights kept but `taxes_you_remit` was
+  left on the pre-refund three-night base — the old 738.27 reproduces exactly as
+  MAT 158.46 + HST 579.79 on room 3,961.50. Recomputed on the 2-night base:
+  **494.73 owed against 738.27 held, an over-collection of $243.54.** Nothing has
+  been remitted, so this is money still in hand, not money lost. `guest_total`
+  4,093 -> 4,318.73. The refund sentence now lives in `notes`, because the
+  figures endpoint computes `tax_note` and overwrote it.
+- **Amanda Stanek** `HA-GKFDWP` · VRBO. `taxes_collected` was not double-counted
+  but **understated** — set to the pass-through alone, omitting VRBO's own 54.08.
+  `guest_total` 2,842 -> 3,957.99. Owed 506.90 against VRBO's 506.91: **one
+  cent.** The cleanest confirmation yet that VRBO applies the rules exactly.
+
+**What "closed" does not mean.** Every booking *in the system* is reconciled.
+1 Jan - 15 May 2026 was never entered at all, and remains the largest open item
+below. A 2026 total is not trustworthy until that period is in.
+
+
 - **Host-fee percentage on every booking**, checked against its receipt. See the
   host-fee pattern above; a wrong percentage means a wrong payout.
 - **Repair and replacement costs from Heremela's stay**, to sit against the
@@ -597,21 +628,7 @@ recorded in the system yet.
   Airbnb/VRBO/Houfy records. Prerequisite for any 2026 total being trustworthy.
 - **Full-year tax sweep by booking date.** Total exposure across every Airbnb
   reservation, not a date window.
-- **You-earn misreads.** Lashley Winter $141.57, Jasmine Denham $22.75, Ziyue
-  Jia $77.22 — Guest-paid tabs to come. Аня was a fourth and Myriam a fifth, both
-  corrected. Re-scan every Airbnb booking for both signatures now: the tab
-  misread, and Airbnb's formula stored as owed.
-- **Stephanie Chow's row was already in the system**, synced from Airbnb on
-  2026-08-07 with `is_booking=false` and no name — the conflict check caught it
-  before a duplicate was created. A live specimen of the sweep-blindness gap in
-  the lock backlog.
-- **Elizabeth Huckabone** `2026-06-25`, `HA-Z9QCYD` — `taxes_collected` 506.91
-  and `taxes_platform_remits` 54.34 with `hst`/`mat` null. Needs its receipt.
-- **Erica Yu** `2026-07-24` — queued for her receipt. Stores 453.34 where
-  Airbnb's formula gives 530.40 on those figures, and 405.60 would be plain 13%
-  on room + cleaning. It is neither a clean You-earn nor a clean Guest-paid
-  number, which makes it a third kind of wrong from the two already catalogued,
-  and worth understanding rather than just correcting.
+
 - **Molhem's VRBO trace.** The survivor's note reads "Added from vrbo — no email
   on file", yet the owner confirms the Airbnb stay is his only one. So the note
   is either a mislabelled import or a pointer to a VRBO booking in the missing
