@@ -295,7 +295,29 @@ export default function GuestPortal() {
         )}
 
         {/* PAYMENT */}
-        {activeSection === 'payment' && (
+        {/*  A COMPED STAY IS SHOWN AS ONE, NOT AS A SCHEDULE OF NOTHING.
+             is_comp says the stay is deliberately free. Rendered through the
+             normal branch it produced three instalment cards reading
+             "$undefined · Upcoming" with due dates invented from the fallback
+             copy — a guest being invoiced, in effect, for a gift. This is the
+             guest-facing half of the flag and the half that actually matters. */}
+        {activeSection === 'payment' && booking.is_comp && (
+          <div>
+            <div style={{ fontFamily: 'var(--serif)', fontSize: '28px', fontWeight: 300, color: 'var(--noir)', marginBottom: '16px' }}>
+              Free stay.
+            </div>
+            <div style={{ background: 'white', border: '0.5px solid var(--sand)', padding: '24px' }}>
+              <div style={{ fontSize: '15px', color: 'var(--noir)', marginBottom: '6px' }}>
+                There is nothing to pay for this stay.
+              </div>
+              <div style={{ fontSize: '13px', color: 'var(--muted)', lineHeight: 1.55 }}>
+                You will not be asked for a deposit or a balance, and no payment is due
+                at any point. If you receive anything suggesting otherwise, please tell us.
+              </div>
+            </div>
+          </div>
+        )}
+        {activeSection === 'payment' && !booking.is_comp && (
           <div>
             <div style={{ fontFamily: 'var(--serif)', fontSize: '28px', fontWeight: 300, color: 'var(--noir)', marginBottom: '24px' }}>
               Payment schedule.

@@ -11,6 +11,7 @@ import GiftCard from '@/components/admin/GiftCard'
 import CoGuests from '@/components/keyholder/CoGuests'
 import StayChecklist from '@/components/admin/StayChecklist'
 import ParkingControl from '@/components/admin/ParkingControl'
+import CompToggle from '@/components/keyholder/CompToggle'
 
 /** Design-doc 2a, read only.
  *
@@ -178,7 +179,17 @@ export default function BookingDetail({ kind, b, locks, guest, conversation, mes
             {sectionHead('Payment', isDirect ? 'instalments' : `${source} settles with you`)}
             <div style={{ ...cardStyle, padding: '4px 20px' }}>
               {isDirect ? (
-                b.total == null || Number(b.total) === 0 ? (
+                /* A COMPED STAY IS NOT AN UNPRICED ONE. Checked before the
+                   no-figures branch, because a free stay would otherwise be told
+                   to add figures it will never have. */
+                b.is_comp ? (
+                  <div style={{ padding: '18px 0', display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                    <span style={{ fontSize: '14px', color: L.ink, fontWeight: 600 }}>Free stay.</span>
+                    <span style={{ fontSize: '13px', color: L.inkBody }}>
+                      No payment expected — nothing will chase {name} for money.
+                    </span>
+                  </div>
+                ) : b.total == null || Number(b.total) === 0 ? (
                   <div style={{ padding: '18px 0', display: 'flex', flexDirection: 'column', gap: '5px' }}>
                     <span style={{ fontSize: '14px', color: L.red, fontWeight: 600 }}>No figures on this booking.</span>
                     <span style={{ fontSize: '13px', color: L.inkBody }}>
@@ -188,6 +199,7 @@ export default function BookingDetail({ kind, b, locks, guest, conversation, mes
                       <FiguresPanel bookingId={b.id} guestName={name}
                         current={{ accommodation: b.accommodation, cleaning_fee: b.cleaning_fee, addon_fee: b.addon_fee, hst: b.hst, mat: b.mat, total: b.total }} />
                     </div>
+                    <CompToggle bookingId={b.id} isComp={!!b.is_comp} guestName={name} />
                   </div>
                 ) : <>
                   {([['Deposit', b.deposit_amount, b.deposit_paid_at, null],
@@ -213,6 +225,7 @@ export default function BookingDetail({ kind, b, locks, guest, conversation, mes
                       {money(owing)}
                     </span>
                   </div>
+                  <CompToggle bookingId={b.id} isComp={!!b.is_comp} guestName={name} />
                 </>
               ) : <>
                 {([['Accommodation', b.accommodation], ['Cleaning', b.cleaning_fee], ['Extras', b.extras],

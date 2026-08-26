@@ -107,8 +107,13 @@ export default async function Today() {
      above cannot see them at all: unpaid() requires a total to compare against.
      Left alone, this page would cheerfully say "nothing needs you" while a guest
      owed thousands. A booking with a stay but no money on it is its own problem
-     and gets said out loud rather than being silently skipped. */
-  const noTotal = D.filter(b => b.check_in && !(Number(b.total) > 0))
+     and gets said out loud rather than being silently skipped.
+
+     EXCEPT a comped one. is_comp says the stay is deliberately free, which is a
+     decision, not an omission — chasing figures for it is noise. The test is the
+     flag and never total = 0, because an unfinished booking looks identical in
+     the data and must keep flagging. */
+  const noTotal = D.filter(b => b.check_in && !b.is_comp && !(Number(b.total) > 0))
 
   /* Arrivals inside 72h with nothing in door_code. This is the same signal the
      morning cron reports as "no code on booking" — it does not reach out to the

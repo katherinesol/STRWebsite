@@ -44,6 +44,9 @@ const EDITABLE = new Set([
   'trip_purpose', 'trip_purpose_note',
   // lifecycle
   'status', 'cancellation_reason', 'cancelled_at',
+  // a deliberately free stay. Separate from total = 0, which means only that
+  // nobody has entered the figures yet — see lib/keyholder/payment.ts.
+  'is_comp',
   // recorded money — what moved, not what the rules compute
   'payment_method', 'security_deposit_status',
   'deposit_amount', 'deposit_paid_at',

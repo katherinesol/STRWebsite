@@ -25,11 +25,22 @@ export function outstanding(s: any): number {
   return n(s.total) - paidSoFar(s)
 }
 
+/** A COMPED STAY IS NOT AN UNPAID ONE. is_comp says the stay is deliberately
+ *  free; total = 0 on its own says only that no figures have been entered, which
+ *  is a different problem and must keep raising its own warning. Keying on the
+ *  flag rather than on a zero total is the whole point of the column — otherwise
+ *  a half-entered booking would go quiet exactly when it needs attention. */
 export function unpaid(s: any): boolean {
-  return !!s.check_in && n(s.total) > 0 && outstanding(s) > 0.005
+  return !!s.check_in && !s.is_comp && n(s.total) > 0 && outstanding(s) > 0.005
+}
+
+/** A deliberately free stay. Nothing that chases money may fire on one, and no
+ *  guest-facing screen should show it an instalment schedule. */
+export function isComp(s: any): boolean {
+  return !!s.is_comp
 }
 
 /** The columns every caller of the above must select, so a screen can't
  *  silently ask the question with half the answer loaded. */
 export const PAYMENT_COLUMNS =
-  'total, deposit_amount, deposit_paid_at, second_payment_amount, second_paid_at, final_payment_amount, final_paid_at'
+  'total, is_comp, deposit_amount, deposit_paid_at, second_payment_amount, second_paid_at, final_payment_amount, final_paid_at'
