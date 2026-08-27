@@ -113,6 +113,19 @@ anything not in the doc was dropped. Three found by complaint, one by search.
   **Highest-leverage item here** — it is what made this week's 39-booking
   reconciliation manual.
 - **Combined P&L.** Wanted eventually; explicitly not part of the Money rebuild.
+- **Statement matching — rung 1.** Scoped 2026-08-27 in
+  [statement-matching.md](statement-matching.md), approved as design, unbuilt.
+  Upload a per-account statement, match lines against recorded payments, surface
+  the mismatches: a deposit with no payment is unrecorded income (RS-1002
+  generalised), a payment with no line is money that never landed. **Proposes
+  only — never auto-creates, auto-edits or auto-deletes**, because it is the same
+  amount+date matching that once deleted a sibling's expense. Writes
+  `bank_statements`, `statement_lines`, and a `reconciled_at` marker on
+  `payments` — the bank-confirmed signal Accounts is missing. CSV first with a
+  per-account header mapping (the real export headers must be read off a live
+  file, not assumed). **Build trigger: Jan–May entered.** Before that, unmatched
+  lines are mostly the data gap rather than real findings, and a tool that cries
+  wolf gets skimmed.
 - **Direct-booking refunds are ENFORCED-blocked, not merely flagged.** The
   cancel endpoint refuses any direct booking carrying a refund amount with
   `blocked: 'direct_refund_unverified'` (409). Direct **cancellations** work
