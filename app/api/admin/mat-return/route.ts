@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
+import { loadRefundNetting, roomAfterRefunds } from '@/lib/mat-refunds'
 import { isAuthed, hasRole } from '@/lib/auth'
 import { matRate, matExempt, MAT_MAX_TAXABLE_NIGHTS } from '@/lib/tax-rates'
 import { resolveApplyTax } from '@/lib/booking-tax'
@@ -37,6 +38,11 @@ export async function GET(request: NextRequest) {
     .gte('end_date', from)
     .order('start_date')
 
+  /*  Refunds come off the room BEFORE it is apportioned, so a refund lands in
+      the months the nights were in rather than the month the money went back.
+      Airbnb's share of a MAT reversal is not netted here - see lib/mat-refunds. */
+  const net = await loadRefundNetting(supabase, (blocks || []).map(b => b.id))
+
   const n = (v: unknown) => (v == null ? 0 : Number(v) || 0)
   const nights = (a: string, b: string) => Math.max(0, Math.round((Date.parse(b) - Date.parse(a)) / DAY))
 
@@ -50,7 +56,9 @@ export async function GET(request: NextRequest) {
     const taxable = resolveApplyTax(b.apply_tax, 'platform', b.platform)
     const tooLong = matExempt(property, total)
     const exempt = !taxable || tooLong
-    const room = r2(n(b.accommodation) - n(b.discount))
+    const roomBilled = r2(n(b.accommodation) - n(b.discount))
+    const roomRefunded = net.roomByBooking.get(b.id) || 0
+    const room = roomAfterRefunds(roomBilled, b.id, net)
     const rate = matRate(property, new Date(b.start_date + 'T00:00:00Z'))
     const perNight = total > 0 ? room / total : 0
 
@@ -75,6 +83,8 @@ export async function GET(request: NextRequest) {
       id: b.id, guest: b.guest_name, platform: b.platform,
       start: b.start_date, end: b.end_date, nights: qNights,
       room: r2(qRoom), rate, exempt,
+      roomBilled, roomRefunded,
+      matYoursReversed: net.matYoursByBooking.get(b.id) || 0,
       exemptReason: !taxable ? 'tax not applied' : tooLong ? `over ${MAT_MAX_TAXABLE_NIGHTS} nights` : null,
       matOwed, matStored,
       shortfall: matStored == null ? null : r2(matOwed - matStored),
@@ -98,6 +108,15 @@ export async function GET(request: NextRequest) {
     range: { from, to },
     rate: matRate(property, new Date(from + 'T00:00:00Z')),
     months, rows,
+    /*  Airbnb MAT that a refund reversed and this return does NOT subtract,
+        because Airbnb remits that MAT and reversing it is theirs to do. Shown
+        so the number is visible rather than silently dropped. */
+    airbnb_mat_reversed_not_netted: net.airbnbMatNotNetted,
+    airbnb_refund_count: net.airbnbRefundCount,
+    airbnb_note: net.airbnbMatNotNetted > 0
+      ? `${net.airbnbMatNotNetted.toFixed(2)} of MAT was reversed on Airbnb refunds and is NOT deducted here. `
+        + `Airbnb collected and remits that MAT, so reversing it is theirs; deducting it would understate this return.`
+      : null,
     totals: {
       nights: totalNights, roomRevenue: totalRoom, matOwed: totalOwed,
       collected: totalCollected, gap: r2(totalOwed - totalCollected),

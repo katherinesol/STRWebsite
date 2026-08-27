@@ -26,7 +26,11 @@ export async function GET() {
   const supabase = createAdminClient()
   const { data, error } = await supabase.from('payments')
     .select('id, amount, paid_at, kind, property_id, account_id, reference, note, method, created_at')
-    .not('kind', 'is', null).order('paid_at', { ascending: false })
+    // kind is no longer unique to standalone income: a refund is a booking-
+    // parented row that also carries one. Direction is what separates them,
+    // and the constraint guarantees standalone is always 'in'.
+    .not('kind', 'is', null).eq('direction', 'in').is('booking_id', null)
+    .order('paid_at', { ascending: false })
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ entries: data || [], kinds: KINDS })
 }

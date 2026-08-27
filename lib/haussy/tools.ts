@@ -1,4 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/server'
+import { loadRefundNetting } from '@/lib/mat-refunds'
 
 export type HaussyCtx = { userId: string | null; role: string }
 
@@ -183,18 +184,21 @@ export async function runTool(name: string, input: any, ctx: HaussyCtx): Promise
     const from = new Date(Date.UTC(year, qs, 1)).toISOString().split('T')[0]
     const to = new Date(Date.UTC(year, qe + 1, 0)).toISOString().split('T')[0]
     const { data: blocks } = await supabase.from('calendar_blocks')
-      .select('guest_name, platform, start_date, end_date, accommodation, discount')
+      .select('id, guest_name, platform, start_date, end_date, accommodation, discount')
       // the assistant must not report a cancelled stay as revenue
       .neq('status', 'cancelled')
       .eq('property_id', 'nickel-beach').eq('is_booking', true)
       .in('platform', ['airbnb', 'vrbo', 'houfy'])
       .lte('start_date', to).gte('end_date', from)
+    // a refunded stay is not taxed on the money that went back
+    const net = await loadRefundNetting(supabase, (blocks || []).map(b => b.id))
     let revenue = 0, nights = 0, exemptRevenue = 0, missing = 0
     for (const b of blocks || []) {
       const total = Math.max(0, Math.round((new Date(b.end_date + 'T00:00:00').getTime() - new Date(b.start_date + 'T00:00:00').getTime()) / DAY))
       if (!total) continue
       if (!b.accommodation) missing++
-      const nightly = ((Number(b.accommodation) || 0) - (Number(b.discount) || 0)) / total
+      const nightly = Math.max(0, ((Number(b.accommodation) || 0) - (Number(b.discount) || 0))
+        - (net.roomForMatByBooking.get(b.id) || 0)) / total
       let inQ = 0
       for (let i = 0; i < total; i++) {
         const d = new Date(new Date(b.start_date + 'T00:00:00').getTime() + i * DAY)
@@ -205,7 +209,8 @@ export async function runTool(name: string, input: any, ctx: HaussyCtx): Promise
       else revenue += nightly * inQ
     }
     const r2 = (n: number) => Math.round(n * 100) / 100
-    return { ok: true, data: { quarter: input.quarter, year, from, to, nights_occupied: nights, room_revenue: r2(revenue), exempt_revenue: r2(exemptRevenue), mat_owed: r2(revenue * RATE), bookings_missing_amounts: missing } }
+    return { ok: true, data: { quarter: input.quarter, year, from, to, nights_occupied: nights, room_revenue: r2(revenue), exempt_revenue: r2(exemptRevenue), mat_owed: r2(revenue * RATE), bookings_missing_amounts: missing,
+      airbnb_mat_reversed_not_netted: net.airbnbMatNotNetted || undefined } }
   }
   if (name === 'search_inventory') {
     const supabase = createAdminClient()

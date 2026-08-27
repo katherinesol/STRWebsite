@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
   const year = request.nextUrl.searchParams.get('year') || 'all'
   const inYear = (d: any) => year === 'all' || String(d || '').startsWith(year)
 
-  const [{ data: plat }, { data: direct }, { data: expenses }, { data: other }] = await Promise.all([
+  const [{ data: plat }, { data: direct }, { data: expenses }, { data: other }, { data: refunds }] = await Promise.all([
     supabase.from('calendar_blocks')
       .select('id, guest_name, platform, property_id, start_date, accommodation, discount, cleaning_fee, extras, commission, payment_processing_fee, taxes_collected, taxes_you_remit, taxes_platform_remits, payout_amount, guest_total')
       // A cancelled stay earned nothing. The row keeps its figures so the
@@ -57,7 +57,13 @@ export async function GET(request: NextRequest) {
     supabase.from('bookings')
       .select('id, booking_reference, property_id, check_in, accommodation, cleaning_fee, addon_fee, hst, mat, total, is_comp, guests:guest_id(name)'),
     supabase.from('expenses').select('id, date, vendor, description, amount, category, property_id, hst_paid'),
-    supabase.from('payments').select('id, amount, paid_at, kind, property_id, note, reference').not('kind', 'is', null),
+    // standalone income only: 'in', no parent. A refund also carries a kind
+    // and would otherwise be counted here as revenue, with its sign flipped.
+    supabase.from('payments').select('id, amount, paid_at, kind, property_id, note, reference')
+      .not('kind', 'is', null).eq('direction', 'in').is('booking_id', null),
+    // refunds: money given back, against a booking
+    supabase.from('payments').select('id, amount, paid_at, booking_id, booking_kind, property_id, note, reference')
+      .eq('kind', 'refund').eq('direction', 'out'),
   ])
 
   const n = (v: any) => Number(v) || 0
@@ -68,16 +74,24 @@ export async function GET(request: NextRequest) {
   const D = (direct || []).filter(b => inYear(b.check_in))
   const E = (expenses || []).filter(e => inYear(e.date))
   const O = (other || []).filter(o => inYear(o.paid_at))
+  const R = (refunds || []).filter(r => inYear(r.paid_at))
 
   const platEarned = (b: any) => n(b.accommodation) - n(b.discount) + n(b.cleaning_fee) + n(b.extras)
   const dirEarned = (b: any) => n(b.accommodation) + n(b.cleaning_fee) + n(b.addon_fee)
 
+  /*  Refunds come off revenue, they are not an expense. Money given back was
+      never earned, and filing it as a cost would leave revenue overstated and
+      expenses overstated by the same amount — the net would come out right and
+      every line above it would be wrong. Carried as a negative so the sign is
+      visible wherever it is rendered. */
+  const refundsIssued = sum(R, (x) => n(x.amount))
   const revenue = {
     platform: sum(P, platEarned),
     direct: sum(D, dirEarned),
     other: sum(O, (o) => n(o.amount)),
+    refunds: r2(-refundsIssued),
   }
-  const revenueTotal = r2(revenue.platform + revenue.direct + revenue.other)
+  const revenueTotal = r2(revenue.platform + revenue.direct + revenue.other + revenue.refunds)
 
   // expenses: the recorded ones, plus the two the platforms deduct at source
   const byCategory: Record<string, number> = {}
@@ -113,7 +127,8 @@ export async function GET(request: NextRequest) {
     year, years,
     revenue: {
       ...revenue, total: revenueTotal,
-      platform_count: P.length, direct_count: D.filter(b => !b.is_comp).length, other_count: O.length,
+      platform_count: P.length, direct_count: D.filter(b => !b.is_comp).length,
+      other_count: O.length, refund_count: R.length,
     },
     expenses: {
       byCategory: Object.entries(byCategory).sort((a, b) => b[1] - a[1]).map(([category, amount]) => ({ category, amount })),
@@ -122,6 +137,25 @@ export async function GET(request: NextRequest) {
     net: r2(revenueTotal - expenseTotal),
     tax,
     other_income: O,
+    /*  A refunded stay reads as two dated facts, never as one edited number:
+        earned in the month it was earned, given back in the month it was given
+        back. The booking it belongs to keeps its own figures untouched. */
+    refunds: R.map(x => {
+      const b: any = (plat || []).find(p => p.id === x.booking_id)
+        || (direct || []).find(p => p.id === x.booking_id)
+      const earned = b ? (b.start_date ? platEarned(b) : dirEarned(b)) : null
+      return {
+        id: x.id, amount: n(x.amount), refunded_at: x.paid_at,
+        booking_id: x.booking_id, booking_kind: x.booking_kind,
+        property_id: x.property_id, reference: x.reference, note: x.note,
+        guest: b ? (b.guest_name || b.booking_reference || null) : null,
+        earned, earned_at: b ? (b.start_date || b.check_in) : null,
+        summary: b && earned != null
+          ? `earned ${earned.toFixed(2)} ${String(b.start_date || b.check_in).slice(0, 10)}, `
+            + `refunded ${n(x.amount).toFixed(2)} ${String(x.paid_at).slice(0, 10)}`
+          : `refunded ${n(x.amount).toFixed(2)} ${String(x.paid_at).slice(0, 10)} (booking not found)`,
+      }
+    }),
     incomplete,
   })
 }

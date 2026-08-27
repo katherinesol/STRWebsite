@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { hasRole } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/server'
+import { loadRefundNetting } from '@/lib/mat-refunds'
 
 const DAY = 86400000
 const RATE = 0.04
@@ -19,7 +20,7 @@ export async function GET(request: NextRequest) {
   const supabase = createAdminClient()
   const { data: blocks } = await supabase
     .from('calendar_blocks')
-    .select('guest_name, platform, start_date, end_date, accommodation, discount, mat, taxes_collected, confirmation_code')
+    .select('id, guest_name, platform, start_date, end_date, accommodation, discount, mat, taxes_collected, confirmation_code')
     // no MAT is owed on a stay that did not happen
     .neq('status', 'cancelled')
     .eq('property_id', 'nickel-beach')
@@ -27,6 +28,10 @@ export async function GET(request: NextRequest) {
     .in('platform', ['airbnb', 'vrbo', 'houfy'])
     .lte('start_date', to)
     .gte('end_date', from)
+
+  /*  Refunds reduce the room before it is apportioned across the quarter's
+      months. Airbnb's MAT reversal is not netted - Airbnb remits that MAT. */
+  const net = await loadRefundNetting(supabase, (blocks || []).map(b => b.id))
 
   const nights = (a: string, b: string) => Math.max(0, Math.round((new Date(b + 'T00:00:00').getTime() - new Date(a + 'T00:00:00').getTime()) / DAY))
 
@@ -45,7 +50,11 @@ export async function GET(request: NextRequest) {
     const total = nights(b.start_date, b.end_date)
     if (total <= 0) continue
     const exempt = total > 29
-    const nightly = ((Number(b.accommodation) || 0) - (Number(b.discount) || 0)) / total
+    const roomBilled = (Number(b.accommodation) || 0) - (Number(b.discount) || 0)
+    const roomRefunded = net.roomByBooking.get(b.id) || 0
+    // only a refund whose MAT reversal is yours may reduce the MAT charged
+    const roomRefundedYours = net.roomForMatByBooking.get(b.id) || 0
+    const nightly = Math.max(0, roomBilled - roomRefundedYours) / total
 
     // allocate each night to the month it falls in
     const perMonth: Record<number, number> = {}
@@ -78,6 +87,7 @@ export async function GET(request: NextRequest) {
         total_nights: total,
         nights_in_quarter: bookingNights,
         room_revenue: Math.round(bookingRevenue * 100) / 100,
+        room_refunded: roomRefunded,
         mat_due: exempt ? 0 : Math.round(bookingRevenue * RATE * 100) / 100,
         mat_recorded: Number(b.mat) || 0,
         mat_collected_est: b.taxes_collected ? Math.round((Number(b.taxes_collected) * (4 / 17)) * 100) / 100 : null,
@@ -105,6 +115,11 @@ export async function GET(request: NextRequest) {
     total_room_revenue: r2(clean.reduce((s, m) => s + m.room_revenue, 0)),
     total_mat_due: r2(clean.reduce((s, m) => s + m.mat_due, 0)),
     total_mat_recorded: r2(rows.reduce((s, x) => s + x.mat_recorded, 0)),
+    airbnb_mat_reversed_not_netted: net.airbnbMatNotNetted,
+    airbnb_note: net.airbnbMatNotNetted > 0
+      ? `${net.airbnbMatNotNetted.toFixed(2)} of MAT was reversed on Airbnb refunds and is NOT deducted here — `
+        + `Airbnb remits that MAT, so reversing it is theirs to do.`
+      : null,
     bookings: rows.sort((a, b) => a.stay.localeCompare(b.stay)),
   })
 }

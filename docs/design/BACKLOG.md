@@ -118,6 +118,11 @@ anything not in the doc was dropped. Three found by complaint, one by search.
   cancelled row. Recorded in
   [calendar_blocks_status.sql](../../supabase/calendar_blocks_status.sql). Two
   things found during stage ① that stage ② has to carry:
+  - ~~**MUST FIX — the unique index blocks cancel-then-rebook.**~~ **FIXED
+    2026-08-27** in stage 2: replaced with the partial index
+    `calendar_blocks_property_start_live ... where status <> 'cancelled'`.
+    Verified: two confirmed rows on one slot still rejected, a cancelled plus a
+    confirmed on the same slot allowed. Original note kept below.
   - **MUST FIX — the unique index blocks cancel-then-rebook.** `calendar_blocks`
     carries `unique (property_id, start_date)`, and a cancelled row still
     occupies its slot. So the dates read as free everywhere — availability, the
@@ -136,6 +141,17 @@ anything not in the doc was dropped. Three found by complaint, one by search.
     Airbnb or VRBO. **Flagged, not asserted:** no row of that shape exists today,
     so it has not been reproduced. Confirm before relying on an owner block to
     hold dates externally.
+  - **Toronto MAT refund-netting waits on the audit.** Stage 2 wired refund
+    netting into the MAT return, the Nickel MAT report and the assistant's
+    quarterly figure. `app/api/admin/toronto-mat-report/route.ts` is held, so it
+    alone does not net refunds — a refunded Royal York stay will overstate MAT
+    in THAT report until the VRBO/Airbnb audit unholds it. The refund preview
+    says so per-booking. Same shape as the cancelled-exclusion, which the same
+    file also still lacks.
+  - **Direct-booking refunds are built but unexercised.** The engine handles
+    `booking_kind = 'direct'`, and direct bookings carry `hst`/`mat` columns the
+    reversal does not touch. Only platform refunds have been verified end to
+    end.
 - **Multi-guest step 3 — per-person access.** Decisions settled (per-person
   tokens, operational-only concierge, lead-can-invite, two-tier window), scoped
   in [multi-guest.md](multi-guest.md), unbuilt. Steps 1–2 shipped.
