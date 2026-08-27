@@ -13,6 +13,7 @@ import StayChecklist from '@/components/admin/StayChecklist'
 import ParkingControl from '@/components/admin/ParkingControl'
 import CompToggle from '@/components/keyholder/CompToggle'
 import CancelOrRefund from '@/components/keyholder/CancelOrRefund'
+import { WaterUsed, WindDuringStay, HAS_SENSORS } from '@/components/keyholder/StayConditions'
 
 /** Design-doc 2a, read only.
  *
@@ -57,6 +58,20 @@ export default function BookingDetail({ kind, b, locks, guest, conversation, mes
       Cancelled stays keep the control hidden — the endpoint refuses a second
       cancellation, and offering a button that always errors is worse than not
       offering it. */
+  /*  Cistern and wind readings, Nickel Beach only - see StayConditions. Both
+      cards were on the legacy booking page and were never written into this
+      shell; the data never stopped. */
+  const propertyId: string = b.property_id
+  const stayStart: string = isDirect ? b.check_in : b.start_date
+  const stayEnd: string = isDirect ? b.check_out : b.end_date
+  const conditions = HAS_SENSORS(propertyId) && stayStart && stayEnd ? (
+    <div style={{ display: 'grid', gap: '12px', marginTop: '12px' }}>
+      <WaterUsed propertyId={propertyId} checkIn={stayStart} checkOut={stayEnd} />
+      <WindDuringStay propertyId={propertyId} checkIn={stayStart} checkOut={stayEnd}
+        bookingId={b.id} bookingKind={kind} />
+    </div>
+  ) : null
+
   const cancelControl = b.status === 'cancelled' ? null : (
     <CancelOrRefund bookingId={b.id} kind={kind} guest={name} accounts={accounts || []} />
   )
@@ -210,6 +225,7 @@ export default function BookingDetail({ kind, b, locks, guest, conversation, mes
                     </div>
                     <CompToggle bookingId={b.id} isComp={!!b.is_comp} guestName={name} />
                     <div style={{ marginTop: '10px' }}>{cancelControl}</div>
+                    {conditions}
                   </div>
                 ) : <>
                   {([['Deposit', b.deposit_amount, b.deposit_paid_at, null],
@@ -237,6 +253,7 @@ export default function BookingDetail({ kind, b, locks, guest, conversation, mes
                   </div>
                   <CompToggle bookingId={b.id} isComp={!!b.is_comp} guestName={name} />
                     <div style={{ marginTop: '10px' }}>{cancelControl}</div>
+                    {conditions}
                 </>
               ) : <>
                 {([['Accommodation', b.accommodation], ['Cleaning', b.cleaning_fee], ['Extras', b.extras],
