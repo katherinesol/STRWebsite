@@ -28,6 +28,8 @@ export type FeedResult = {
   events: number
   inserted: number
   adopted: number
+  /** blank door codes filled from this feed's DESCRIPTION; always 0 for VRBO */
+  codesFilled?: number
   error?: string
 }
 
@@ -39,6 +41,8 @@ export type SyncReport = {
   extended: number
   cancelled: number
   removed: number
+  /** blank door codes filled from a feed this run */
+  codesFilled?: number
   failed_feeds: number
 }
 
@@ -54,7 +58,7 @@ export async function syncAllICal(): Promise<SyncReport> {
 
   const report: SyncReport = {
     properties, feeds: [], inserted: 0, adopted: 0,
-    extended: 0, cancelled: 0, removed: 0, failed_feeds: 0,
+    extended: 0, cancelled: 0, removed: 0, codesFilled: 0, failed_feeds: 0,
   }
   for (const p of properties) {
     const r = await syncICalToDB(p)
@@ -64,6 +68,10 @@ export async function syncAllICal(): Promise<SyncReport> {
     report.extended += r.extended
     report.cancelled += r.cancelled
     report.removed += r.removed
+    // merged like every other counter; without this the run-level total reads 0
+    // while the per-feed rows show the real count, which is how a sweep looks
+    // like it did nothing when it did something
+    report.codesFilled = (report.codesFilled || 0) + (r.codesFilled || 0)
   }
   report.failed_feeds = report.feeds.filter(f => !f.ok).length
   return report
@@ -131,11 +139,50 @@ export async function syncICalToDB(propertyId: string): Promise<SyncReport> {
           }
         }
 
+        /*  BACKFILL A BLANK CODE, AND ONLY A BLANK ONE.
+         *
+         *  Every door_code in this database was hand-copied off the platform,
+         *  because this parser used to discard DESCRIPTION - so a booking nobody
+         *  got to simply had none, and the cron would report "no code on
+         *  booking" forever without ever creating one. Five were in that state.
+         *
+         *  NON-BLANK ALWAYS WINS. A code already set was typed by a person or
+         *  corrected after the fact, and a guest may be holding it already.
+         *  Overwriting from a feed would change a live code silently, and the
+         *  failure mode is a guest at the door with a number that no longer
+         *  opens it. So a filled code is never touched, and the
+         *  .is('door_code', null) below is the second lock on that: even if the
+         *  row changed between this read and this write, a non-null value cannot
+         *  be replaced.
+         *
+         *  VRBO IS NOT COVERED and must not appear to be. Its feed carries no
+         *  DESCRIPTION at all, so a VRBO booking stays blank and still needs its
+         *  code read off the dashboard by hand. */
+        if (existing && event.phoneLast4) {
+          const { data: cur } = await supabase.from('calendar_blocks')
+            .select('door_code').eq('id', existing.id).maybeSingle()
+          if (cur && !String(cur.door_code || '').trim()) {
+            const { error: cErr } = await supabase.from('calendar_blocks')
+              .update({ door_code: event.phoneLast4 })
+              .eq('id', existing.id).is('door_code', null)
+            if (!cErr) {
+              fr.codesFilled = (fr.codesFilled || 0) + 1
+              report.codesFilled = (report.codesFilled || 0) + 1
+              await logSystem('lock.code_from_feed',
+                `Filled a blank door code from the ${platform} feed: ${event.phoneLast4} (${event.start}-${event.end})`,
+                { booking_id: existing.id, code: event.phoneLast4, platform }, propertyId)
+            }
+          }
+        }
+
         if (!existing) {
           const { error } = await supabase.from('calendar_blocks').insert({
             property_id: propertyId, start_date: event.start, end_date: event.end,
             reason: 'manual', notes: `Synced from ${platform}`, platform,
             ical_uid: event.uid || null,
+            // the feed's phone-last-4 IS the door code; null on VRBO, which
+            // publishes none at all
+            door_code: event.phoneLast4 || null,
           })
           if (!error) { fr.inserted++; report.inserted++ }
         }
