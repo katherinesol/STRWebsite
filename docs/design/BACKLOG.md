@@ -113,6 +113,25 @@ anything not in the doc was dropped. Three found by complaint, one by search.
   **Highest-leverage item here** — it is what made this week's 39-booking
   reconciliation manual.
 - **Combined P&L.** Wanted eventually; explicitly not part of the Money rebuild.
+- **The two reminder senders are dead code, and the diagnosis is narrower than
+  "no email provider".** Resend IS wired and working: a real key is set, and
+  `sendAccessCode`, `sendPortalSetup`, `sendEscalationAlert` and
+  `sendBookingConfirmation` each have a live route, plus the cron's lock alerts.
+  What is missing is smaller and specific:
+  - `sendPaymentReminder` exists in `lib/email.ts` and has **zero callers and no
+    route**. `PaymentReminderForm` POSTs to `/api/admin/bookings/[id]/send-reminder`,
+    which **does not exist** — that directory holds only `figures`,
+    `send-access-code` and `send-portal-link`. So the form 404s on legacy too.
+  - A licence-plate reminder sender **does not exist at all**. `BookingActions`
+    sends `{_action: 'send_plate_reminder'}` to the booking PATCH, whose
+    allowlist rejects unknown keys, so it 400s. Same for its `{_action:'refund'}`,
+    which `CancelOrRefund` has since superseded properly.
+  - `newsletter/send` is a stub returning "Email provider not yet connected" —
+    which is now inaccurate; the provider is connected, the list and the send are
+    what is missing.
+  **Do not wire a UI to any of these** — there is nothing behind them. Each needs
+  a route plus (for plates) a sender written first. Deferred from the
+  booking/stay coverage batch for exactly that reason.
 - **Statement matching — rung 1.** Scoped 2026-08-27 in
   [statement-matching.md](statement-matching.md), approved as design, unbuilt.
   Upload a per-account statement, match lines against recorded payments, surface
