@@ -33,7 +33,6 @@ const SECTIONS = [
     { href: '/admin/income', label: 'Income', icon: '↑', staffOnly: true },
     { href: '/admin/property-management/finance', label: 'Expenses', icon: '$' },
     { href: '/admin/inventory', label: 'Inventory', icon: '▤' },
-    { href: '/admin/invoices', label: 'Invoices', icon: '❋', staffOnly: true },
     { href: '/admin/damage', label: 'Damage', icon: '⚠' },
   ]},
   { title: 'Tax & Filing', items: [
