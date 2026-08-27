@@ -1,10 +1,12 @@
 import { NextResponse } from 'next/server'
-import { isAuthed } from '@/lib/auth'
+import { hasRole, hasPermission } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/server'
 import { INVENTORY_CATEGORIES } from '@/lib/expense-categories'
 
 export async function GET() {
-  if (!await isAuthed()) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  // A derived read over expenses line items. Nothing is written.
+  if (!await hasRole('owner', 'co-owner')) return NextResponse.json({ error: 'Not allowed' }, { status: 403 })
+  if (!await hasPermission('money', 'view')) return NextResponse.json({ error: 'Not allowed to view expenses' }, { status: 403 })
   const supabase = createAdminClient()
 
   const { data } = await supabase

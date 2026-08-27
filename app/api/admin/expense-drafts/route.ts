@@ -1,9 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { isAuthed, getAuth } from '@/lib/auth'
+import { hasRole, hasPermission, getAuth } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/server'
 
 export async function GET() {
-  if (!await isAuthed()) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  /*  PER METHOD, because reading a draft and writing one are not the same act.
+      GET only lists what is staged; POST and DELETE persist and destroy money
+      data. Giving the whole file one level would either hide the list from a
+      legitimate view holder or let them write. */
+  if (!await hasRole('owner', 'co-owner')) return NextResponse.json({ error: 'Not allowed' }, { status: 403 })
+  if (!await hasPermission('money', 'view')) return NextResponse.json({ error: 'Not allowed to view expense drafts' }, { status: 403 })
   const supabase = createAdminClient()
   const { data } = await supabase.from('expense_drafts').select('*').order('created_at')
   return NextResponse.json({ drafts: data || [] })
@@ -11,7 +16,8 @@ export async function GET() {
 
 // upsert a draft (create if no id, update if id present)
 export async function POST(request: NextRequest) {
-  if (!await isAuthed()) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!await hasRole('owner', 'co-owner')) return NextResponse.json({ error: 'Not allowed' }, { status: 403 })
+  if (!await hasPermission('money', 'edit')) return NextResponse.json({ error: 'Not allowed to change expense drafts' }, { status: 403 })
   const auth = await getAuth()
   const body = await request.json()
   const supabase = createAdminClient()
@@ -33,7 +39,8 @@ export async function POST(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
-  if (!await isAuthed()) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!await hasRole('owner', 'co-owner')) return NextResponse.json({ error: 'Not allowed' }, { status: 403 })
+  if (!await hasPermission('money', 'edit')) return NextResponse.json({ error: 'Not allowed to delete expense drafts' }, { status: 403 })
   const { id } = await request.json()
   if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
   const supabase = createAdminClient()

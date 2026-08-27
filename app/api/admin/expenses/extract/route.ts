@@ -2,13 +2,17 @@ import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { createAdminClient } from '@/lib/supabase/server'
 import { EXPENSE_CATEGORIES, normaliseCategory } from '@/lib/expense-categories'
-import { isAuthed } from '@/lib/auth'
+import { hasRole, hasPermission } from '@/lib/auth'
 
 
 
 
 export async function POST(request: NextRequest) {
-  if (!await isAuthed()) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  // Writes no expense row, but it uploads the receipt to private storage and spends
+  // LLM tokens per call. It is the first step of creating expense data, so a
+  // view-only holder has no business here.
+  if (!await hasRole('owner', 'co-owner')) return NextResponse.json({ error: 'Not allowed' }, { status: 403 })
+  if (!await hasPermission('money', 'edit')) return NextResponse.json({ error: 'Not allowed to extract receipts' }, { status: 403 })
 
   const formData = await request.formData()
   const file = formData.get('receipt') as File | null

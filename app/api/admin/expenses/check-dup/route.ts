@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { isAuthed } from '@/lib/auth'
+import { hasRole, hasPermission } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/server'
 
 export async function POST(request: NextRequest) {
-  if (!await isAuthed()) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  // Reads expenses only - it is a POST because it takes a body, not because it writes.
+  // The method is not the level; what it does is.
+  if (!await hasRole('owner', 'co-owner')) return NextResponse.json({ error: 'Not allowed' }, { status: 403 })
+  if (!await hasPermission('money', 'view')) return NextResponse.json({ error: 'Not allowed to view expenses' }, { status: 403 })
   const { vendor, amount, date } = await request.json()
   if (!amount || !date) return NextResponse.json({ dup: null })
   const supabase = createAdminClient()

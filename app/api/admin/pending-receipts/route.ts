@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
-import { isAuthed } from '@/lib/auth'
+import { hasRole, hasPermission } from '@/lib/auth'
 import { normaliseCategory } from '@/lib/expense-categories'
 
 
 // approve: create real expense from pending; reject: mark rejected
 export async function POST(request: NextRequest) {
-  if (!await isAuthed()) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  // Inserts straight into expenses and flips pending_receipts to approved/rejected.
+  if (!await hasRole('owner', 'co-owner')) return NextResponse.json({ error: 'Not allowed' }, { status: 403 })
+  if (!await hasPermission('money', 'edit')) return NextResponse.json({ error: 'Not allowed to file receipts' }, { status: 403 })
   const body = await request.json()
   const { id, action, fields } = body
   const supabase = createAdminClient()
