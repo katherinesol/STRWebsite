@@ -64,6 +64,23 @@ anything not in the doc was dropped. Three found by complaint, one by search.
    should become per-property configuration first.
 4. *(A fourth was mentioned but never named — ask.)*
 
+## Invoice and payment logic
+
+- **Three payments have an expense with no link recorded.** `expense_created` is
+  true and `expense_id` null on the 2026-08-24 $2,000 billpay, the 2026-08-26
+  $249.84 Solid Waste billpay and the 2026-08-26 $1,000 Eureka Kitchen
+  e-transfer. **The code that caused it is fixed** (both the mark-paid and
+  invoice-panel paths now record which expense, with the same compare-and-swap
+  guard the save flow uses), but the three existing rows still cannot clean up
+  their expenses on delete, because nothing records which expense each one was.
+  Re-linking them means matching on vendor + amount + date, which is exactly the
+  attribute match that once deleted a sibling payment's expense — so it wants a
+  careful one-at-a-time pass, not a script.
+- **`invoice_payments` has no `reference` on the older rows.** The column exists
+  now and all four recording paths write it, but the 23 pre-existing payments
+  have none. Worth backfilling from bank records at some point; nothing depends
+  on it.
+
 ## Shipped since this file was written
 
 - **Payment reconciliation, stages 1–4a** (2026-08-26). `bank_accounts` and a
@@ -75,6 +92,12 @@ anything not in the doc was dropped. Three found by complaint, one by search.
 - **Free stays** (2026-08-26). `bookings.is_comp` separates a comped stay from an
   unfinished one, so the no-total warning still fires on the second. Guest portal
   no longer shows a comped booking an instalment schedule.
+- **Invoice editor, phase 1** (2026-08-26). Identity fields editable through the
+  header-only PATCH rather than the full-replace save; a payment reference on all
+  four recording paths; one shared tax-rate picker for the new-invoice and edit
+  paths. The landmine — that saving identity through `save` would delete the
+  invoice's items, payments and their expenses — was proven defused on a real
+  invoice in production, items and payments byte-identical across a rename.
 - **Lock fixes and the nav restore** (2026-08-25/26). The always-firing sweep
   alarm, the synced-arrivals blind spot, shared-door attribution, the retired
   import route, the blanket Nickel skip, and Locks & Access back in the nav.

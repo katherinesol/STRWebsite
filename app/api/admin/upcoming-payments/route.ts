@@ -78,7 +78,20 @@ export async function PATCH(request: NextRequest) {
   if (!pay.expense_created) {
     const { data: inv } = await supabase.from('invoices').select('contractor_name, company, property_id, title, hst_amount, category').eq('id', pay.invoice_id).single()
     const methodStr = rec.method ? `${rec.method}${rec.method_detail ? ' ' + String(rec.method_detail).trim() : ''}${rec.method_last4 ? ' …' + rec.method_last4 : ''}` : ''
-    await supabase.from('expenses').insert({
+    /*  RECORD WHICH EXPENSE, not merely that there was one.
+     *
+     *  This set expense_created and stopped there, so the payment knew an expense
+     *  existed but not which one. Deleting the payment then could not clean it up
+     *  — there was no id to target — and the expense orphaned. It is also why one
+     *  row carried expense_created true with a null expense_id, the row that made
+     *  the flag underivable during the payments backfill. Three payments are in
+     *  that state today.
+     *
+     *  The compare-and-swap is the same guard the invoice save flow uses: claim
+     *  the payment only if nothing else has, and bin the expense if we lost the
+     *  race. Two concurrent marks — a double click, a retry — would otherwise each
+     *  mint one and leave a duplicate in the books. */
+    const { data: expense } = await supabase.from('expenses').insert({
       property_id: inv?.property_id || null,
       date: today,
       vendor: inv?.contractor_name || inv?.company,
@@ -87,9 +100,18 @@ export async function PATCH(request: NextRequest) {
       category: inv?.category || 'Repairs & maintenance',
       hst_paid: inv?.hst_amount ?? null,
       notes: 'From invoice tracker',
+      reference: rec.reference || null,
       confirmed: true,
-    })
-    await supabase.from('invoice_payments').update({ expense_created: true }).eq('id', id)
+    }).select('id').single()
+
+    if (expense) {
+      const { data: claimed } = await supabase.from('invoice_payments')
+        .update({ expense_id: expense.id, expense_created: true })
+        .eq('id', id).is('expense_id', null).select('id')
+      if (!claimed || claimed.length === 0) {
+        await supabase.from('expenses').delete().eq('id', expense.id)
+      }
+    }
   }
   return NextResponse.json({ ok: true })
 }

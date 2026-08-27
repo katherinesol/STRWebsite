@@ -116,10 +116,23 @@ export async function POST(request: NextRequest) {
       }).select().single()
       if (!expErr) {
         expense = created
-        await supabase.from('invoice_payments').update({ expense_created: true }).eq('id', payment_id)
+        // Record WHICH expense, not merely that there was one. Setting only the
+        // flag left the payment unable to clean up its expense on delete, and
+        // made expense_created underivable from expense_id — the discrepancy the
+        // payments backfill had to work around. The id is client-generated here,
+        // so it is known before the insert; there is no reason it was omitted.
+        await supabase.from('invoice_payments')
+          .update({ expense_id: created.id, expense_created: true }).eq('id', payment_id)
       } else if (expErr.code === '23505') {
+        // the same client-generated expense id already landed — a repeat submit.
+        // Link it anyway: the row exists and the payment should still point at it.
         const { data: existing } = await supabase.from('expenses').select('*').eq('id', expense_id).maybeSingle()
         expense = existing
+        if (existing) {
+          await supabase.from('invoice_payments')
+            .update({ expense_id: existing.id, expense_created: true })
+            .eq('id', payment_id).is('expense_id', null)
+        }
       } else {
         return NextResponse.json({ error: `Payment recorded, but the expense failed: ${expErr.message}`, before, after: await snapshot(supabase, invoice_id) }, { status: 500 })
       }
