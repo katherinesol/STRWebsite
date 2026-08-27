@@ -1,10 +1,12 @@
 'use client'
 import { useState, useEffect, use } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import MethodPicker, { DETAILED } from '@/components/admin/MethodPicker'
 import { L, F, microLabel, cardStyle, money } from '@/lib/design-tokens'
 import InvoiceLineEditor from '@/components/keyholder/InvoiceLineEditor'
 import InvoiceIdentityEditor from '@/components/keyholder/InvoiceIdentityEditor'
+import DangerDelete, { plural } from '@/components/keyholder/DangerDelete'
 
 const PROP_NAMES: Record<string, string> = {
   'royal-york': 'Royal York', 'royal-york-west': 'Royal York West',
@@ -27,7 +29,21 @@ type Draft = {
   planned?: any
 }
 
+/*  "3 line items, 0 adjustments and 4 payments" reads as noise. List only the
+    kinds that are actually there, joined the way a person would say them. */
+function cascadeSentence(pv: any): string {
+  const parts: string[] = []
+  if (pv.counts.items) parts.push(plural(pv.counts.items, 'line item'))
+  if (pv.counts.adjustments) parts.push(plural(pv.counts.adjustments, 'adjustment'))
+  if (pv.counts.payments) parts.push(plural(pv.counts.payments, 'payment') + (pv.paid_total ? ` totalling ${money(pv.paid_total)}` : ''))
+  if (!parts.length) return 'It has no line items, adjustments or payments.'
+  const list = parts.length === 1 ? parts[0]
+    : `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}`
+  return `This also removes ${list}.`
+}
+
 export default function InvoiceEditor({ params }: { params: Promise<{ id: string }> }) {
+  const router = useRouter()
   const { id } = use(params)
   const [d, setD] = useState<any>(null)
   const [loading, setLoading] = useState(true)
@@ -116,6 +132,25 @@ export default function InvoiceEditor({ params }: { params: Promise<{ id: string
         </div>
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '10px' }}>
           <InvoiceIdentityEditor invoice={inv} onSaved={load} />
+          <DangerDelete
+            previewUrl={`/api/admin/invoices/${inv.id}`}
+            confirmUrl={`/api/admin/invoices/${inv.id}?confirm=true`}
+            label="Delete the invoice"
+            onDone={() => router.push('/keyholder/money/invoices')}
+            describe={(pv: any) => ({
+              question: `Delete "${pv.invoice.title}"${pv.invoice.contractor_name ? ` from ${pv.invoice.contractor_name}` : ''}?`,
+              lines: [
+                // only what actually exists: "0 adjustments" is noise in a sentence
+                // someone is reading to decide whether to destroy something
+                cascadeSentence(pv),
+                pv.counts.expenses > 0
+                  ? `${plural(pv.counts.expenses, 'expense')} filed against it will be removed from your books.`
+                  : 'No expenses were filed against it.',
+              ],
+              warning: pv.unlinked_expenses > 0
+                ? `${plural(pv.unlinked_expenses, 'expense')} filed against this invoice cannot be found — nothing recorded which expense belonged to which payment — so ${pv.unlinked_expenses === 1 ? 'it' : 'they'} will be left behind in your books. You can relink ${pv.unlinked_expenses === 1 ? 'it' : 'them'} later.`
+                : null,
+            })} />
           <span style={{
             padding: '8px 14px', borderRadius: '99px', fontSize: '13px', fontWeight: 600,
             background: outstanding > 0.005 ? 'oklch(0.965 0.02 30)' : 'oklch(0.94 0.05 155)',
@@ -201,6 +236,31 @@ export default function InvoiceEditor({ params }: { params: Promise<{ id: string
                     <span style={{ marginLeft: 'auto', fontSize: '13px', fontWeight: 600, color: isPlanned ? L.amber : 'oklch(0.38 0.10 155)' }}>
                       {isPlanned ? `scheduled${p.due_date ? ` for ${p.due_date}` : ''} — not yet paid` : `paid ${p.paid_at || ''}`}
                     </span>
+                    <DangerDelete
+                      previewUrl={`/api/admin/invoices/payment?id=${p.id}`}
+                      confirmUrl={`/api/admin/invoices/payment?id=${p.id}&confirm=true`}
+                      label="Delete the payment"
+                      onDone={load}
+                      describe={(pv: any) => ({
+                        question: `Delete this ${money(pv.payment.amount)} payment?`,
+                        lines: [
+                          `${pv.payment.status === 'planned' ? 'Scheduled' : 'Paid'}${pv.payment.paid_at ? ` ${pv.payment.paid_at}` : ''}${pv.payment.method ? ` by ${pv.payment.method}` : ''}${pv.payment.reference ? ` · ${pv.payment.reference}` : ''}.`,
+                          /* Three states, not two. An expense that exists and can be
+                             removed; one that was filed but whose id was never
+                             recorded, so it cannot be found; and none at all.
+                             Collapsing the middle case into "no expense was filed"
+                             told you a delete was clean while it orphaned a cost. */
+                          pv.expense
+                            ? `Its filed expense of ${money(pv.expense.amount)} will be removed from your books too.`
+                            : pv.orphan_warning
+                              ? 'Its expense cannot be found — see below.'
+                              : 'No expense was filed for it, so nothing else changes.',
+                          'Other payments and the line items on this invoice are untouched.',
+                        ],
+                        warning: pv.orphan_warning
+                          ? 'An expense was filed for this payment but nothing recorded which one, so it cannot be found and will be left behind in your books. You can relink it later.'
+                          : null,
+                      })} />
                     {isPlanned && (
                       <button onClick={() => openSettle(p)} style={{
                         padding: '8px 13px', borderRadius: '8px', background: L.ink, color: '#fff',

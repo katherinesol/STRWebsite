@@ -142,3 +142,65 @@ export async function POST(request: NextRequest) {
   const after = await snapshot(supabase, invoice_id)
   return NextResponse.json({ ok: true, already, action, amount, before, after, expense })
 }
+
+
+/*  DELETE ONE PAYMENT, and the expense it filed.
+ *
+ *  The legacy screen did this by removing the row from an array and posting the
+ *  whole invoice back through save, which deletes anything missing from the
+ *  payload. That works, and it is also the mechanism that would erase an entire
+ *  invoice if the payload were ever incomplete. This deletes exactly one row.
+ *
+ *  It removes the linked expense too, because the expense was minted BY this
+ *  payment and describes money that this payment recorded. Leaving it behind
+ *  means a cost in the books with nothing to explain it — which is what happened
+ *  before expense_id was recorded, and is why three older payments still cannot
+ *  be cleaned up this way: nothing says which expense was theirs.
+ *
+ *  Two steps on purpose. Without ?confirm=true it reports what WOULD go and
+ *  deletes nothing, so the control can name the consequence before anyone agrees
+ *  to it. */
+export async function DELETE(request: NextRequest) {
+  if (!await hasRole('owner', 'co-owner')) return NextResponse.json({ error: 'Not allowed' }, { status: 403 })
+  if (!await hasPermission('money', 'edit')) {
+    return NextResponse.json({ error: 'Not allowed to delete payments' }, { status: 403 })
+  }
+  const id = request.nextUrl.searchParams.get('id')
+  const confirmed = request.nextUrl.searchParams.get('confirm') === 'true'
+  if (!id || !UUID.test(id)) return NextResponse.json({ error: 'A payment id is required' }, { status: 400 })
+
+  const supabase = createAdminClient()
+  const { data: pay } = await supabase.from('invoice_payments')
+    .select('id, invoice_id, amount, paid_at, status, method, method_detail, method_last4, reference, expense_created, expense_id')
+    .eq('id', id).maybeSingle()
+  if (!pay) return NextResponse.json({ error: 'Payment not found' }, { status: 404 })
+
+  const { data: expense } = pay.expense_id
+    ? await supabase.from('expenses').select('id, date, vendor, description, amount').eq('id', pay.expense_id).maybeSingle()
+    : { data: null }
+
+  // an expense was filed but nothing recorded which one — it cannot be removed here
+  const orphanWarning = pay.expense_created && !pay.expense_id
+
+  if (!confirmed) {
+    return NextResponse.json({
+      preview: true,
+      payment: { amount: pay.amount, paid_at: pay.paid_at, status: pay.status, method: pay.method, reference: pay.reference },
+      expense: expense ? { amount: expense.amount, description: expense.description, date: expense.date } : null,
+      orphan_warning: orphanWarning,
+    })
+  }
+
+  if (expense) {
+    const { error: eErr } = await supabase.from('expenses').delete().eq('id', expense.id)
+    if (eErr) return NextResponse.json({ error: `Nothing was deleted — the expense could not be removed: ${eErr.message}` }, { status: 500 })
+  }
+  const { error } = await supabase.from('invoice_payments').delete().eq('id', id)
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  return NextResponse.json({
+    ok: true, deleted_payment: id,
+    deleted_expense: expense ? expense.id : null,
+    orphan_warning: orphanWarning,
+  })
+}
