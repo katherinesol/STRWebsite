@@ -204,3 +204,150 @@ export async function DELETE(request: NextRequest) {
     orphan_warning: orphanWarning,
   })
 }
+
+
+/*  EDIT ONE PAYMENT, and keep its expense saying the same thing.
+ *
+ *  Correcting a mistyped amount used to mean deleting the payment and logging it
+ *  again, which destroys the filed expense and mints a new one with a new id and
+ *  a new date — an identity change for what is a text fix.
+ *
+ *  THE BUG THIS DOES NOT INHERIT. The legacy screen edits payments through
+ *  save's 3a branch, which updates invoice_payments and then calls mintExpense —
+ *  and mintExpense returns early when an expense already exists. So editing an
+ *  amount there leaves the expense at the OLD figure, silently. Nineteen linked
+ *  pairs agree today only because nobody has done it since the links existed.
+ *  Here the expense is updated in place: same row, same id, same date and vendor
+ *  and category, only the figure moved. The expense IS that payment in the books,
+ *  so a correction should not rewrite its identity.
+ *
+ *  THE DESCRIPTION FOLLOWS THE METHOD. An expense reads "Payment - Flooring
+ *  (etransfer BMO ...0377)". Change the payment to a different account and leave
+ *  that alone, and the books name an account the payment no longer claims — the
+ *  same false-account-in-the-ledger problem the account work exists to prevent.
+ *
+ *  What it will not do: change status, parentage, or expense_created. Marking a
+ *  planned payment paid FILES an expense, which is creation, not correction, and
+ *  belongs to the settle path. And a payment whose expense was deliberately
+ *  deleted is not given a new one behind your back.
+ *
+ *  hst_paid is left alone on an amount edit. It is the invoice's total HST
+ *  stamped onto each expense, never a per-payment figure — already an
+ *  approximation, and recomputing it here would compound one guess with another. */
+export async function PATCH(request: NextRequest) {
+  if (!await hasRole('owner', 'co-owner')) return NextResponse.json({ error: 'Not allowed' }, { status: 403 })
+  if (!await hasPermission('money', 'edit')) {
+    return NextResponse.json({ error: 'Not allowed to edit payments' }, { status: 403 })
+  }
+  const id = request.nextUrl.searchParams.get('id')
+  const confirmed = request.nextUrl.searchParams.get('confirm') === 'true'
+  if (!id || !UUID.test(id)) return NextResponse.json({ error: 'A payment id is required' }, { status: 400 })
+
+  const raw = await request.json().catch(() => ({}))
+  const EDITABLE = new Set(['amount', 'method', 'method_detail', 'method_last4', 'paid_at', 'reference'])
+  const rejected = Object.keys(raw || {}).filter(k => !EDITABLE.has(k))
+  if (rejected.length) {
+    return NextResponse.json({
+      error: 'Not editable on a payment', rejected,
+      detail: 'Status, parentage and the expense link are not changed here. Marking a planned payment paid files an expense and belongs to Mark paid.',
+    }, { status: 400 })
+  }
+
+  const supabase = createAdminClient()
+  const { data: before } = await supabase.from('invoice_payments')
+    .select('id, invoice_id, amount, paid_at, status, method, method_detail, method_last4, reference, expense_created, expense_id')
+    .eq('id', id).maybeSingle()
+  if (!before) return NextResponse.json({ error: 'Payment not found' }, { status: 404 })
+
+  const next = {
+    amount: 'amount' in raw ? r2(n(raw.amount)) : n(before.amount),
+    method: 'method' in raw ? (raw.method || null) : before.method,
+    method_detail: 'method_detail' in raw ? (raw.method_detail || null) : before.method_detail,
+    method_last4: 'method_last4' in raw ? (raw.method_last4 || null) : before.method_last4,
+    paid_at: 'paid_at' in raw ? (raw.paid_at || null) : before.paid_at,
+    reference: 'reference' in raw ? (raw.reference || null) : before.reference,
+  }
+  if (!Number.isFinite(next.amount) || next.amount <= 0) {
+    return NextResponse.json({ error: 'A positive amount is required' }, { status: 400 })
+  }
+
+  const amountChanged = Math.abs(next.amount - n(before.amount)) > 0.005
+  const methodChanged = next.method !== before.method
+    || (next.method_detail || '') !== (before.method_detail || '')
+    || (next.method_last4 || '') !== (before.method_last4 || '')
+  const dateChanged = String(next.paid_at || '') !== String(before.paid_at || '')
+
+  const { data: expense } = before.expense_id
+    ? await supabase.from('expenses').select('id, amount, date, description').eq('id', before.expense_id).maybeSingle()
+    : { data: null }
+  const orphanWarning = before.expense_created && !before.expense_id
+
+  // would this take the invoice past what it is for?
+  const snap = await snapshot(supabase, before.invoice_id)
+  const paidAfter = r2(snap.paid - (before.status === 'paid' ? n(before.amount) : 0) + (before.status === 'paid' ? next.amount : 0))
+  const overpaid = paidAfter - snap.total
+  const overpayWarning = overpaid > 0.005 ? { paid: paidAfter, total: snap.total, over: r2(overpaid) } : null
+
+  const inv = snap.invoice
+  const methodStr = next.method
+    ? `${next.method}${next.method_detail ? ' ' + String(next.method_detail).trim() : ''}${next.method_last4 ? ' …' + next.method_last4 : ''}`
+    : ''
+  const newDescription = `Payment — ${inv?.title}${methodStr ? ' (' + methodStr + ')' : ''}`
+
+  if (!confirmed) {
+    return NextResponse.json({
+      preview: true,
+      before: { amount: n(before.amount), method: before.method, method_detail: before.method_detail, method_last4: before.method_last4, paid_at: before.paid_at, reference: before.reference },
+      after: next,
+      changed: { amount: amountChanged, method: methodChanged, paid_at: dateChanged },
+      expense: expense
+        ? {
+            id: expense.id, amount: n(expense.amount), date: expense.date,
+            will: {
+              amount: amountChanged ? next.amount : n(expense.amount),
+              date: dateChanged ? next.paid_at : expense.date,
+              description: methodChanged ? newDescription : expense.description,
+            },
+            kept_in_place: true,
+          }
+        : null,
+      orphan_warning: orphanWarning,
+      overpay_warning: overpayWarning,
+    })
+  }
+
+  const { error: pErr } = await supabase.from('invoice_payments').update(next).eq('id', id)
+  if (pErr) return NextResponse.json({ error: pErr.message }, { status: 500 })
+
+  let expenseResult: any = null
+  if (expense) {
+    const patch: Record<string, any> = {}
+    if (amountChanged) patch.amount = next.amount
+    if (dateChanged && next.paid_at) patch.date = next.paid_at
+    if (methodChanged) patch.description = newDescription
+    if (Object.keys(patch).length) {
+      // matched on the id the payment still points at — if the row moved out from
+      // under us the update finds nothing and says so rather than writing blind
+      const { data: updated, error: eErr } = await supabase.from('expenses')
+        .update(patch).eq('id', expense.id).select('id, amount, date, description')
+      if (eErr) {
+        return NextResponse.json({
+          error: `The payment was updated but its expense was not: ${eErr.message}`,
+          payment_updated: true, expense_updated: false,
+        }, { status: 500 })
+      }
+      expenseResult = updated && updated.length ? { ...updated[0], kept_in_place: true } : { missing: true }
+    } else {
+      expenseResult = { id: expense.id, unchanged: true }
+    }
+  }
+
+  const { data: after } = await supabase.from('invoice_payments')
+    .select('id, amount, paid_at, method, method_detail, method_last4, reference, status, expense_created, expense_id')
+    .eq('id', id).maybeSingle()
+
+  return NextResponse.json({
+    ok: true, payment: after, expense: expenseResult,
+    orphan_warning: orphanWarning, overpay_warning: overpayWarning,
+  })
+}

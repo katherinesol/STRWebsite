@@ -7,6 +7,7 @@ import { L, F, microLabel, cardStyle, money } from '@/lib/design-tokens'
 import InvoiceLineEditor from '@/components/keyholder/InvoiceLineEditor'
 import InvoiceIdentityEditor from '@/components/keyholder/InvoiceIdentityEditor'
 import DangerDelete, { plural } from '@/components/keyholder/DangerDelete'
+import EditPayment from '@/components/keyholder/EditPayment'
 
 const PROP_NAMES: Record<string, string> = {
   'royal-york': 'Royal York', 'royal-york-west': 'Royal York West',
@@ -44,6 +45,7 @@ function cascadeSentence(pv: any): string {
 
 export default function InvoiceEditor({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter()
+  const [copied, setCopied] = useState(false)
   const { id } = use(params)
   const [d, setD] = useState<any>(null)
   const [loading, setLoading] = useState(true)
@@ -74,6 +76,9 @@ export default function InvoiceEditor({ params }: { params: Promise<{ id: string
   const paid = Math.round(settled.reduce((s: number, p: any) => s + n(p.amount), 0) * 100) / 100
   const scheduled = Math.round(planned.reduce((s: number, p: any) => s + n(p.amount), 0) * 100) / 100
   const outstanding = Math.round((total - paid) * 100) / 100
+  // origin is only knowable in the browser; on the server this is the path alone
+  const shareUrl = typeof window !== 'undefined' && inv?.share_token
+    ? `${window.location.origin}/invoice/${inv.share_token}` : ''
 
   const openSettle = (p: any) => { setResult(null); setErr(''); setDraft({
     action: 'settle', paymentId: p.id, expenseId: crypto.randomUUID(),
@@ -267,6 +272,7 @@ export default function InvoiceEditor({ params }: { params: Promise<{ id: string
                         fontSize: '12px', fontWeight: 600, border: 'none', cursor: 'pointer', fontFamily: F.sans,
                       }}>Mark paid</button>
                     )}
+                    {!isPlanned && <EditPayment payment={p} onSaved={load} />}
                     {!isPlanned && p.expense_created && (
                       <span style={{ fontSize: '11px', color: L.inkMuted }}>expense logged</span>
                     )}
@@ -312,9 +318,23 @@ export default function InvoiceEditor({ params }: { params: Promise<{ id: string
               <span style={{ fontSize: '12px', color: L.inkMuted, lineHeight: 1.5 }}>
                 Opens the invoice, the deduction and what was paid — no login.
               </span>
-              <span style={{ fontFamily: F.mono, fontSize: '11px', color: L.inkMuted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', padding: '10px 12px', border: `1px solid ${L.line}`, borderRadius: '10px' }}>
-                /invoice/{inv.share_token}
-              </span>
+              {/* The whole URL, and a way to actually send it. This showed the
+                  path alone — no origin, not selectable as a link — so the one
+                  thing the contractor link exists for could not be done here. */}
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'stretch' }}>
+                <input readOnly value={shareUrl}
+                  onFocus={e => e.currentTarget.select()}
+                  style={{ flex: 1, minWidth: 0, fontFamily: F.mono, fontSize: '11px', color: L.inkMuted,
+                    padding: '10px 12px', border: `1px solid ${L.line}`, borderRadius: '10px', background: L.card }} />
+                <button onClick={async () => {
+                  try { await navigator.clipboard.writeText(shareUrl); setCopied(true); setTimeout(() => setCopied(false), 2000) }
+                  catch { setCopied(false) }
+                }} style={{
+                  padding: '0 14px', borderRadius: '10px', fontSize: '13px', fontWeight: 600, cursor: 'pointer',
+                  fontFamily: F.sans, border: `1px solid ${L.line}`,
+                  background: copied ? L.ink : L.card, color: copied ? '#fff' : L.ink, whiteSpace: 'nowrap',
+                }}>{copied ? 'Copied' : 'Copy'}</button>
+              </div>
               {inv.acknowledged_at && <span style={{ fontSize: '12px', color: L.inkMuted }}>Acknowledged {String(inv.acknowledged_at).slice(0, 10)}</span>}
             </div>
           )}
