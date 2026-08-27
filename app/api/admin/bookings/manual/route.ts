@@ -5,12 +5,19 @@ import { chooseGuestCode } from '@/lib/lock-codes'
 import { resolveGuest } from '@/lib/keyholder/guest-resolve'
 import { createAdminClient } from '@/lib/supabase/server'
 import { differenceInDays } from 'date-fns'
-import { isAuthed } from '@/lib/auth'
+import { hasRole, hasPermission } from '@/lib/auth'
 import { logCalendarActivity } from '@/lib/calendar-activity'
 
 
 export async function POST(request: NextRequest) {
-  if (!await isAuthed()) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  /*  TWO CATEGORIES, because this endpoint does two things. It inserts a
+      booking (bookings) and then calls programBookingLocks, which puts a code
+      on a real door (locks). Checking only one would leave the other reachable
+      by someone explicitly denied it — and the lock half is the half that
+      matters, so both are required rather than either. */
+  if (!await hasRole('owner', 'co-owner')) return NextResponse.json({ error: 'Not allowed' }, { status: 403 })
+  if (!await hasPermission('bookings', 'edit')) return NextResponse.json({ error: 'Not allowed to create bookings' }, { status: 403 })
+  if (!await hasPermission('locks', 'edit')) return NextResponse.json({ error: 'Not allowed to program door codes, which creating a booking does' }, { status: 403 })
   const body = await request.json()
   const { guest_name, guest_email, guest_phone, use_existing, property_id, check_in, check_out, guests, platform, payment_method, total, deposit_amount, notes } = body
 

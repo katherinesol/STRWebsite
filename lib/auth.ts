@@ -1,4 +1,5 @@
 import { createAuthClient } from '@/lib/supabase/auth-server'
+import { permits } from '@/lib/permissions'
 import { createAdminClient } from '@/lib/supabase/server'
 
 export type AuthResult =
@@ -55,11 +56,9 @@ export async function isSuperadmin(): Promise<boolean> {
 export async function hasPermission(category: string, level: 'view' | 'edit' = 'view'): Promise<boolean> {
   const a = await getAuth()
   if (!a.ok) return false
-  if (a.role === 'owner' || a.isSuperadmin) return true
-  const p = (a.permissions || {})[category]
-  if (!p || p === 'none') return false
-  if (level === 'view') return p === 'view' || p === 'edit'
-  return p === 'edit'
+  // the rule itself lives in lib/permissions.ts so it can be exercised against a
+  // real profile without a request; this only supplies the identity
+  return permits({ role: a.role, isSuperadmin: a.isSuperadmin, permissions: a.permissions }, category, level)
 }
 
 // Calendar-specific granular checks.

@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { hasRole } from '@/lib/auth'
+import { hasRole, hasPermission } from '@/lib/auth'
 import { Seam } from 'seam'
 import { createAdminClient } from '@/lib/supabase/server'
 
 export async function GET(request: NextRequest) {
   if (!await hasRole('owner', 'co-owner')) return NextResponse.json({ error: 'Not allowed' }, { status: 403 })
+  // reads code state and changes nothing, so view is the right level — and this
+  // is the first 'view' check in the codebase
+  if (!await hasPermission('locks', 'view')) return NextResponse.json({ error: 'Not allowed to view lock status' }, { status: 403 })
   const propertyId = request.nextUrl.searchParams.get('property_id')
   const code = request.nextUrl.searchParams.get('code')
   if (!propertyId) return NextResponse.json({ error: 'property_id required' }, { status: 400 })

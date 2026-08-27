@@ -1,13 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
-import { isAuthed } from '@/lib/auth'
+import { hasRole, hasPermission } from '@/lib/auth'
 
 
 export async function POST(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  if (!await isAuthed()) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  // Revoking takes a guest's access away — a change to who can open a door.
+  if (!await hasRole('owner', 'co-owner')) return NextResponse.json({ error: 'Not allowed' }, { status: 403 })
+  if (!await hasPermission('locks','edit')) return NextResponse.json({ error: 'Not allowed to revoke access codes' }, { status: 403 })
   const { id } = await params
   const supabase = createAdminClient()
   const { error } = await supabase

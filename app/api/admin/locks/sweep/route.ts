@@ -1,10 +1,16 @@
 import { NextResponse } from 'next/server'
-import { hasRole } from '@/lib/auth'
+import { hasRole, hasPermission } from '@/lib/auth'
 import { Seam } from 'seam'
 import { createAdminClient } from '@/lib/supabase/server'
 
 export async function GET() {
   if (!await hasRole('owner', 'co-owner')) return NextResponse.json({ error: 'Not allowed' }, { status: 403 })
+  /*  VIEW, not edit, and deliberately. This sweep programs nothing: it lists the
+      codes already on each device and writes a derived lock_status snapshot back
+      onto the booking. The programming lives in /api/cron/automations. Requiring
+      edit here would deny a legitimate locks:'view' holder the one screen that
+      shows whether codes are healthy, which is the thing view exists for. */
+  if (!await hasPermission('locks', 'view')) return NextResponse.json({ error: 'Not allowed to view lock status' }, { status: 403 })
   const apiKey = process.env.SEAM_API_KEY
   if (!apiKey) return NextResponse.json({ error: 'SEAM_API_KEY not set' }, { status: 500 })
   const seam = new Seam({ apiKey })
