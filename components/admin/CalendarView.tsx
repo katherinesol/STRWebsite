@@ -222,7 +222,10 @@ export default function CalendarView({ bookings, blocks }: { bookings: Booking[]
 
   async function handleRemoveBlock(blockId: string) {
     if (!confirm('Remove this block? This cannot be undone.')) return
-    await fetch(`/api/admin/calendar/block/${blockId}`, { method: 'DELETE' })
+    const res = await fetch(`/api/admin/calendar/block/${blockId}`, { method: 'DELETE' })
+    const j = await res.json().catch(() => ({}))
+    if (!res.ok) { alert(j.error || 'Could not remove this'); return }
+    if (j.warning) alert(j.warning)
     router.refresh()
   }
 
@@ -424,7 +427,13 @@ export default function CalendarView({ bookings, blocks }: { bookings: Booking[]
                         <div onClick={() => openEditBlock(b)} style={{ fontSize: '11px', color, cursor: 'pointer', textDecoration: isPrep ? 'none' : 'underline', fontStyle: isPrep ? 'italic' : 'normal', opacity: isPrep ? 0.6 : 1, lineHeight: 1.45, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                           {isPrep ? 'Prep day' : (b.guest_name || (b.platform ? 'Guest' : BLOCK_REASONS[b.reason]))}
                         </div>
-                        <button onClick={() => handleRemoveBlock(b.id)} style={{ background: 'none', border: 'none', color: '#9A9A92', fontSize: '10px', cursor: 'pointer', padding: 0, lineHeight: 1 }} title="Remove block">×</button>
+                        {/* Blocks only. A booking renders here too - stayingBlocks is not
+                            filtered by is_booking - and the API now refuses to delete one, so
+                            leaving the x would offer an action that always errors. Cancelling a
+                            booking is done from its own page. */}
+                        {!b.is_booking && (
+                          <button onClick={() => handleRemoveBlock(b.id)} style={{ background: 'none', border: 'none', color: '#9A9A92', fontSize: '10px', cursor: 'pointer', padding: 0, lineHeight: 1 }} title="Remove block">×</button>
+                        )}
                       </div>
                     )
                   })}

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { splitName } from '@/lib/keyholder/guest-match'
 import { logCalendarActivity } from '@/lib/calendar-activity'
-import { getAuth, hasRole } from '@/lib/auth'
+import { getAuth, hasRole, hasPermission, canAddBlocks, canDeleteOwnBlocks } from '@/lib/auth'
 import { reprogramBookingWindow, windowFromBooking } from '@/lib/seam'
 
 
@@ -130,19 +130,58 @@ export async function DELETE(
   const supabase = createAdminClient()
 
   // load the block to check its type + ownership
-  const { data: block } = await supabase.from('calendar_blocks').select('reason, blocked_by, property_id, start_date, end_date, guest_name, is_booking').eq('id', id).maybeSingle()
+  const { data: block } = await supabase.from('calendar_blocks')
+    .select('reason, blocked_by, property_id, start_date, end_date, guest_name, is_booking, ical_uid, payout_amount, confirmation_code')
+    .eq('id', id).maybeSingle()
   if (!block) return NextResponse.json({ error: 'Block not found' }, { status: 404 })
 
-  // block permissions: owner removes any; co-owner only their own; others none
+  /*  A BOOKING IS NEVER DELETED HERE, BY ANYONE - owner included.
+   *
+   *  is_booking rows share this table with blocks, and until now the per-reason
+   *  rule below only covered reason='owner', so every booking fell straight
+   *  through to the delete. On the calendar the same row renders with a
+   *  "Remove block" x, which made it two clicks to destroy a reconciled stay.
+   *
+   *  What that cost: the row's payout, tax split, MAT, confirmation code and
+   *  guest link, plus every dependent row - booking_guests, payments,
+   *  stay_group_members and conversations all reference this id and NONE of them
+   *  is a foreign key, so nothing cascades and nothing complains. Then ical-sync
+   *  re-inserts a bare row on its next run and the calendar looks correct again,
+   *  which is the worst part: the loss leaves no visible trace.
+   *
+   *  Cancellation does all of this properly - it marks status, keeps every
+   *  figure, reverses the money and tax per platform, frees the dates and
+   *  revokes the code. There is no case deletion serves that cancellation does
+   *  not serve better, so this refuses rather than gates. */
+  if (block.is_booking) {
+    return NextResponse.json({
+      error: "Bookings can't be deleted here — use Cancel or refund, which preserves the reconciled figures.",
+      detail: 'Deleting this row would drop its payout, tax split and guest link, orphan every payment and '
+        + 'guest record pointing at it, and the iCal sync would then re-create a hollow row that looks correct. '
+        + 'Cancelling keeps the figures and reverses the money properly.',
+      booking: {
+        guest: block.guest_name, confirmation_code: block.confirmation_code,
+        dates: `${block.start_date} → ${block.end_date}`,
+        payout_amount: block.payout_amount ?? null,
+      },
+      use_instead: 'POST /api/admin/bookings/cancel',
+    }, { status: 403 })
+  }
+
+  /*  Owner blocks: the permission decides IF you may remove one, blocked_by
+      decides WHICH. canDeleteOwnBlocks short-circuits true for owner and
+      superadmin, so the old role test is folded into it rather than duplicated -
+      but the blocked_by comparison stays, because that is the part doing the
+      real scoping and no permission flag can express it.
+
+      Inert today: there are no reason='owner' rows. Correct anyway. */
   if (block.reason === 'owner') {
-    if (auth.role === 'owner') {
-      // full control
-    } else if (auth.role === 'co-owner') {
-      if (block.blocked_by && block.blocked_by !== auth.userId) {
-        return NextResponse.json({ error: 'You can only remove your own blocks' }, { status: 403 })
-      }
-    } else {
-      return NextResponse.json({ error: 'Not allowed' }, { status: 403 })
+    if (!await canDeleteOwnBlocks()) {
+      return NextResponse.json({ error: 'Not allowed to remove owner blocks' }, { status: 403 })
+    }
+    if (auth.role !== 'owner' && !auth.isSuperadmin
+        && block.blocked_by && block.blocked_by !== auth.userId) {
+      return NextResponse.json({ error: 'You can only remove your own blocks' }, { status: 403 })
     }
   }
 
@@ -158,5 +197,14 @@ export async function DELETE(
     bookingId: id, bookingKind: 'platform', guestName: block.guest_name || null,
     actorId: auth.ok ? auth.userId : null, actorName: auth.ok ? auth.name : null,
   })
-  return NextResponse.json({ ok: true })
+  /*  A synced row does not stay deleted: it has a feed UID, so the next sync
+      finds no match and inserts it again. Not dangerous - door_code refills from
+      the feed too - but hand-typed guest_name and notes do not come back. Say so
+      rather than let it look permanent. */
+  const warning = block.ical_uid
+    ? 'This row came from a platform feed, so the next sync will re-create it. Anything typed on it by hand '
+      + '(guest name, notes) will not come back. To keep the dates free, block them or remove the stay on the platform.'
+    : null
+
+  return NextResponse.json({ ok: true, ...(warning ? { warning } : {}) })
 }
