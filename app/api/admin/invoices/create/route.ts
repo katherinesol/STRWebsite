@@ -76,6 +76,8 @@ export async function POST(request: NextRequest) {
     // the declared tax intent travels with the amount, so the list and the editor
     // read the same thing instead of one recomputing what the other stored
     tax_mode: ['auto', 'none', 'manual'].includes(b?.tax_mode) ? b.tax_mode : 'auto',
+    // where the uploaded receipt was stored, so it stops orphaning in the bucket
+    receipt_path: b?.receipt_path || null,
     due_date: b?.due_date || null,
     items, adjustments, payment,
   }
@@ -99,7 +101,8 @@ export async function POST(request: NextRequest) {
       id: invoice_id, title,
       contractor_name: payload.contractor_name, contractor_contact: payload.contractor_contact,
       company: payload.company, property_id: payload.property_id, category: payload.category,
-      notes: payload.notes, hst_amount: hst, tax_mode: payload.tax_mode, status: 'open',
+      notes: payload.notes, hst_amount: hst, tax_mode: payload.tax_mode,
+      receipt_path: payload.receipt_path, status: 'open',
       share_token: crypto.randomUUID().replace(/-/g, '').slice(0, 16),
       due_date: payload.due_date,
     })

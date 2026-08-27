@@ -2,6 +2,7 @@
 import { useState } from 'react'
 import MethodPicker, { DETAILED } from '@/components/admin/MethodPicker'
 import TaxRatePicker, { computeHst, type TaxMode } from '@/components/admin/TaxRatePicker'
+import ExtractReview, { type Picks } from '@/components/admin/ExtractReview'
 import { L, F, microLabel, cardStyle, money } from '@/lib/design-tokens'
 // The invoice category becomes the expense category when a payment is logged,
 // so it must come from the CRA-aligned list, never a local one.
@@ -37,6 +38,13 @@ export default function NewInvoiceDialog({ onClose, onCreated }: { onClose: () =
   const [title, setTitle] = useState('')
   const [contractor, setContractor] = useState('')
   const [contact, setContact] = useState('')
+  const [company, setCompany] = useState('')
+  // where the uploaded receipt landed, so the invoice can point at it instead of
+  // leaving an orphan in the bucket
+  const [receiptPath, setReceiptPath] = useState<string | null>(null)
+  const [extracting, setExtracting] = useState(false)
+  const [extracted, setExtracted] = useState<any>(null)
+  const [extractErr, setExtractErr] = useState('')
   const [property, setProperty] = useState('royal-york-west')
   const [category, setCategory] = useState('Repairs & maintenance')
   /*  TAX IS A RATE YOU PICK, NOT AN AMOUNT YOU TYPE.
@@ -72,6 +80,38 @@ export default function NewInvoiceDialog({ onClose, onCreated }: { onClose: () =
   const [payDate, setPayDate] = useState(today())
   const [createExpense, setCreateExpense] = useState(true)
 
+  async function readReceipt(file: File) {
+    setExtracting(true); setExtractErr(''); setExtracted(null)
+    try {
+      const fd = new FormData(); fd.append('receipt', file)
+      const res = await fetch('/api/admin/invoices/extract', { method: 'POST', body: fd })
+      const d = await res.json()
+      // the file is stored even when the read fails, so keep the path either way
+      if (d.receipt_path) setReceiptPath(d.receipt_path)
+      if (d.error) { setExtractErr(d.error); return }
+      setExtracted(d.extracted)
+    } catch { setExtractErr('Could not read that file') }
+    finally { setExtracting(false) }
+  }
+
+  /* Only what was ticked. Anything absent from the picks is left exactly as it
+     was — that is the whole difference from the legacy apply, which overwrote. */
+  function applyPicks(p: Picks) {
+    if (p.contractor_name) setContractor(p.contractor_name)
+    if (p.company) setCompany(p.company)
+    if (p.category) setCategory(p.category)
+    if (p.title) setTitle(p.title)
+    if (p.items?.length) {
+      setItems(prev => {
+        const kept = prev.filter(l => l.description.trim() || num(l.amount) > 0)
+        return [...kept, ...p.items!.map(i => ({ id: crypto.randomUUID(), description: i.description, amount: i.amount }))]
+      })
+    }
+    if (p.tax) { setTaxMode(p.tax.mode); setTaxRate(p.tax.rate); setHst(p.tax.amount) }
+    if (p.payDate) setPayDate(p.payDate)
+    setExtracted(null)
+  }
+
   const num = (s: string) => Number(s) || 0
   const validItems = items.filter(l => l.description.trim() && num(l.amount) > 0)
   const validAdj = adjustments.filter(l => l.description.trim() && num(l.amount) > 0)
@@ -97,6 +137,7 @@ export default function NewInvoiceDialog({ onClose, onCreated }: { onClose: () =
           invoice_id: ids.invoice, title: title.trim(),
           contractor_name: contractor.trim() || null, contractor_contact: contact.trim() || null,
           property_id: property || null, category, hst_amount: hstAmt,
+          company: company || null, receipt_path: receiptPath,
           items: validItems.map(l => ({ id: l.id, description: l.description.trim(), amount: num(l.amount) })),
           adjustments: validAdj.map(l => ({ id: l.id, description: l.description.trim(), amount: num(l.amount), reason: l.reason || 'other' })),
           tax_mode: taxMode,
@@ -148,6 +189,7 @@ export default function NewInvoiceDialog({ onClose, onCreated }: { onClose: () =
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
               <div><div style={microLabel}>Job</div><input value={title} autoFocus onChange={e => setTitle(e.target.value)} placeholder="Plaster repair" style={{ ...inputStyle, marginTop: '5px' }} /></div>
               <div><div style={microLabel}>Contractor</div><input value={contractor} onChange={e => setContractor(e.target.value)} placeholder="Manpreet Singh" style={{ ...inputStyle, marginTop: '5px' }} /></div>
+              <div><div style={microLabel}>Company</div><input value={company} onChange={e => setCompany(e.target.value)} placeholder="optional" style={{ ...inputStyle, marginTop: '5px' }} /></div>
               <div><div style={microLabel}>Property</div>
                 <select value={property} onChange={e => setProperty(e.target.value)} style={{ ...inputStyle, marginTop: '5px' }}>
                   {PROPS.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
@@ -173,6 +215,36 @@ export default function NewInvoiceDialog({ onClose, onCreated }: { onClose: () =
                 <button onClick={() => setAdjustments([...adjustments, newLine()])} style={{ marginLeft: 'auto', background: 'none', border: 'none', color: L.link, fontWeight: 600, fontSize: '13px', cursor: 'pointer', fontFamily: F.sans }}>+ Hold back</button>
               </div>
               {adjustments.map(l => lineRow(l, adjustments, setAdjustments, true))}
+            </div>
+
+            {/* Read it off the paper instead of typing it. Nothing fills until
+                the ticked lines are applied — see ExtractReview. */}
+            <div style={{ border: `1px dashed ${L.line}`, borderRadius: '12px', padding: '14px 16px' }}>
+              {extracting ? (
+                <span style={{ fontSize: '13px', color: L.inkBody }}>Reading the receipt…</span>
+              ) : extracted ? (
+                <ExtractReview
+                  extracted={extracted}
+                  current={{ contractor_name: contractor, company, category, title, itemCount: validItems.length }}
+                  onApply={applyPicks}
+                  onDiscard={() => setExtracted(null)} />
+              ) : (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                  <label style={{
+                    padding: '8px 15px', borderRadius: '99px', fontSize: '13px', fontWeight: 600, cursor: 'pointer',
+                    background: L.card, color: L.ink, border: `1px solid ${L.line}`, fontFamily: F.sans,
+                  }}>
+                    Read a receipt
+                    <input type="file" accept="image/*,application/pdf" style={{ display: 'none' }}
+                      onChange={e => { const f = e.target.files?.[0]; if (f) readReceipt(f) }} />
+                  </label>
+                  <span style={{ fontSize: '13px', color: L.inkMuted }}>
+                    A photo or PDF. Every field comes back as a suggestion you tick, never a value that replaces yours.
+                  </span>
+                  {receiptPath && <span style={{ fontSize: '12px', color: L.inkFaint }}>· receipt attached</span>}
+                </div>
+              )}
+              {extractErr && <div style={{ fontSize: '13px', color: L.red, marginTop: '8px' }}>{extractErr}</div>}
             </div>
 
             <TaxRatePicker mode={taxMode} rate={taxRate} manualAmount={hst} subtotal={taxable}
