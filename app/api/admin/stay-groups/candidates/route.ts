@@ -20,6 +20,8 @@ export async function GET(request: NextRequest) {
 
   const { data: blocks } = await supabase.from('calendar_blocks')
     .select('id, guest_name, start_date, end_date, platform')
+    // a cancelled stay is not a candidate to group with
+    .neq('status', 'cancelled')
     .eq('property_id', property).eq('is_booking', true)
     .gte('end_date', loStr).lte('end_date', hiStr)
   for (const b of blocks || []) {

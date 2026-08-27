@@ -14,6 +14,8 @@ export default async function TripsPage() {
       .limit(50),
     supabase.from('calendar_blocks')
       .select('id, property_id, start_date, end_date, guest_name, platform')
+      // no trip to plan for a cancelled stay
+      .neq('status', 'cancelled')
       .in('platform', ['airbnb', 'vrbo', 'houfy'])
       .eq('is_booking', true)
       .gte('start_date', new Date().getFullYear() + '-01-01')

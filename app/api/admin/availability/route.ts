@@ -19,6 +19,8 @@ export async function GET(request: NextRequest) {
       .gte('check_out', today),
     supabase.from('calendar_blocks')
       .select('start_date, end_date')
+      // cancelling frees the dates - that is the point of it
+      .neq('status', 'cancelled')
       .eq('property_id', propertyId)
       .gte('end_date', today),
   ])

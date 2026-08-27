@@ -50,6 +50,8 @@ async function recentStays(propertyId: string, limit = 12) {
       .limit(limit),
     supabase.from('calendar_blocks')
       .select('start_date, end_date')
+      // nobody stayed, so nobody used water
+      .neq('status', 'cancelled')
       .eq('property_id', propertyId)
       .eq('is_booking', true)
       .lt('end_date', today)

@@ -20,6 +20,8 @@ export async function GET(request: NextRequest) {
   const { data: blocks } = await supabase
     .from('calendar_blocks')
     .select('guest_name, platform, start_date, end_date, accommodation, discount, mat, taxes_collected, confirmation_code')
+    // no MAT is owed on a stay that did not happen
+    .neq('status', 'cancelled')
     .eq('property_id', 'nickel-beach')
     .eq('is_booking', true)
     .in('platform', ['airbnb', 'vrbo', 'houfy'])

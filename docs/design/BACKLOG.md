@@ -113,6 +113,29 @@ anything not in the doc was dropped. Three found by complaint, one by search.
   **Highest-leverage item here** — it is what made this week's 39-booking
   reconciliation manual.
 - **Combined P&L.** Wanted eventually; explicitly not part of the Money rebuild.
+- **Cancellation + refund — stages ② and ③.** Stage ① shipped 2026-08-27: the
+  `calendar_blocks.status` migration plus twenty-nine read paths that now skip a
+  cancelled row. Recorded in
+  [calendar_blocks_status.sql](../../supabase/calendar_blocks_status.sql). Two
+  things found during stage ① that stage ② has to carry:
+  - **MUST FIX — the unique index blocks cancel-then-rebook.** `calendar_blocks`
+    carries `unique (property_id, start_date)`, and a cancelled row still
+    occupies its slot. So the dates read as free everywhere — availability, the
+    iCal feed, the overlap checks all skip it — and then the insert fails on a
+    constraint violation. Cancelling to rebook the same property on the same
+    check-in date is the whole point of the feature, and without this it fails at
+    the database. Fix: replace it with a partial unique index,
+    `where status <> 'cancelled'`. Found by a scratch insert during the stage ①
+    verification, not by reading the schema.
+  - **Possible pre-existing iCal hole — not cancellation-related.** An owner
+    block written by [calendar/block](../../app/api/admin/calendar/block/route.ts)
+    gets `platform` NULL, and the feed filters with
+    `not('platform','in','("airbnb","vrbo","houfy")')`. `NOT IN` never matches
+    NULL — it yields NULL, and the row is dropped. If such a block is also
+    `reason='manual'` it would never publish, and would never hold the dates on
+    Airbnb or VRBO. **Flagged, not asserted:** no row of that shape exists today,
+    so it has not been reproduced. Confirm before relying on an owner block to
+    hold dates externally.
 - **Multi-guest step 3 — per-person access.** Decisions settled (per-person
   tokens, operational-only concierge, lead-can-invite, two-tier window), scoped
   in [multi-guest.md](multi-guest.md), unbuilt. Steps 1–2 shipped.

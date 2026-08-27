@@ -47,6 +47,8 @@ export default async function AdminDashboard() {
   const { data: platformCheckinsRaw } = await supabase
     .from('calendar_blocks')
     .select('*')
+    // no arrival for a cancelled stay
+    .neq('status', 'cancelled')
     .in('platform', ['airbnb', 'vrbo', 'houfy'])
     .gte('start_date', todayStr)
     .lte('start_date', sevenDaysStr)
@@ -56,6 +58,8 @@ export default async function AdminDashboard() {
   const { data: platformCheckoutsRaw } = await supabase
     .from('calendar_blocks')
     .select('*')
+    // no departure for a cancelled stay
+    .neq('status', 'cancelled')
     .in('platform', ['airbnb', 'vrbo', 'houfy'])
     .gte('end_date', todayStr)
     .lte('end_date', sevenDaysStr)
@@ -65,6 +69,8 @@ export default async function AdminDashboard() {
   const { data: allPlatformBlocks } = await supabase
     .from('calendar_blocks')
     .select('id')
+    // a cancelled stay is not in house
+    .neq('status', 'cancelled')
     .eq('is_booking', true)
     .in('platform', ['airbnb', 'vrbo', 'houfy'])
     .gte('end_date', todayStr)

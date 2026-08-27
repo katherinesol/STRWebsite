@@ -184,6 +184,8 @@ export async function runTool(name: string, input: any, ctx: HaussyCtx): Promise
     const to = new Date(Date.UTC(year, qe + 1, 0)).toISOString().split('T')[0]
     const { data: blocks } = await supabase.from('calendar_blocks')
       .select('guest_name, platform, start_date, end_date, accommodation, discount')
+      // the assistant must not report a cancelled stay as revenue
+      .neq('status', 'cancelled')
       .eq('property_id', 'nickel-beach').eq('is_booking', true)
       .in('platform', ['airbnb', 'vrbo', 'houfy'])
       .lte('start_date', to).gte('end_date', from)

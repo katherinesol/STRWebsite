@@ -33,6 +33,8 @@ export async function POST(request: NextRequest) {
   } else {
     const { data } = await supabase.from('calendar_blocks')
       .select('id, property_id, start_date, end_date, confirmation_code, door_code, guest_name, guest_total, early_checkin_time, early_checkin_granted, late_checkout_time, late_checkout_granted')
+      // a cancelled guest has no support access
+      .neq('status', 'cancelled')
       .eq('id', booking_id).ilike('confirmation_code', codeUp).maybeSingle()
     if (data) booking = {
       property_id: data.property_id, guest_name: data.guest_name,

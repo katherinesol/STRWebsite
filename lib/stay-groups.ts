@@ -18,6 +18,8 @@ async function loadGroupBookings(groupId: string) {
       // lock_code here made this whole query error out, so platform stay groups loaded as empty.
       const { data: b } = await supabase.from('calendar_blocks')
         .select('id, property_id, start_date, end_date, door_code, platform, early_checkin_time, early_checkin_granted, late_checkout_time, late_checkout_granted, guest_name')
+        // a cancelled member drops out of the group rather than being programmed
+        .neq('status', 'cancelled')
         .eq('id', m.booking_id).maybeSingle()
       if (b) out.push({ member: m, start: b.start_date, end: b.end_date, code: b.door_code, property_id: b.property_id, platform: b.platform || 'manual', inTime: b.early_checkin_time, outTime: b.late_checkout_time, raw: b })
     }

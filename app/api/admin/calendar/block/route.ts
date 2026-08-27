@@ -36,6 +36,8 @@ export async function POST(request: NextRequest) {
       .lt('check_in', end_date).gt('check_out', start_date),
     supabase.from('calendar_blocks')
       .select('id, start_date, end_date, guest_name, platform, reason, is_booking')
+      // a cancelled booking must not stand in the way of a new one
+      .neq('status', 'cancelled')
       .eq('property_id', property_id)
       .lt('start_date', end_date).gt('end_date', start_date),
   ])

@@ -50,6 +50,9 @@ export async function POST(request: NextRequest) {
   const { data: blockOverlaps } = await supabase
     .from('calendar_blocks')
     .select('id, guest_name, start_date, end_date, platform')
+    // parity with the direct-booking query below, which has always excluded
+    // cancelled: a cancelled stay does not overlap anything
+    .neq('status', 'cancelled')
     .eq('property_id', booking.property_id)
     .lt('start_date', booking.check_out)
     .gt('end_date', booking.check_in)

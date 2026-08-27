@@ -37,6 +37,8 @@ export async function GET() {
   // app/api/cron/automations/route.ts.
   const { data: plat } = await supabase.from('calendar_blocks')
     .select('id, property_id, platform, start_date, end_date, door_code, guest_name, checked_in_at')
+    // never program a door code for a stay that was cancelled
+    .neq('status', 'cancelled')
     .or('is_booking.eq.true,ical_uid.not.is.null')
     .gte('end_date', today).order('start_date')
 

@@ -71,6 +71,8 @@ export async function POST(request: NextRequest) {
   // — the fix to one sweep would be undone by the omission here.
   let platQ = supabase.from('calendar_blocks')
     .select('id, property_id, checked_in_at, door_code, start_date, end_date, guest_name')
+    // a cancelled booking must not be credited with a door entry
+    .neq('status', 'cancelled')
     .or('is_booking.eq.true,ical_uid.not.is.null')
     .lte('start_date', today).gte('end_date', today)
   if (candidates.length) platQ = platQ.in('property_id', candidates)

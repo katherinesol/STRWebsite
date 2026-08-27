@@ -50,6 +50,9 @@ export async function GET(request: NextRequest) {
   const [{ data: plat }, { data: direct }, { data: expenses }, { data: other }] = await Promise.all([
     supabase.from('calendar_blocks')
       .select('id, guest_name, platform, property_id, start_date, accommodation, discount, cleaning_fee, extras, commission, payment_processing_fee, taxes_collected, taxes_you_remit, taxes_platform_remits, payout_amount, guest_total')
+      // A cancelled stay earned nothing. The row keeps its figures so the
+      // reversal is auditable, but the P&L must not count them as revenue.
+      .neq('status', 'cancelled')
       .eq('is_booking', true),
     supabase.from('bookings')
       .select('id, booking_reference, property_id, check_in, accommodation, cleaning_fee, addon_fee, hst, mat, total, is_comp, guests:guest_id(name)'),

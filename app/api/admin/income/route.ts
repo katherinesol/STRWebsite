@@ -19,6 +19,8 @@ export async function GET() {
   const { data: platform } = await supabase
     .from('calendar_blocks')
     .select('id, property_id, start_date, end_date, guest_name, platform, accommodation, cleaning_fee, taxes_collected, taxes_you_remit, taxes_platform_remits, payout_amount, commission, discount, hst, mat, extras, tax_note, payment_processing_fee')
+    // a cancelled booking is not income
+    .neq('status', 'cancelled')
     .eq('is_booking', true)
 
   const num = (v: any) => (v === null || v === undefined || v === '' ? null : Number(v))

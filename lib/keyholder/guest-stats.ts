@@ -35,6 +35,8 @@ export async function guestStats(): Promise<Record<string, GuestStat>> {
       .not('guest_id', 'is', null).neq('status', 'cancelled'),
     supabase.from('calendar_blocks')
       .select('guest_id, property_id, start_date, end_date, payout_amount, accommodation')
+      // a cancelled stay is not a stay, and its money is not lifetime value
+      .neq('status', 'cancelled')
       .eq('is_booking', true).not('guest_id', 'is', null),
   ])
 

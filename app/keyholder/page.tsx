@@ -54,6 +54,8 @@ export default async function Today() {
       .order('check_in'),
     supabase.from('calendar_blocks')
       .select('id, property_id, platform, start_date, end_date, guest_name, door_code, trip_purpose, trip_purpose_note')
+      // a cancelled stay is not arriving today
+      .neq('status', 'cancelled')
       .eq('is_booking', true).in('platform', PLATFORMS)
       .gte('end_date', todayStr).lte('start_date', weekStr)
       .order('start_date'),

@@ -29,6 +29,8 @@ export async function GET(request: NextRequest) {
   const { data: blocks } = await supabase
     .from('calendar_blocks')
     .select('id, guest_name, platform, start_date, end_date, accommodation, discount, mat, taxes_collected, apply_tax, confirmation_code')
+    // no MAT is owed on a stay that did not happen
+    .neq('status', 'cancelled')
     .eq('property_id', property)
     .eq('is_booking', true)
     .lte('start_date', to)

@@ -48,7 +48,9 @@ export async function POST(request: NextRequest) {
   if (guestMatch) {
     const [{ count: a }, { count: b }] = await Promise.all([
       supabase.from('bookings').select('id', { count: 'exact', head: true }).eq('guest_id', guestMatch.id),
-      supabase.from('calendar_blocks').select('id', { count: 'exact', head: true }).eq('guest_id', guestMatch.id),
+      supabase.from('calendar_blocks').select('id', { count: 'exact', head: true })
+        // a stay that was cancelled is not a prior stay
+        .neq('status', 'cancelled').eq('guest_id', guestMatch.id),
     ])
     priorStays = (a || 0) + (b || 0)
   }
@@ -56,6 +58,9 @@ export async function POST(request: NextRequest) {
   // ---- overlaps, both tables ----
   const [{ data: blockOv }, { data: directOv }] = await Promise.all([
     supabase.from('calendar_blocks').select('id, guest_name, start_date, end_date, platform')
+      // parity with the direct-booking query below, which has always excluded
+      // cancelled: a cancelled stay does not overlap anything
+      .neq('status', 'cancelled')
       .eq('property_id', priced.property_id).lt('start_date', priced.check_out).gt('end_date', priced.check_in),
     supabase.from('bookings').select('id, check_in, check_out, status')
       .eq('property_id', priced.property_id).neq('status', 'cancelled')
@@ -72,7 +77,9 @@ export async function POST(request: NextRequest) {
   const candidate = (blockOv || []).find(b => b.id) || null
   let mergeInto: any = null
   if (candidate) {
-    const { data: full } = await supabase.from('calendar_blocks').select('*').eq('id', candidate.id).maybeSingle()
+    const { data: full } = await supabase.from('calendar_blocks').select('*')
+      // belt and braces - the candidate came from the filtered query above
+      .neq('status', 'cancelled').eq('id', candidate.id).maybeSingle()
     if (full) {
       // only the fields the draft would actually change, never a blanking
       const proposed = buildBookingColumns(d, priced) as Record<string, any>

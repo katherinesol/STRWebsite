@@ -37,6 +37,8 @@ export async function POST(request: NextRequest) {
   const { data: platform } = await supabase
     .from('calendar_blocks')
     .select('id, property_id, start_date, end_date, confirmation_code, guest_name, door_code, guest_total, payout_amount, guest:guests(name, last_name)')
+    // a cancelled guest has no support access - the code stops verifying
+    .neq('status', 'cancelled')
     .ilike('confirmation_code', codeUp)
 
   /* SURNAME ONLY.

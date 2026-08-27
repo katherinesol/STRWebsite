@@ -64,6 +64,8 @@ export async function GET(
   const { data: manualBlocks } = await supabase
     .from('calendar_blocks')
     .select('*')
+    // the feed we publish to the platforms must free the dates too
+    .neq('status', 'cancelled')
     .eq('property_id', propertyId)
     .eq('reason', 'manual')
     .not('platform', 'in', '("airbnb","vrbo","houfy")')

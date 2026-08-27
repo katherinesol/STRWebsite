@@ -17,7 +17,9 @@ export async function POST(request: NextRequest) {
     const { data } = await supabase.from('bookings').select('property_id, confirmation_code, lock_code, guest:guests(name)').eq('id', booking_id).ilike('confirmation_code', codeUp).maybeSingle()
     if (data) booking = { property_id: data.property_id, guest_name: (data.guest as any)?.name, door_code: data.lock_code }
   } else {
-    const { data } = await supabase.from('calendar_blocks').select('property_id, confirmation_code, door_code, guest_name').eq('id', booking_id).ilike('confirmation_code', codeUp).maybeSingle()
+    const { data } = await supabase.from('calendar_blocks').select('property_id, confirmation_code, door_code, guest_name')
+      // a cancelled guest has no support access
+      .neq('status', 'cancelled').eq('id', booking_id).ilike('confirmation_code', codeUp).maybeSingle()
     if (data) booking = { property_id: data.property_id, guest_name: data.guest_name, door_code: data.door_code }
   }
   if (!booking) return NextResponse.json({ error: 'Verification failed' }, { status: 403 })

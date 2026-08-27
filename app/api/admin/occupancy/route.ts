@@ -21,6 +21,8 @@ export async function GET() {
       .neq('status', 'cancelled').lte('check_in', todayStr).gte('check_out', startStr),
     supabase.from('calendar_blocks')
       .select('property_id, start_date, end_date, accommodation, is_booking, reason, block_for')
+      // a cancelled stay did not occupy the property
+      .neq('status', 'cancelled')
       .lte('start_date', todayStr).gte('end_date', startStr),
   ])
 

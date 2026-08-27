@@ -120,6 +120,8 @@ export async function GET(request: NextRequest) {
       // In-app owner blocks have no UID and no is_booking, and stay excluded.
       const { data: plat } = await supabase.from('calendar_blocks')
         .select('id, property_id, platform, start_date, end_date, early_checkin_time, late_checkout_time, door_code, guest_name')
+        // never program a door code for a stay that was cancelled
+        .neq('status', 'cancelled')
         .or('is_booking.eq.true,ical_uid.not.is.null')
         .gte('start_date', todayStr).lte('start_date', horizon)
 
