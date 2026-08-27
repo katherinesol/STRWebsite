@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { isAuthed } from '@/lib/auth'
+import { pick, rejection } from '@/lib/allowlist'
 
 
 export async function POST(request: NextRequest) {
@@ -22,8 +23,16 @@ export async function POST(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   if (!await isAuthed()) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const body = await request.json()
-  const { id, ...fields } = body
-  if (fields.emails) fields.emails = fields.emails.map((e: string) => e.toLowerCase().trim()).filter(Boolean)
+  const { id, ...rest } = body || {}
+  if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
+
+  // the same five POST already allowlists; PATCH simply never did
+  const ALLOWED = ['name', 'role', 'emails', 'phones', 'notes'] as const
+  const p = pick(rest, ALLOWED)
+  if (!p.ok) return NextResponse.json(rejection(p.rejected, ALLOWED), { status: 400 })
+  const fields: Record<string, any> = { ...p.fields }
+  if (fields.emails) fields.emails = fields.emails.map((e: string) => String(e).toLowerCase().trim()).filter(Boolean)
+
   const supabase = createAdminClient()
   const { error } = await supabase.from('contacts').update(fields).eq('id', id)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

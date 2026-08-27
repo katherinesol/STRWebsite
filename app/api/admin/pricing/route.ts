@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { hasRole, hasPermission } from '@/lib/auth'
+import { pick, rejection } from '@/lib/allowlist'
 
 
 // update base config
@@ -10,11 +11,17 @@ export async function PATCH(request: NextRequest) {
   if (!await hasRole('owner', 'co-owner')) return NextResponse.json({ error: 'Not allowed' }, { status: 403 })
   if (!await hasPermission('money', 'edit')) return NextResponse.json({ error: 'Not allowed to change pricing' }, { status: 403 })
   const body = await request.json()
-  const { property_id, ...fields } = body
+  const { property_id, ...rest } = body || {}
   if (!property_id) return NextResponse.json({ error: 'property_id required' }, { status: 400 })
+
+  // the four the pricing form sets; updated_at is the server's
+  const ALLOWED = ['base_rate', 'weekend_rate', 'min_stay', 'cleaning_fee'] as const
+  const p = pick(rest, ALLOWED)
+  if (!p.ok) return NextResponse.json(rejection(p.rejected, ALLOWED), { status: 400 })
+
   const supabase = createAdminClient()
   const { error } = await supabase.from('property_pricing')
-    .upsert({ property_id, ...fields, updated_at: new Date().toISOString() })
+    .upsert({ property_id, ...p.fields, updated_at: new Date().toISOString() })
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ ok: true })
 }
