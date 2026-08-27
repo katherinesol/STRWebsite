@@ -12,6 +12,7 @@ import CoGuests from '@/components/keyholder/CoGuests'
 import StayChecklist from '@/components/admin/StayChecklist'
 import ParkingControl from '@/components/admin/ParkingControl'
 import CompToggle from '@/components/keyholder/CompToggle'
+import CancelOrRefund from '@/components/keyholder/CancelOrRefund'
 
 /** Design-doc 2a, read only.
  *
@@ -39,6 +40,7 @@ const dshort = (d: string) => format(day(d), 'EEE, MMM d')
 type Props = {
   kind: 'direct' | 'platform'
   b: any
+  accounts?: any[]
   locks: any[]
   guest: any | null
   conversation: any | null
@@ -46,11 +48,18 @@ type Props = {
   hasGift: boolean
 }
 
-export default function BookingDetail({ kind, b, locks, guest, conversation, messages, hasGift }: Props) {
+export default function BookingDetail({ kind, b, locks, guest, conversation, messages, hasGift, accounts }: Props) {
   const isDirect = kind === 'direct'
   const from = isDirect ? b.check_in : b.start_date
   const to = isDirect ? b.check_out : b.end_date
   const name = isDirect ? (guest?.name || '—') : (b.guest_name || b.platform || '—')
+  /*  Reversing a booking lives beside the money it reverses, not in a menu.
+      Cancelled stays keep the control hidden — the endpoint refuses a second
+      cancellation, and offering a button that always errors is worse than not
+      offering it. */
+  const cancelControl = b.status === 'cancelled' ? null : (
+    <CancelOrRefund bookingId={b.id} kind={kind} guest={name} accounts={accounts || []} />
+  )
   const source = isDirect ? 'direct' : (b.platform || 'manual')
   const colour = platformColour(source)
   const nights = from && to
@@ -200,6 +209,7 @@ export default function BookingDetail({ kind, b, locks, guest, conversation, mes
                         current={{ accommodation: b.accommodation, cleaning_fee: b.cleaning_fee, addon_fee: b.addon_fee, hst: b.hst, mat: b.mat, total: b.total }} />
                     </div>
                     <CompToggle bookingId={b.id} isComp={!!b.is_comp} guestName={name} />
+                    <div style={{ marginTop: '10px' }}>{cancelControl}</div>
                   </div>
                 ) : <>
                   {([['Deposit', b.deposit_amount, b.deposit_paid_at, null],
@@ -226,6 +236,7 @@ export default function BookingDetail({ kind, b, locks, guest, conversation, mes
                     </span>
                   </div>
                   <CompToggle bookingId={b.id} isComp={!!b.is_comp} guestName={name} />
+                    <div style={{ marginTop: '10px' }}>{cancelControl}</div>
                 </>
               ) : <>
                 {([['Accommodation', b.accommodation], ['Cleaning', b.cleaning_fee], ['Extras', b.extras],

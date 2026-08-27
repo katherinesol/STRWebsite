@@ -155,6 +155,9 @@ export async function syncICalToDB(propertyId: string): Promise<SyncReport> {
     const { data: synced } = await supabase.from('calendar_blocks')
       .select('id, platform, start_date, end_date, guest_name, door_code, notes, early_checkin_time, late_checkout_time, ical_uid')
       .eq('property_id', propertyId)
+      // already cancelled: it has been through this once, and re-revoking its
+      // code every sync would reach for a code that may since be someone else's
+      .neq('status', 'cancelled')
       .in('platform', fetchedPlatforms)
 
     const todayStr = new Date().toISOString().split('T')[0]
@@ -200,15 +203,37 @@ export async function syncICalToDB(propertyId: string): Promise<SyncReport> {
         await logSystem('lock.revoked', `Revoked code ${code} for cancelled ${b.platform} booking (${b.start_date}–${b.end_date})`, { code, revoked: r.revoked, booking_id: b.id }, propertyId)
       }
 
-      // pristine (never manually touched) => safe to remove. Enriched => keep + flag.
+      /*  IT IS MARKED, NOT DELETED — and that is the stage 1 status column
+          doing the job it was added for.
+
+          This used to delete any row that had never been hand-edited, on the
+          reasoning that a bare synced row holds nothing worth keeping. That was
+          true when a synced row was only dates. It stopped being true the
+          moment reconciliation put payouts, tax splits and confirmation codes on
+          these rows: a feed that drops an event for a night — a platform
+          outage, a re-issued UID, a fetch that half-succeeds — would take a
+          reconciled booking's figures with it, permanently, with a log line as
+          the only trace. A status change is recoverable; a delete is not.
+
+          The enriched branch had the opposite problem: it logged loudly and
+          changed nothing, so a cancelled booking kept its confirmed status and
+          went on counting in every total. Both branches now do the same thing,
+          and it is the thing stage 1 built the read paths for. */
       const pristine = !b.guest_name && !b.door_code
-      if (pristine) {
-        await supabase.from('calendar_blocks').delete().eq('id', b.id)
+      const { error: cancelErr } = await supabase.from('calendar_blocks').update({
+        status: 'cancelled',
+        cancelled_at: new Date().toISOString(),
+        cancellation_reason: `Vanished from the ${b.platform} feed`,
+      }).eq('id', b.id).neq('status', 'cancelled')
+
+      if (cancelErr) {
+        await logSystem('booking.cancel_failed', `${b.guest_name || 'A booking'} vanished from the ${b.platform} feed but could NOT be marked cancelled: ${cancelErr.message}. It is still counting as a live booking.`, { booking_id: b.id, error: cancelErr.message }, propertyId)
+      } else if (pristine) {
         report.removed++
-        await logSystem('booking.removed', `Removed cancelled ${b.platform} booking (${b.start_date}–${b.end_date}) — was never manually edited`, { booking_id: b.id }, propertyId)
+        await logSystem('booking.cancelled', `Marked a bare ${b.platform} booking cancelled (${b.start_date}–${b.end_date}) — it vanished from the feed and had never been edited. Kept, not deleted.`, { booking_id: b.id }, propertyId)
       } else {
         report.cancelled++
-        await logSystem('booking.cancelled', `${b.guest_name || 'A booking'} vanished from ${b.platform} feed — code revoked, review the record (${b.start_date}–${b.end_date})`, { booking_id: b.id }, propertyId)
+        await logSystem('booking.cancelled', `${b.guest_name || 'A booking'} vanished from the ${b.platform} feed — marked cancelled and the code revoked. Its figures are kept; review the record (${b.start_date}–${b.end_date}).`, { booking_id: b.id }, propertyId)
       }
     }
   }

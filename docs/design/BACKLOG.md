@@ -113,6 +113,18 @@ anything not in the doc was dropped. Three found by complaint, one by search.
   **Highest-leverage item here** — it is what made this week's 39-booking
   reconciliation manual.
 - **Combined P&L.** Wanted eventually; explicitly not part of the Money rebuild.
+- **Direct-booking refunds are ENFORCED-blocked, not merely flagged.** The
+  cancel endpoint refuses any direct booking carrying a refund amount with
+  `blocked: 'direct_refund_unverified'` (409). Direct **cancellations** work
+  fully — status, dates and locks are table-agnostic and verified — and
+  `mode: 'none'` cancels one with no money. Only refunds-with-money are refused.
+  **Why:** a platform booking stores tax as the reconciliation split the
+  reversal engine reads; a direct booking carries its own `bookings.hst` and
+  `bookings.mat` columns that the platform path never touches. **To close it:**
+  verify a direct refund's HST/MAT recompute lands correctly and nets into the
+  MAT return the way VRBO does (direct is a full-remittance platform — no split,
+  no Airbnb-MAT flag), then delete the block. A direct **Royal York** refund
+  still hits the held-file gap, same as a platform one. A contained follow-on.
 - **Cancellation + refund — stages ② and ③.** Stage ① shipped 2026-08-27: the
   `calendar_blocks.status` migration plus twenty-nine read paths that now skip a
   cancelled row. Recorded in
