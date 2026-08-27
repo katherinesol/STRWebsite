@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { hasRole, hasPermission, getAuth } from '@/lib/auth'
-import { planRefund, planFingerprint } from '@/lib/refund'
+import { planRefund, planFingerprint, directRefundGuard } from '@/lib/refund'
 import { decideLock, dateEffect } from '@/lib/cancellation'
 import { logSystem } from '@/lib/system-log'
 
@@ -20,11 +20,13 @@ import { logSystem } from '@/lib/system-log'
  *  edited between the two produces a different hash and the write is refused
  *  rather than applied to numbers nobody approved.
  *
- *  DIRECT BOOKINGS CANNOT MOVE MONEY HERE YET. They carry their own hst and mat
- *  columns which the stage 2 reversal does not touch, and that path has never
- *  been verified end to end. Cancelling one is allowed — status, dates and locks
- *  are table-agnostic — but any refund on one is refused below rather than left
- *  to a note in a document that nobody reads at the moment it matters. */
+ *  DIRECT BOOKINGS MOVE MONEY ONLY WHERE THERE IS NO TAX IN IT. The reversal
+ *  computes identically to VRBO on a direct booking; what does not hold is the
+ *  MAT return, which reads calendar_blocks and has never read the bookings
+ *  table. So a direct refund that would reverse tax is refused — see
+ *  directRefundGuard — and one with apply_tax off, which reverses room and
+ *  nothing else, goes through. The refusal is in code rather than in a document
+ *  nobody reads at the moment it matters. */
 
 const r2 = (v: number) => Math.round((v + Number.EPSILON) * 100) / 100
 
@@ -122,14 +124,15 @@ export async function POST(request: NextRequest) {
     moneyLabel = `${kept.toFixed(2)} kept, ${refundRoom.toFixed(2)} returned.`
   }
 
-  /* THE DIRECT-BOOKING BLOCK. Stated as its own refusal so it cannot be missed. */
-  if (kind === 'direct' && refundRoom > 0) {
+  /*  THE DIRECT-BOOKING GUARD, narrowed. It used to refuse every direct refund
+      on the grounds that the path was unverified. It has since been verified —
+      the arithmetic is byte-identical to VRBO — and what remains is narrower and
+      real: direct tax never reaches the MAT return. So only a direct booking
+      that actually charges tax is refused. See directRefundGuard. */
+  const guard = directRefundGuard(kind, b.applyTax, refundRoom)
+  if (guard.blocked) {
     return NextResponse.json({
-      error: 'Refunds on direct bookings are not verified yet.',
-      detail: 'A direct booking carries its own hst and mat columns that the reversal does not touch, and that path '
-        + 'has never been checked end to end. Cancelling with no money is allowed (mode "none"); recording the refund '
-        + 'is blocked until the direct path is verified.',
-      blocked: 'direct_refund_unverified',
+      error: guard.error, detail: guard.detail, blocked: guard.blocked_reason,
     }, { status: 409 })
   }
 

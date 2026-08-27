@@ -144,3 +144,44 @@ export function planFingerprint(bookingId: string, plan: RefundPlan): string {
   for (let i = 0; i < material.length; i++) { h = ((h << 5) - h + material.charCodeAt(i)) | 0 }
   return Math.abs(h).toString(36)
 }
+
+/*  Which direct refunds are allowed through, and why the line is where it is.
+ *
+ *  The reversal ARITHMETIC is not in question: a direct booking computes
+ *  byte-identically to VRBO — no platform split, no Airbnb-MAT flag, the whole
+ *  reversal yours — and that was verified line by line before this guard was
+ *  narrowed to its present shape.
+ *
+ *  WHAT IS IN QUESTION IS THE RETURN THE MAT LANDS IN. mat-return and mat-report
+ *  read calendar_blocks and have never read the bookings table, so a direct
+ *  booking's MAT has never appeared in the return at all. Reversing MAT against
+ *  a return that never contained it would take a real deduction off a figure
+ *  that was never inflated by it — an understatement, which is the worse of the
+ *  two errors and the one this whole stage has been careful about.
+ *
+ *  So the line is drawn at apply_tax, not at the booking table. A direct booking
+ *  with apply_tax false has no HST and no MAT to reverse: the refund is room and
+ *  nothing else, there is no return for it to touch, and it is safe. All four
+ *  real direct bookings are on that side. A direct booking that DOES charge tax
+ *  is refused until direct bookings reach the MAT return — a case that does not
+ *  exist yet, so the guard costs nothing today and is here to stop the first one
+ *  slipping through unnoticed.
+ *
+ *  Both refund paths call this. The rule living in two endpoints is how one of
+ *  them ends up without it — as /api/admin/refunds did. */
+export function directRefundGuard(
+  bookingKind: 'direct' | 'platform',
+  applyTax: boolean,
+  refundRoom: number,
+): { blocked: true; error: string; detail: string; blocked_reason: string } | { blocked: false } {
+  if (bookingKind !== 'direct' || refundRoom <= 0 || !applyTax) return { blocked: false }
+  return {
+    blocked: true,
+    error: 'This direct booking charges tax, and direct tax does not reach your MAT return.',
+    detail: 'mat-return and mat-report read calendar_blocks only — they have never read the bookings table — so a '
+      + "direct booking's MAT has never appeared in the return. Reversing it here would take a deduction off a "
+      + 'figure that never included it, which understates what you owe. Refunds on direct bookings with apply_tax '
+      + 'off are allowed: there is no tax to reverse. To lift this, wire direct bookings into the MAT return first.',
+    blocked_reason: 'direct_tax_not_in_mat_return',
+  }
+}

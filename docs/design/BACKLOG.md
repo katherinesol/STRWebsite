@@ -126,18 +126,30 @@ anything not in the doc was dropped. Three found by complaint, one by search.
   file, not assumed). **Build trigger: Jan–May entered.** Before that, unmatched
   lines are mostly the data gap rather than real findings, and a tool that cries
   wolf gets skimmed.
-- **Direct-booking refunds are ENFORCED-blocked, not merely flagged.** The
-  cancel endpoint refuses any direct booking carrying a refund amount with
-  `blocked: 'direct_refund_unverified'` (409). Direct **cancellations** work
-  fully — status, dates and locks are table-agnostic and verified — and
-  `mode: 'none'` cancels one with no money. Only refunds-with-money are refused.
-  **Why:** a platform booking stores tax as the reconciliation split the
-  reversal engine reads; a direct booking carries its own `bookings.hst` and
-  `bookings.mat` columns that the platform path never touches. **To close it:**
-  verify a direct refund's HST/MAT recompute lands correctly and nets into the
-  MAT return the way VRBO does (direct is a full-remittance platform — no split,
-  no Airbnb-MAT flag), then delete the block. A direct **Royal York** refund
-  still hits the held-file gap, same as a platform one. A contained follow-on.
+- **DIRECT BOOKINGS' MAT NEVER REACHES THE MAT RETURN.** `mat-return` and
+  `mat-report` read `calendar_blocks` and **have never read the `bookings`
+  table** — confirmed by listing every `.from(...)` in both routes. So a direct
+  booking's MAT has never appeared in a return. **Harmless today:** all four
+  direct bookings (RS-1002, RS-1003, RS-1005, RS-1006) are Nickel Beach with
+  `apply_tax = false` and MAT 0, so nothing is currently missing. It becomes real
+  the moment a direct booking charges MAT — the return would understate, silently.
+  This is a pre-existing gap that predates the reversal work and is the **reason
+  the `apply_tax = true` direct-refund guard stays**: reversing MAT against a
+  return that never contained it takes a deduction off a figure that was never
+  inflated by it, which understates in the other direction. Closing this means
+  wiring `bookings` into both routes — apportioned across months the same way
+  `calendar_blocks` rows are, with `resolveApplyTax` and the exemption applied.
+- **Direct refunds: narrowed guard, not a blanket block** (was
+  `direct_refund_unverified`). The reversal arithmetic was verified
+  byte-identical to VRBO on every line — no platform split, no Airbnb-MAT flag,
+  the whole reversal yours — so the guard is now only about the return the MAT
+  lands in. `apply_tax = false` direct refunds are **allowed** (room only, no tax
+  anywhere, all four real bookings on this side). `apply_tax = true` direct
+  refunds are **refused** with `direct_tax_not_in_mat_return` until the gap above
+  is closed. Direct cancellations with no money are unaffected. The rule lives in
+  `directRefundGuard` in [refund.ts](../../lib/refund.ts) and is called from both
+  refund paths — `/api/admin/refunds` had **no** guard at all until this pass and
+  would have written a direct refund with tax on it.
 - **Cancellation + refund — stages ② and ③.** Stage ① shipped 2026-08-27: the
   `calendar_blocks.status` migration plus twenty-nine read paths that now skip a
   cancelled row. Recorded in

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { hasRole, hasPermission, getAuth } from '@/lib/auth'
-import { planRefund, planFingerprint } from '@/lib/refund'
+import { planRefund, planFingerprint, directRefundGuard } from '@/lib/refund'
 
 /*  Recording a refund against a booking.
  *
@@ -87,6 +87,16 @@ export async function POST(request: NextRequest) {
   }
   const nights = Math.max(1, Math.round(
     (new Date(b.checkOut + 'T00:00:00Z').getTime() - new Date(b.checkIn + 'T00:00:00Z').getTime()) / 86400000))
+
+  /*  The same guard the cancel path uses, and it was missing here entirely —
+      this endpoint would have written a direct refund with tax on it. One rule,
+      one place, called from both. */
+  const guard = directRefundGuard(kind, b.applyTax, n(raw.amount))
+  if (guard.blocked) {
+    return NextResponse.json({
+      error: guard.error, detail: guard.detail, blocked: guard.blocked_reason,
+    }, { status: 409 })
+  }
 
   const plan = planRefund({
     propertyId: b.propertyId, platform: b.platform, checkIn: b.checkIn, nights,
