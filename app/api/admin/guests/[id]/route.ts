@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
-import { hasRole } from '@/lib/auth'
+import { hasRole, hasPermission } from '@/lib/auth'
 
 
 /* Guest records are the most personal table here — names, email addresses,
@@ -9,6 +9,7 @@ import { hasRole } from '@/lib/auth'
  * closed the same way. */
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   if (!await hasRole('owner', 'co-owner')) return NextResponse.json({ error: 'Not allowed' }, { status: 403 })
+  if (!await hasPermission('guests', 'edit')) return NextResponse.json({ error: 'Not allowed to change guest records' }, { status: 403 })
   const { id } = await params
   const body = await request.json()
   const supabase = createAdminClient()
@@ -35,6 +36,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
 export async function DELETE(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   if (!await hasRole('owner', 'co-owner')) return NextResponse.json({ error: 'Not allowed' }, { status: 403 })
+  if (!await hasPermission('guests', 'edit')) return NextResponse.json({ error: 'Not allowed to delete guest records' }, { status: 403 })
   const { id } = await params
   const supabase = createAdminClient()
   // nullify guest_id on bookings to preserve history

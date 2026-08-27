@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
-import { hasRole } from '@/lib/auth'
+import { hasRole, hasPermission } from '@/lib/auth'
 
 
 /* Guest records are the most personal table here — names, email addresses,
@@ -9,6 +9,7 @@ import { hasRole } from '@/lib/auth'
  * closed the same way. */
 export async function GET(request: NextRequest) {
   if (!await hasRole('owner', 'co-owner')) return NextResponse.json({ error: 'Not allowed' }, { status: 403 })
+  if (!await hasPermission('guests', 'view')) return NextResponse.json({ error: 'Not allowed to view guest records' }, { status: 403 })
   const q = request.nextUrl.searchParams.get('q') || ''
   if (q.length < 2) return NextResponse.json({ guests: [] })
 

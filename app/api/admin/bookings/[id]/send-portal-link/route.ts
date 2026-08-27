@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { sendPortalSetup } from '@/lib/email'
-import { isAuthed } from '@/lib/auth'
+import { hasRole, hasPermission } from '@/lib/auth'
 
 
 export async function POST(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  if (!await isAuthed()) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  // emails a guest a magic link into their portal: granting a guest access
+  if (!await hasRole('owner', 'co-owner')) return NextResponse.json({ error: 'Not allowed' }, { status: 403 })
+  if (!await hasPermission('guests', 'edit')) return NextResponse.json({ error: 'Not allowed to send portal links' }, { status: 403 })
   const { id } = await params
   const supabase = createAdminClient()
 

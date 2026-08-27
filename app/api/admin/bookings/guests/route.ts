@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
-import { hasRole, getAuth } from '@/lib/auth'
+import { hasRole, hasPermission, getAuth } from '@/lib/auth'
 import { findGuest, splitName, normaliseEmail, normalisePhone } from '@/lib/keyholder/guest-match'
 
 /* Who is on a booking, and who may be added to it.
@@ -17,10 +17,14 @@ import { findGuest, splitName, normaliseEmail, normalisePhone } from '@/lib/keyh
 
 const KINDS = ['direct', 'platform']
 
-async function gate() { return hasRole('owner', 'co-owner') }
+/*  Per method: reading who is on a booking is not the same as adding someone,
+    and POST can also CREATE a guest record, so it is guests,edit either way. */
+async function gate(level: 'view' | 'edit' = 'view') {
+  return (await hasRole('owner', 'co-owner')) && (await hasPermission('guests', level))
+}
 
 export async function GET(request: NextRequest) {
-  if (!await gate()) return NextResponse.json({ error: 'Not allowed' }, { status: 403 })
+  if (!await gate('view')) return NextResponse.json({ error: 'Not allowed to view booking guests' }, { status: 403 })
   const sp = request.nextUrl.searchParams
   const booking_id = sp.get('booking_id') || ''
   const booking_kind = sp.get('booking_kind') || ''
@@ -60,7 +64,7 @@ export async function GET(request: NextRequest) {
 
 /** Add somebody to a booking. Always as a co-guest — see below. */
 export async function POST(request: NextRequest) {
-  if (!await gate()) return NextResponse.json({ error: 'Not allowed' }, { status: 403 })
+  if (!await gate('edit')) return NextResponse.json({ error: 'Not allowed to change booking guests' }, { status: 403 })
 
   const raw = await request.json().catch(() => null)
   if (!raw || typeof raw !== 'object') return NextResponse.json({ error: 'Expected a JSON object' }, { status: 400 })
@@ -151,7 +155,7 @@ export async function POST(request: NextRequest) {
 
 /** Remove a co-guest. Never the lead. */
 export async function DELETE(request: NextRequest) {
-  if (!await gate()) return NextResponse.json({ error: 'Not allowed' }, { status: 403 })
+  if (!await gate('edit')) return NextResponse.json({ error: 'Not allowed to change booking guests' }, { status: 403 })
   const link_id = request.nextUrl.searchParams.get('link_id') || ''
   if (!link_id) return NextResponse.json({ error: 'link_id required' }, { status: 400 })
 

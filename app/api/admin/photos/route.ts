@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
-import { isAuthed } from '@/lib/auth'
+import { hasRole, hasPermission } from '@/lib/auth'
 
 
 // upload one file
 export async function POST(request: NextRequest) {
-  if (!await isAuthed()) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  // property_photos + the property-photos bucket: listing imagery
+  if (!await hasRole('owner', 'co-owner')) return NextResponse.json({ error: 'Not allowed' }, { status: 403 })
+  if (!await hasPermission('property', 'edit')) return NextResponse.json({ error: 'Not allowed to change property photos' }, { status: 403 })
   const formData = await request.formData()
   const file = formData.get('file') as File
   const propertyId = formData.get('property_id') as string
@@ -43,7 +45,8 @@ export async function POST(request: NextRequest) {
 
 // reorder: body { order: [photoId, photoId, ...] }
 export async function PATCH(request: NextRequest) {
-  if (!await isAuthed()) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!await hasRole('owner', 'co-owner')) return NextResponse.json({ error: 'Not allowed' }, { status: 403 })
+  if (!await hasPermission('property', 'edit')) return NextResponse.json({ error: 'Not allowed to reorder property photos' }, { status: 403 })
   const { order } = await request.json()
   if (!Array.isArray(order)) return NextResponse.json({ error: 'order array required' }, { status: 400 })
   const supabase = createAdminClient()
