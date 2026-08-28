@@ -16,6 +16,7 @@ import CancelOrRefund from '@/components/keyholder/CancelOrRefund'
 import { WaterUsed, WindDuringStay, HAS_SENSORS } from '@/components/keyholder/StayConditions'
 import { StayStatus, SecurityDeposit, SupportLink } from '@/components/keyholder/StayLifecycle'
 import GuestLink from '@/components/keyholder/GuestLink'
+import WalkthroughGallery from '@/components/keyholder/WalkthroughGallery'
 
 /** Design-doc 2a, read only.
  *
@@ -45,6 +46,7 @@ type Props = {
   b: any
   accounts?: any[]
   siteUrl?: string
+  canDeleteMedia?: boolean
   locks: any[]
   guest: any | null
   conversation: any | null
@@ -52,7 +54,7 @@ type Props = {
   hasGift: boolean
 }
 
-export default function BookingDetail({ kind, b, locks, guest, conversation, messages, hasGift, accounts, siteUrl = '' }: Props) {
+export default function BookingDetail({ kind, b, locks, guest, conversation, messages, hasGift, accounts, siteUrl = '', canDeleteMedia = false }: Props) {
   const isDirect = kind === 'direct'
   const from = isDirect ? b.check_in : b.start_date
   const to = isDirect ? b.check_out : b.end_date
@@ -65,11 +67,20 @@ export default function BookingDetail({ kind, b, locks, guest, conversation, mes
       cards were on the legacy booking page and were never written into this
       shell; the data never stopped. */
   const propertyId: string = b.property_id
+  const stayStartRaw: string | null = isDirect ? b.check_in : b.start_date
   const stayStart: string = isDirect ? b.check_in : b.start_date
   const stayEnd: string = isDirect ? b.check_out : b.end_date
   /*  Lifecycle, deposit and the support link are direct-booking concerns;
       guest linking is a platform one - a synced row is the only kind that
       arrives with a name and no guest record. */
+  /*  Condition photos live beside the stay they document, not in the money
+      column - it is a record of the property, not of the payment. */
+  const walkthrough = stayStartRaw && (
+    <div style={{ marginTop: '12px' }}>
+      <WalkthroughGallery bookingId={b.id} bookingKind={kind} propertyId={propertyId} canDelete={canDeleteMedia} />
+    </div>
+  )
+
   const lifecycle = (
     <div style={{ display: 'grid', gap: '12px', marginTop: '12px' }}>
       {isDirect && <StayStatus bookingId={b.id} status={b.status} checkOut={b.check_out} />}
@@ -241,6 +252,7 @@ export default function BookingDetail({ kind, b, locks, guest, conversation, mes
                     <CompToggle bookingId={b.id} isComp={!!b.is_comp} guestName={name} />
                     <div style={{ marginTop: '10px' }}>{cancelControl}</div>
                     {lifecycle}
+                    {walkthrough}
                     {conditions}
                   </div>
                 ) : <>
@@ -270,6 +282,7 @@ export default function BookingDetail({ kind, b, locks, guest, conversation, mes
                   <CompToggle bookingId={b.id} isComp={!!b.is_comp} guestName={name} />
                     <div style={{ marginTop: '10px' }}>{cancelControl}</div>
                     {lifecycle}
+                    {walkthrough}
                     {conditions}
                 </>
               ) : <>
