@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
-import { hasRole } from '@/lib/auth'
+import { hasRole, hasPermission } from '@/lib/auth'
 
 /** Editing a direct booking.
  *
@@ -59,6 +59,23 @@ const EDITABLE = new Set([
 const NUMERIC = ['deposit_amount', 'second_payment_amount', 'final_payment_amount', 'vehicle_count', 'guests', 'guests_adults', 'guests_children', 'nights']
 const DATES = ['deposit_paid_at', 'second_paid_at', 'final_paid_at', 'second_due_date', 'final_due_date', 'cancelled_at', 'checked_in_at']
 
+/*  THE CATEGORY IS DECIDED BY THE FIELDS, because this one route spans two.
+ *
+ *  EDITABLE mixes the payment schedule and the security deposit with dates,
+ *  status and guest-visible notes, and the route's only gate was hasRole - so a
+ *  co-owner set to money:'none' could still stamp deposit_paid_at through it,
+ *  which is exactly what the money category exists to stop. A single gate on the
+ *  whole route cannot be right either: one category would let money through on a
+ *  bookings grant, the other would refuse a date change to someone who may make
+ *  it. So the body decides. Send money fields, you need money:'edit'; send
+ *  anything else, bookings:'edit'; send both, you need both. */
+const MONEY_FIELDS = new Set([
+  'payment_method', 'security_deposit_status', 'is_comp', 'tax_note',
+  'deposit_amount', 'deposit_paid_at',
+  'second_payment_amount', 'second_due_date', 'second_paid_at',
+  'final_payment_amount', 'final_due_date', 'final_paid_at',
+])
+
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   if (!await hasRole('owner', 'co-owner')) {
     return NextResponse.json({ error: 'Not allowed' }, { status: 403 })
@@ -67,6 +84,16 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const raw = await request.json().catch(() => null)
   if (!raw || typeof raw !== 'object') {
     return NextResponse.json({ error: 'Expected a JSON object' }, { status: 400 })
+  }
+
+  const touched = Object.keys(raw)
+  const touchesMoney = touched.some(k => MONEY_FIELDS.has(k))
+  const touchesRest = touched.some(k => EDITABLE.has(k) && !MONEY_FIELDS.has(k))
+  if (touchesMoney && !await hasPermission('money', 'edit')) {
+    return NextResponse.json({ error: 'Not allowed to change payment or deposit fields' }, { status: 403 })
+  }
+  if (touchesRest && !await hasPermission('bookings', 'edit')) {
+    return NextResponse.json({ error: 'Not allowed to change this booking' }, { status: 403 })
   }
 
   const rejected = Object.keys(raw).filter(k => !EDITABLE.has(k))

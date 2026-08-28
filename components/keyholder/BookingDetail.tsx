@@ -14,6 +14,8 @@ import ParkingControl from '@/components/admin/ParkingControl'
 import CompToggle from '@/components/keyholder/CompToggle'
 import CancelOrRefund from '@/components/keyholder/CancelOrRefund'
 import { WaterUsed, WindDuringStay, HAS_SENSORS } from '@/components/keyholder/StayConditions'
+import { StayStatus, SecurityDeposit, SupportLink } from '@/components/keyholder/StayLifecycle'
+import GuestLink from '@/components/keyholder/GuestLink'
 
 /** Design-doc 2a, read only.
  *
@@ -42,6 +44,7 @@ type Props = {
   kind: 'direct' | 'platform'
   b: any
   accounts?: any[]
+  siteUrl?: string
   locks: any[]
   guest: any | null
   conversation: any | null
@@ -49,7 +52,7 @@ type Props = {
   hasGift: boolean
 }
 
-export default function BookingDetail({ kind, b, locks, guest, conversation, messages, hasGift, accounts }: Props) {
+export default function BookingDetail({ kind, b, locks, guest, conversation, messages, hasGift, accounts, siteUrl = '' }: Props) {
   const isDirect = kind === 'direct'
   const from = isDirect ? b.check_in : b.start_date
   const to = isDirect ? b.check_out : b.end_date
@@ -64,6 +67,18 @@ export default function BookingDetail({ kind, b, locks, guest, conversation, mes
   const propertyId: string = b.property_id
   const stayStart: string = isDirect ? b.check_in : b.start_date
   const stayEnd: string = isDirect ? b.check_out : b.end_date
+  /*  Lifecycle, deposit and the support link are direct-booking concerns;
+      guest linking is a platform one - a synced row is the only kind that
+      arrives with a name and no guest record. */
+  const lifecycle = (
+    <div style={{ display: 'grid', gap: '12px', marginTop: '12px' }}>
+      {isDirect && <StayStatus bookingId={b.id} status={b.status} checkOut={b.check_out} />}
+      {isDirect && <SecurityDeposit bookingId={b.id} current={b.security_deposit_status} />}
+      {!isDirect && <GuestLink bookingId={b.id} guestName={b.guest_name} guestId={b.guest_id} />}
+      <SupportLink code={b.confirmation_code} siteUrl={siteUrl} />
+    </div>
+  )
+
   const conditions = HAS_SENSORS(propertyId) && stayStart && stayEnd ? (
     <div style={{ display: 'grid', gap: '12px', marginTop: '12px' }}>
       <WaterUsed propertyId={propertyId} checkIn={stayStart} checkOut={stayEnd} />
@@ -225,6 +240,7 @@ export default function BookingDetail({ kind, b, locks, guest, conversation, mes
                     </div>
                     <CompToggle bookingId={b.id} isComp={!!b.is_comp} guestName={name} />
                     <div style={{ marginTop: '10px' }}>{cancelControl}</div>
+                    {lifecycle}
                     {conditions}
                   </div>
                 ) : <>
@@ -253,6 +269,7 @@ export default function BookingDetail({ kind, b, locks, guest, conversation, mes
                   </div>
                   <CompToggle bookingId={b.id} isComp={!!b.is_comp} guestName={name} />
                     <div style={{ marginTop: '10px' }}>{cancelControl}</div>
+                    {lifecycle}
                     {conditions}
                 </>
               ) : <>

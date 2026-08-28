@@ -12,5 +12,5 @@ export default async function PlatformBookingPage({ params }: { params: Promise<
   // the refund has to say which account the money left from
   const { data: accounts } = await createAdminClient()
     .from('bank_accounts').select('id, name, last4').eq('active', true).order('sort_order')
-  return <BookingDetail kind="platform" accounts={accounts || []} {...d} />
+  return <BookingDetail kind="platform" siteUrl={process.env.NEXT_PUBLIC_SITE_URL || "https://rental-direct-five.vercel.app"} accounts={accounts || []} {...d} />
 }

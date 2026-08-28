@@ -113,6 +113,18 @@ anything not in the doc was dropped. Three found by complaint, one by search.
   **Highest-leverage item here** — it is what made this week's 39-booking
   reconciliation manual.
 - **Combined P&L.** Wanted eventually; explicitly not part of the Money rebuild.
+- **TWO mark-deposit-received paths exist until the legacy booking page retires.**
+  The redesigned path, `POST /api/admin/bookings/payment`, records a real
+  `payments` row on a named account and then stamps the booking — correct, and
+  the one to use. The legacy path, `PATCH /api/admin/bookings/[id]` from the old
+  booking page, still writes only the timestamp and contains **zero** references
+  to the payments table, so it creates a stamp with no ledger row: money that
+  shows as received on the booking and does not exist on the Accounts surface.
+  It cannot be removed yet — that page is held-file-blocked from retirement by
+  the VRBO/Airbnb tax audit. **Checked 2026-08-27: zero orphans exist today.**
+  The only stamped instalments are RS-1002's deposit and final, and both have
+  ledger rows from the 2026-08-24 backfill; RS-1003, RS-1005 and RS-1006 have no
+  stamps at all. Re-check after any spell of using the legacy page.
 - **The two reminder senders are dead code, and the diagnosis is narrower than
   "no email provider".** Resend IS wired and working: a real key is set, and
   `sendAccessCode`, `sendPortalSetup`, `sendEscalationAlert` and
