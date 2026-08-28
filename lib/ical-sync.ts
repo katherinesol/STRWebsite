@@ -5,6 +5,7 @@ import { parseICal, detectPlatform } from '@/lib/ical-parse'
 // Seam is imported lazily: it is only needed when a booking is cancelled or moved,
 // so parsing a feed should not drag in the lock SDK.
 const seamLib = () => import('@/lib/seam')
+import { lockActionNeeded } from '@/lib/lock-alert'
 
 // The ONE way platform bookings enter calendar_blocks.
 //
@@ -225,19 +226,57 @@ export async function syncICalToDB(propertyId: string): Promise<SyncReport> {
         if (newEnd && newEnd !== b.end_date) {
           await supabase.from('calendar_blocks').update({ end_date: newEnd }).eq('id', b.id)
           report.extended++
+          /*  THIS RAN DAILY AND UNATTENDED, AND IT LIED.
+           *
+           *  The catch was bare — `catch {}` — so a failure to move the code
+           *  window was discarded without a trace, and the log line below then
+           *  stated "Code window moved" unconditionally. Of the five places that
+           *  talk to a lock this was the worst, because nobody is watching a cron
+           *  at 06:00 and the sentence read as a completed fact.
+           *
+           *  The window move is now a result, not an assumption: the log says
+           *  what actually happened, and a lock left on the old window raises
+           *  lock.action_needed, which System Activity renders red. */
           const exCode = String(b.door_code || '').replace(/[^0-9]/g, '').slice(-4)
+          // hoisted out of the try because the alert below needs the same window
+          // text the reprogram was given; we are already in the "dates moved"
+          // branch, which is exactly when the lazy seam import is warranted.
+          const { reprogramBookingWindow, windowFromBooking } = await seamLib()
+          const newStartsAt = windowFromBooking(b.start_date, (b as any).early_checkin_time || null, false)
+          const newEndsAt = windowFromBooking(newEnd, (b as any).late_checkout_time || null, true)
+          let windowMoved: 'moved' | 'failed' | 'no code' = 'no code'
+          let windowError: string | null = null
+          let failedLocks: string[] = []
+
           if (exCode) {
             try {
-              const { reprogramBookingWindow, windowFromBooking } = await seamLib()
-              await reprogramBookingWindow({
+              const r = await reprogramBookingWindow({
                 propertyId, platform: b.platform, code: exCode,
-                startsAt: windowFromBooking(b.start_date, (b as any).early_checkin_time || null, false),
-                endsAt: windowFromBooking(newEnd, (b as any).late_checkout_time || null, true),
+                startsAt: newStartsAt, endsAt: newEndsAt,
               })
-            } catch {}
+              windowMoved = r.ok ? 'moved' : 'failed'
+              failedLocks = r.failedLocks || []
+              if (!r.ok) windowError = r.results?.find((x: any) => x.error)?.error || 'lock unreachable'
+            } catch (e: any) {
+              windowMoved = 'failed'
+              windowError = e?.message || 'reprogram threw'
+            }
+            if (windowMoved === 'failed') {
+              await lockActionNeeded({
+                intent: 'reschedule', propertyId, code: exCode, locks: failedLocks,
+                bookingId: b.id, bookingKind: 'platform',
+                who: `${b.guest_name || 'A booking'} (dates changed by sync)`,
+                window: { startsAt: newStartsAt, endsAt: newEndsAt },
+                error: windowError,
+              })
+            }
           }
+
           const dir = newEnd > b.end_date ? 'extended' : 'shortened'
-          await logSystem('booking.dates_changed', (b.guest_name || 'A booking') + ' ' + dir + ': ' + b.start_date + '–' + b.end_date + ' → ' + b.start_date + '–' + newEnd + '. Code window moved. REVIEW FINANCE (accommodation, tax, payout).', { booking_id: b.id, old_end: b.end_date, new_end: newEnd, code: exCode || null }, propertyId)
+          const windowNote = windowMoved === 'moved' ? 'Code window moved.'
+            : windowMoved === 'failed' ? 'CODE WINDOW NOT MOVED — the lock still holds the old window, fix by hand.'
+            : 'No code on this booking, so no window to move.'
+          await logSystem('booking.dates_changed', (b.guest_name || 'A booking') + ' ' + dir + ': ' + b.start_date + '–' + b.end_date + ' → ' + b.start_date + '–' + newEnd + '. ' + windowNote + ' REVIEW FINANCE (accommodation, tax, payout).', { booking_id: b.id, old_end: b.end_date, new_end: newEnd, code: exCode || null, window_moved: windowMoved, window_error: windowError }, propertyId)
           continue
         }
       }

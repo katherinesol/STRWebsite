@@ -147,7 +147,7 @@ export async function reprogramBookingWindow(opts: {
   endsAt: string
   platform: string
 }) {
-  if (!opts.code) return { updated: 0, note: 'no code on booking — nothing to reprogram' }
+  if (!opts.code) return { ok: true, updated: 0, attempted: 0, errors: 0, results: [] as any[], note: 'no code on booking — nothing to reprogram' }
   const seam = client()
   const supabase = _admin()
   const isAirbnb = opts.platform === 'airbnb'
@@ -174,7 +174,26 @@ export async function reprogramBookingWindow(opts: {
       results.push({ lock: lock.lock_name, ok: false, error: e?.message })
     }
   }
-  return { updated: results.length, results }
+  /*  `updated` COUNTED THE ARRAY, NOT THE SUCCESSES.
+   *
+   *  Every branch above pushes a row — created, updated, and failed alike — so
+   *  `results.length` was the number of locks attempted. Three locks all failing
+   *  returned `updated: 3`, and both callers (calendar/block and ical-sync)
+   *  reported a window move that never happened. This is wrong whatever Seam is
+   *  doing; the paused account only made it happen every time instead of rarely.
+   *
+   *  Nothing attempted is vacuously fine — a property whose only lock is
+   *  airbnb-managed is `continue`d past above and has no work to fail at. */
+  const errors = results.filter(r => r.ok === false).length
+  const updated = results.filter(r => r.action === 'created' || r.action === 'updated').length
+  return {
+    ok: errors === 0,
+    updated,
+    attempted: results.length,
+    errors,
+    results,
+    failedLocks: results.filter(r => r.ok === false).map(r => r.lock),
+  }
 }
 
 // convert a booking's date + optional time field into an ISO timestamp
@@ -214,8 +233,23 @@ export function windowFromBooking(dateStr: string, timeStr: string | null, isChe
 }
 
 // revoke a code from every lock on a property (used on cancellation)
+/*  A REVOKE THAT DID NOT HAPPEN MUST NOT RETURN LIKE ONE THAT DID.
+ *
+ *  Every lock is tried inside its own try/catch, so this function never throws —
+ *  which meant the caller's outer catch was dead code and a total failure came
+ *  back as `{ revoked: 0, results: [ ...errors ] }`. bookings/cancel read that as
+ *  success and wrote `lock.revoked — "Revoked code 5105"` into the system log.
+ *  The log asserted a revoke that had not happened, which is worse than no log.
+ *
+ *  TWO ZEROES THAT MEAN OPPOSITE THINGS, and collapsing them is what would make
+ *  the new alert useless. Nothing revoked because every lock errored is a
+ *  failure. Nothing revoked because the code was already absent is the desired
+ *  end state — the lock is clean. If both raised `lock.action_needed`, every
+ *  already-tidy cancellation would cry wolf, and a red event that is usually
+ *  wrong stops being read. So an untouched lock is recorded explicitly and the
+ *  two cases are distinguishable in the return. */
 export async function revokeCodeFromProperty(propertyId: string, code: string) {
-  if (!code) return { revoked: 0 }
+  if (!code) return { ok: true, revoked: 0, checked: 0, errors: 0, nothingToRevoke: true, results: [] as any[], failedLocks: [] as string[] }
   const seam = client()
   const supabase = _admin()
   const { data: locks } = await supabase.from('property_locks')
@@ -226,10 +260,27 @@ export async function revokeCodeFromProperty(propertyId: string, code: string) {
     try {
       const codes = await seam.accessCodes.list({ device_id: lock.seam_device_id })
       const match = codes.find((c: any) => c.code === code)
-      if (match) { await seam.accessCodes.delete({ access_code_id: match.access_code_id }); revoked++; results.push({ lock: lock.lock_name, revoked: true }) }
+      if (match) {
+        await seam.accessCodes.delete({ access_code_id: match.access_code_id })
+        revoked++
+        results.push({ lock: lock.lock_name, revoked: true })
+      } else {
+        // reached the lock, the code was not on it — clean, not failed
+        results.push({ lock: lock.lock_name, revoked: false, not_found: true })
+      }
     } catch (e: any) {
       results.push({ lock: lock.lock_name, error: e?.message })
     }
   }
-  return { revoked, results }
+  const errors = results.filter(r => r.error).length
+  const checked = results.length - errors
+  return {
+    ok: errors === 0,
+    revoked,
+    checked,
+    errors,
+    nothingToRevoke: errors === 0 && revoked === 0,
+    results,
+    failedLocks: results.filter(r => r.error).map(r => r.lock),
+  }
 }

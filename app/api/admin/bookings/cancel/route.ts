@@ -4,6 +4,7 @@ import { hasRole, hasPermission, getAuth } from '@/lib/auth'
 import { planRefund, planFingerprint, directRefundGuard } from '@/lib/refund'
 import { decideLock, dateEffect } from '@/lib/cancellation'
 import { logSystem } from '@/lib/system-log'
+import { lockActionNeeded } from '@/lib/lock-alert'
 
 /*  Cancel or refund — one action, and one question decides everything it does.
  *
@@ -253,14 +254,45 @@ export async function POST(request: NextRequest) {
       refund that already left the bank. It is reported instead, where it can be
       seen and done by hand. */
   if (lock.action === 'revoke' && lock.code) {
+    /*  THE OUTER CATCH USED TO BE THE ONLY FAILURE PATH, AND IT NEVER RAN.
+     *  revokeCodeFromProperty tries each lock in its own try/catch and therefore
+     *  does not throw, so a total failure arrived here looking like a success
+     *  and this block logged `lock.revoked — "Revoked code 5105"`. It is kept
+     *  for a genuine throw (a missing API key), but the real decision is now
+     *  r.ok, and a code left live on a door raises the alert. */
     try {
       const { revokeCodeFromProperty } = await import('@/lib/seam')
       const r = await revokeCodeFromProperty(b.propertyId, lock.code)
-      done.lock = { revoked: r.revoked, results: r.results }
-      await logSystem('lock.revoked', `Revoked code ${lock.code} — ${b.guest || b.id} cancelled (${b.checkIn}–${b.checkOut})`, { booking_id: b.id, code: lock.code, revoked: r.revoked }, b.propertyId)
+      done.lock = { ok: r.ok, revoked: r.revoked, errors: r.errors, results: r.results }
+
+      if (r.ok) {
+        // reached every lock. Either the code was removed, or it was already gone.
+        await logSystem('lock.revoked',
+          r.nothingToRevoke
+            ? `Code ${lock.code} was already absent from every lock — ${b.guest || b.id} cancelled (${b.checkIn}–${b.checkOut})`
+            : `Revoked code ${lock.code} on ${r.revoked} lock(s) — ${b.guest || b.id} cancelled (${b.checkIn}–${b.checkOut})`,
+          { booking_id: b.id, code: lock.code, revoked: r.revoked, nothing_to_revoke: r.nothingToRevoke }, b.propertyId)
+      } else {
+        done.lock.action_needed = `Revoke code ${lock.code} by hand on ${r.failedLocks.join(', ') || 'the locks'}.`
+        await logSystem('lock.revoke_failed',
+          `Could NOT revoke ${lock.code} for cancelled booking ${b.id} — ${r.errors} lock(s) unreachable. Do it by hand.`,
+          { booking_id: b.id, code: lock.code, failed_locks: r.failedLocks, results: r.results }, b.propertyId)
+        await lockActionNeeded({
+          intent: 'revoke', propertyId: b.propertyId, code: lock.code,
+          locks: r.failedLocks, bookingId: b.id, bookingKind: kind,
+          who: `${b.guest || b.id} (cancelled ${b.checkIn}–${b.checkOut})`,
+          error: r.results.find((x: any) => x.error)?.error || null,
+        })
+      }
     } catch (e: any) {
-      done.lock = { error: e?.message || 'revoke failed', action_needed: `Revoke code ${lock.code} by hand.` }
+      done.lock = { ok: false, error: e?.message || 'revoke failed', action_needed: `Revoke code ${lock.code} by hand.` }
       await logSystem('lock.revoke_failed', `Could NOT revoke ${lock.code} for cancelled booking ${b.id}: ${e?.message}. Do it by hand.`, { booking_id: b.id, code: lock.code }, b.propertyId)
+      await lockActionNeeded({
+        intent: 'revoke', propertyId: b.propertyId, code: lock.code,
+        bookingId: b.id, bookingKind: kind,
+        who: `${b.guest || b.id} (cancelled ${b.checkIn}–${b.checkOut})`,
+        error: e?.message || 'revoke failed',
+      })
     }
   } else {
     done.lock = { skipped: lock.reason }

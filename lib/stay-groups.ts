@@ -1,5 +1,7 @@
 import { createAdminClient } from '@/lib/supabase/server'
 import { reprogramBookingWindow, windowFromBooking } from '@/lib/seam'
+import { lockActionNeeded } from '@/lib/lock-alert'
+import { logSystem } from '@/lib/system-log'
 
 // load a group's members with their booking dates/codes (from bookings OR calendar_blocks)
 async function loadGroupBookings(groupId: string) {
@@ -59,14 +61,40 @@ export async function extendCodeForStayGroup(groupId: string): Promise<{ ok: boo
     platform: original.platform,
   })
 
-  // log to system activity
-  await supabase.from('system_activity').insert({
-    kind: 'code_extended_stay_group',
-    detail: `Extended code ${original.code} to cover linked stay ${earliestStart}→${latestEnd}`,
-    property_id: original.property_id,
-  }).then(() => {}, () => {})   // don't fail if activity table differs
+  /*  THE RESULT WAS COMPUTED AND THEN IGNORED. This returned ok:true whatever
+   *  the lock did, and wrote "Extended code X" into system_activity — a
+   *  different table from the system_log everything else uses, with both
+   *  outcomes swallowed by the .then(noop, noop). So the one place that
+   *  recorded the extension was both unconditional and invisible to System
+   *  Activity. It now reports what happened, in the table the UI reads. */
+  const extended = result.ok === true
 
-  return { ok: true, note: `Code ${original.code} extended to ${latestEnd}`, range: { start: earliestStart, end: latestEnd } }
+  await logSystem(
+    extended ? 'lock.reprogrammed' : 'lock.reprogram_failed',
+    extended
+      ? `Extended code ${original.code} to cover linked stay ${earliestStart}→${latestEnd}`
+      : `Could NOT extend code ${original.code} for linked stay ${earliestStart}→${latestEnd} — the lock still holds the old window.`,
+    { code: original.code, start: earliestStart, end: latestEnd, updated: result.updated, errors: result.errors },
+    original.property_id,
+  )
+
+  if (!extended) {
+    await lockActionNeeded({
+      intent: 'reschedule', propertyId: original.property_id, code: original.code,
+      locks: result.failedLocks || [],
+      who: `linked stay ${earliestStart}→${latestEnd}`,
+      window: { startsAt, endsAt },
+      error: result.results?.find((x: any) => x.error)?.error || 'lock unreachable',
+    })
+  }
+
+  return {
+    ok: extended,
+    note: extended
+      ? `Code ${original.code} extended to ${latestEnd}`
+      : `Code ${original.code} was NOT extended — do it by hand.`,
+    range: { start: earliestStart, end: latestEnd },
+  }
 }
 
 

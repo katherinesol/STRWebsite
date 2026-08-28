@@ -4,6 +4,7 @@ import { splitName } from '@/lib/keyholder/guest-match'
 import { logCalendarActivity } from '@/lib/calendar-activity'
 import { getAuth, hasRole, hasPermission, canAddBlocks, canDeleteOwnBlocks } from '@/lib/auth'
 import { reprogramBookingWindow, windowFromBooking } from '@/lib/seam'
+import { lockActionNeeded } from '@/lib/lock-alert'
 
 
 export async function PATCH(
@@ -100,20 +101,38 @@ export async function PATCH(
         .eq('id', id).single()
       const code = String(row?.door_code || '').replace(/\D/g, '').slice(-4)
       if (row && code) {
+        const startsAt = windowFromBooking(row.start_date, row.early_checkin_time, false)
+        const endsAt = windowFromBooking(row.end_date, row.late_checkout_time, true)
         lockUpdate = await reprogramBookingWindow({
           propertyId: row.property_id,
           platform: row.platform || 'direct',
-          code,
-          startsAt: windowFromBooking(row.start_date, row.early_checkin_time, false),
-          endsAt: windowFromBooking(row.end_date, row.late_checkout_time, true),
+          code, startsAt, endsAt,
         })
+        /*  `updated` used to be results.length, so an edit that reached no lock
+         *  still reported a window move. It counts successes now, and a lock the
+         *  edit did not reach raises the alert rather than returning quietly. */
+        if (!lockUpdate.ok) {
+          await lockActionNeeded({
+            intent: 'reschedule', propertyId: row.property_id, code,
+            locks: lockUpdate.failedLocks || [], bookingId: id, bookingKind: 'platform',
+            who: 'dates or times edited on the calendar',
+            window: { startsAt, endsAt },
+            error: lockUpdate.results?.find((x: any) => x.error)?.error || 'lock unreachable',
+          })
+        }
       }
     } catch (e: any) {
-      lockUpdate = { error: e?.message || 'reprogram failed' }
+      lockUpdate = { ok: false, error: e?.message || 'reprogram failed' }
+      await lockActionNeeded({
+        intent: 'reschedule', propertyId: (body as any).property_id || 'unknown',
+        bookingId: id, bookingKind: 'platform',
+        who: 'dates or times edited on the calendar',
+        error: e?.message || 'reprogram failed',
+      })
     }
   }
 
-  return NextResponse.json({ ok: true, lockUpdate })
+  return NextResponse.json({ ok: true, lockUpdate, lock_ok: lockUpdate ? lockUpdate.ok !== false : null })
 }
 
 export async function DELETE(

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { randomUUID } from 'crypto'
 import { programBookingLocks } from '@/lib/seam'
+import { lockActionNeeded } from '@/lib/lock-alert'
 import { chooseGuestCode } from '@/lib/lock-codes'
 import { resolveGuest } from '@/lib/keyholder/guest-resolve'
 import { createAdminClient } from '@/lib/supabase/server'
@@ -111,10 +112,37 @@ export async function POST(request: NextRequest) {
       lock_code: doorCode,
       lock_programming: lockResult,
     }).eq('id', booking!.id)
+    /*  programBookingLocks was already honest — it returns all_ok and
+     *  failed_count — but honesty nobody reads is indistinguishable from
+     *  silence. The result was stored on the booking and the route returned
+     *  ok:true regardless, so a guest could be created with no code on any door
+     *  and nothing anywhere said so. */
+    if (lockResult && lockResult.all_ok === false) {
+      await lockActionNeeded({
+        intent: 'program', propertyId: property_id, code: doorCode,
+        locks: (lockResult.results || []).filter((r: any) => r.managed_by === 'us' && !r.ok).map((r: any) => r.lock),
+        bookingId: booking!.id, bookingKind: 'direct',
+        who: `${guest_name || 'Guest'} · ${bookingReference}`,
+        window: { startsAt: new Date(check_in + 'T16:00:00').toISOString(), endsAt: new Date(check_out + 'T11:00:00').toISOString() },
+        error: (lockResult.results || []).find((r: any) => r.error)?.error || (lockResult.mismatch ? lockResult.mismatch.note : null),
+      })
+    }
   } catch (e: any) {
     lockResult = { error: e?.message || 'Lock programming failed', all_ok: false }
     await supabase.from('bookings').update({ lock_programming: lockResult }).eq('id', booking!.id)
+    await lockActionNeeded({
+      intent: 'program', propertyId: property_id, code: doorCode,
+      bookingId: booking!.id, bookingKind: 'direct',
+      who: `${guest_name || 'Guest'} · ${bookingReference}`,
+      window: { startsAt: new Date(check_in + 'T16:00:00').toISOString(), endsAt: new Date(check_out + 'T11:00:00').toISOString() },
+      error: e?.message || 'Lock programming failed',
+    })
   }
 
-  return NextResponse.json({ ok: true, booking_id: booking?.id, lock: lockResult })
+  // the caller must be able to see this without opening the booking row
+  return NextResponse.json({
+    ok: true, booking_id: booking?.id, lock: lockResult,
+    lock_ok: lockResult?.all_ok !== false,
+    ...(lockResult?.all_ok === false ? { action_needed: `Code ${doorCode || '?'} is not on every lock — program it by hand.` } : {}),
+  })
 }
