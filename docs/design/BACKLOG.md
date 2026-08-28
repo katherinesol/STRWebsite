@@ -113,6 +113,22 @@ anything not in the doc was dropped. Three found by complaint, one by search.
   **Highest-leverage item here** — it is what made this week's 39-booking
   reconciliation manual.
 - **Combined P&L.** Wanted eventually; explicitly not part of the Money rebuild.
+- **Pre-arrival photo walkthrough — the backend exists and has never been wired.**
+  Scoped 2026-08-27 in [photo-walkthrough.md](photo-walkthrough.md), approved as
+  design, unbuilt. `booking_media` (booking_id + booking_kind, property_id,
+  storage_path, media_type, tag, **captured_at**, added_by) and
+  `/api/admin/booking-media` GET/POST/DELETE all exist and are correct.
+  **Zero components mount it, zero rows, zero objects in the bucket**, and one
+  commit ever touched it — a calendar time-format fix that carried it in as a
+  side change. Same shape as `canAddBlocks`: written, never called.
+  Three things must be settled before a UI writes anything: **`tag` has no CHECK
+  constraint** (`'banana'`, `''` and `'DROP TABLE'` were all accepted on probe,
+  as was `media_type='pdf'`); **the POST streams bytes through the route**, which
+  is the exact pattern that broke the 9.8MB guide upload and was rewritten to a
+  signed URL; and **`captured_at` must come from the file, not the clock**, or
+  the timestamp stops meaning what the feature is for. It is also the missing
+  half of a damage claim — Heremela's $2,464.57 had no documented pre-arrival
+  condition to compare against.
 - **TWO mark-deposit-received paths exist until the legacy booking page retires.**
   The redesigned path, `POST /api/admin/bookings/payment`, records a real
   `payments` row on a named account and then stamps the booking — correct, and
