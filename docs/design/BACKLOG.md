@@ -113,6 +113,23 @@ anything not in the doc was dropped. Three found by complaint, one by search.
   **Highest-leverage item here** — it is what made this week's 39-booking
   reconciliation manual.
 - **Combined P&L.** Wanted eventually; explicitly not part of the Money rebuild.
+- **Four upload routes stream bytes through the route — the 9.8MB limit, latent.**
+  `admin/photos`, `admin/invoices/extract`, `admin/expenses/extract` and
+  `admin/mat-filings` all take `request.formData()` and pass the bytes to
+  storage, which is exactly the pattern that broke the guide upload at 9.8MB and
+  was rewritten to `createSignedUploadUrl`. Only `guest-guide` was fixed, and
+  `booking-media` is being fixed as step 2 of the walkthrough work. The other
+  four are untouched and will fail the same way on a large enough file — a
+  multi-page scanned invoice or a long receipt is the likely first casualty.
+  Same class, same fix, not urgent: nothing has hit it yet. Logged rather than
+  fixed so the fix is a deliberate pass rather than a surprise.
+- **Known looseness: a cleaner can see any stay's booking media.** GET on
+  `/api/admin/booking-media` admits `owner`, `co-owner` and `cleaner` and scopes
+  by `booking_id` only, so a cleaner can list the photos of a stay they did not
+  work. Left as-is deliberately: scoping it needs a cleaner-to-stay assignment
+  that does not exist in this schema, and the practical risk is low against the
+  cost of inventing one. Recorded so it is a known state rather than an
+  assumption.
 - **Pre-arrival photo walkthrough — the backend exists and has never been wired.**
   Scoped 2026-08-27 in [photo-walkthrough.md](photo-walkthrough.md), approved as
   design, unbuilt. `booking_media` (booking_id + booking_kind, property_id,
