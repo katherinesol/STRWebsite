@@ -4,8 +4,9 @@ import { parseICal, detectPlatform } from '@/lib/ical-parse'
 
 // Seam is imported lazily: it is only needed when a booking is cancelled or moved,
 // so parsing a feed should not drag in the lock SDK.
-const seamLib = () => import('@/lib/seam')
 import { lockActionNeeded } from '@/lib/lock-alert'
+import { queueForBooking } from '@/lib/lock-queue'
+import { windowFromBooking } from '@/lib/lock-window'
 
 // The ONE way platform bookings enter calendar_blocks.
 //
@@ -172,6 +173,21 @@ export async function syncICalToDB(propertyId: string): Promise<SyncReport> {
               await logSystem('lock.code_from_feed',
                 `Filled a blank door code from the ${platform} feed: ${event.phoneLast4} (${event.start}-${event.end})`,
                 { booking_id: existing.id, code: event.phoneLast4, platform }, propertyId)
+
+              /*  THIS IS HOW A PLATFORM BOOKING GETS CODED, and it is the write
+               *  point that matters most: the moment a code becomes known is the
+               *  moment it can be queued. Not at 48 hours, not on a cron — the
+               *  Encode holds 100 codes and a future-dated window self-activates,
+               *  so weeks of advance is free and removes the whole class of
+               *  "nobody noticed until the morning of". */
+              await queueForBooking({
+                bookingId: existing.id, bookingKind: 'platform',
+                propertyId, platform,
+                action: 'program', code: event.phoneLast4,
+                startsAt: windowFromBooking(event.start, null, false),
+                endsAt: windowFromBooking(event.end, null, true),
+                who: `${platform} booking ${event.start}–${event.end}`,
+              })
             }
           }
         }
@@ -185,7 +201,27 @@ export async function syncICalToDB(propertyId: string): Promise<SyncReport> {
             // publishes none at all
             door_code: event.phoneLast4 || null,
           })
-          if (!error) { fr.inserted++; report.inserted++ }
+          if (!error) {
+            fr.inserted++; report.inserted++
+            /*  A new reservation that arrives with its code already in the feed
+             *  must be queued here — it will never pass through the fill branch
+             *  above, because that only fires on a row whose code was BLANK. */
+            if (event.phoneLast4) {
+              const { data: made } = await supabase.from('calendar_blocks')
+                .select('id').eq('property_id', propertyId).eq('ical_uid', event.uid || '')
+                .maybeSingle()
+              if (made) {
+                await queueForBooking({
+                  bookingId: made.id, bookingKind: 'platform',
+                  propertyId, platform,
+                  action: 'program', code: event.phoneLast4,
+                  startsAt: windowFromBooking(event.start, null, false),
+                  endsAt: windowFromBooking(event.end, null, true),
+                  who: `new ${platform} booking ${event.start}–${event.end}`,
+                })
+              }
+            }
+          }
         }
       }
       fr.ok = true
@@ -237,56 +273,67 @@ export async function syncICalToDB(propertyId: string): Promise<SyncReport> {
            *  The window move is now a result, not an assumption: the log says
            *  what actually happened, and a lock left on the old window raises
            *  lock.action_needed, which System Activity renders red. */
+          /*  THE DATES MOVED, SO THE WINDOW MUST. Queued, not called: the
+           *  server has no Schlage credentials.
+           *
+           *  What used to be here was the worst of the six write paths. A bare
+           *  `catch {}` discarded any failure and the log line below then stated
+           *  "Code window moved" unconditionally — daily, unattended, and read as
+           *  settled fact. The sentence is now built from what actually
+           *  happened, and the only thing that can fail is recording the intent. */
           const exCode = String(b.door_code || '').replace(/[^0-9]/g, '').slice(-4)
-          // hoisted out of the try because the alert below needs the same window
-          // text the reprogram was given; we are already in the "dates moved"
-          // branch, which is exactly when the lazy seam import is warranted.
-          const { reprogramBookingWindow, windowFromBooking } = await seamLib()
           const newStartsAt = windowFromBooking(b.start_date, (b as any).early_checkin_time || null, false)
           const newEndsAt = windowFromBooking(newEnd, (b as any).late_checkout_time || null, true)
-          let windowMoved: 'moved' | 'failed' | 'no code' = 'no code'
+          let windowMoved: 'queued' | 'failed' | 'no code' = 'no code'
           let windowError: string | null = null
-          let failedLocks: string[] = []
 
           if (exCode) {
-            try {
-              const r = await reprogramBookingWindow({
-                propertyId, platform: b.platform, code: exCode,
-                startsAt: newStartsAt, endsAt: newEndsAt,
-              })
-              windowMoved = r.ok ? 'moved' : 'failed'
-              failedLocks = r.failedLocks || []
-              if (!r.ok) windowError = r.results?.find((x: any) => x.error)?.error || 'lock unreachable'
-            } catch (e: any) {
-              windowMoved = 'failed'
-              windowError = e?.message || 'reprogram threw'
-            }
-            if (windowMoved === 'failed') {
-              await lockActionNeeded({
-                intent: 'reschedule', propertyId, code: exCode, locks: failedLocks,
-                bookingId: b.id, bookingKind: 'platform',
-                who: `${b.guest_name || 'A booking'} (dates changed by sync)`,
-                window: { startsAt: newStartsAt, endsAt: newEndsAt },
-                error: windowError,
-              })
-            }
+            const q = await queueForBooking({
+              bookingId: b.id, bookingKind: 'platform',
+              propertyId, platform: b.platform,
+              action: 'reschedule', code: exCode,
+              startsAt: newStartsAt, endsAt: newEndsAt,
+              who: `${b.guest_name || 'A booking'} (dates changed by sync)`,
+            })
+            windowMoved = q.ok ? 'queued' : 'failed'
+            if (!q.ok) windowError = q.failed.map(f => f.error).join('; ')
           }
 
           const dir = newEnd > b.end_date ? 'extended' : 'shortened'
-          const windowNote = windowMoved === 'moved' ? 'Code window moved.'
-            : windowMoved === 'failed' ? 'CODE WINDOW NOT MOVED — the lock still holds the old window, fix by hand.'
+          const windowNote = windowMoved === 'queued'
+              ? 'New code window queued — the lock still holds the OLD window until the worker runs.'
+            : windowMoved === 'failed'
+              ? 'CODE WINDOW NOT QUEUED — the lock holds the old window and nothing will fix it, do it by hand.'
             : 'No code on this booking, so no window to move.'
           await logSystem('booking.dates_changed', (b.guest_name || 'A booking') + ' ' + dir + ': ' + b.start_date + '–' + b.end_date + ' → ' + b.start_date + '–' + newEnd + '. ' + windowNote + ' REVIEW FINANCE (accommodation, tax, payout).', { booking_id: b.id, old_end: b.end_date, new_end: newEnd, code: exCode || null, window_moved: windowMoved, window_error: windowError }, propertyId)
           continue
         }
       }
 
-      // vanished from feed = likely cancelled. Revoke any code first (security).
+      /*  VANISHED FROM THE FEED = LIKELY CANCELLED, so the code must come off the
+          door. Queued rather than called, like every other write — but this is
+          the one where the drain gap actually matters, because it is the only
+          revoke that fires with nobody watching. A booking that disappears from
+          a platform feed at 06:00 leaves a working code on a door until the
+          worker next runs, and no human pressed anything to cause it.
+
+          It also used to log `lock.revoked — "Revoked code X"` whatever the
+          outcome, so the record of the most security-relevant revoke in the
+          system was the least trustworthy line in it. */
       const code = String(b.door_code || '').replace(/\D/g, '').slice(-4)
       if (code) {
-        const { revokeCodeFromProperty } = await seamLib()
-        const r = await revokeCodeFromProperty(propertyId, code)
-        await logSystem('lock.revoked', `Revoked code ${code} for cancelled ${b.platform} booking (${b.start_date}–${b.end_date})`, { code, revoked: r.revoked, booking_id: b.id }, propertyId)
+        const q = await queueForBooking({
+          bookingId: b.id, bookingKind: 'platform',
+          propertyId, platform: b.platform,
+          action: 'revoke', code,
+          who: `${b.guest_name || 'A booking'} — vanished from the ${b.platform} feed (${b.start_date}–${b.end_date})`,
+        })
+        await logSystem(
+          q.ok ? 'lock.revoke_queued' : 'lock.revoke_failed',
+          q.ok
+            ? `Queued revoke of code ${code} for cancelled ${b.platform} booking (${b.start_date}–${b.end_date}). STILL LIVE on the door until the worker runs.`
+            : `Could NOT queue the revoke of code ${code} for cancelled ${b.platform} booking (${b.start_date}–${b.end_date}). Remove it by hand.`,
+          { code, booking_id: b.id, queued: q.queued, failed: q.failed }, propertyId)
       }
 
       /*  IT IS MARKED, NOT DELETED — and that is the stage 1 status column

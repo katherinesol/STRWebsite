@@ -1,6 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/server'
-import { reprogramBookingWindow, windowFromBooking } from '@/lib/seam'
-import { lockActionNeeded } from '@/lib/lock-alert'
+import { queueForBooking } from '@/lib/lock-queue'
+import { windowFromBooking } from '@/lib/lock-window'
 import { logSystem } from '@/lib/system-log'
 
 // load a group's members with their booking dates/codes (from bookings OR calendar_blocks)
@@ -53,46 +53,43 @@ export async function extendCodeForStayGroup(groupId: string): Promise<{ ok: boo
   const startsAt = windowFromBooking(earliestStart, original.inTime, false)
   const endsAt = windowFromBooking(latestEnd, original.outTime, true)
 
-  const result = await reprogramBookingWindow({
+  /*  QUEUE THE EXTENSION. Same reason as everywhere else: no credentials on the
+   *  server. The intent covers the whole linked stay — earliest check-in to
+   *  latest checkout — so the guest keeps one code across every booking in the
+   *  group rather than needing a new one per segment.
+   *
+   *  This function previously computed a result and then returned ok:true
+   *  regardless, recording "Extended code X" into system_activity — a different
+   *  table from the system_log the UI reads, with both outcomes swallowed. */
+  const queued = await queueForBooking({
+    // NOT original.id — the group rows are { member, start, end, code, ... , raw }
+    // with no id at the top level. `out` is loosely typed, so original.id
+    // type-checked fine and would have queued booking_id undefined.
+    bookingId: original.raw.id,
+    bookingKind: 'platform',
     propertyId: original.property_id,
-    code: original.code,
-    startsAt,
-    endsAt,
     platform: original.platform,
+    action: 'reschedule',
+    code: original.code,
+    startsAt, endsAt,
+    who: `linked stay ${earliestStart}→${latestEnd}`,
   })
-
-  /*  THE RESULT WAS COMPUTED AND THEN IGNORED. This returned ok:true whatever
-   *  the lock did, and wrote "Extended code X" into system_activity — a
-   *  different table from the system_log everything else uses, with both
-   *  outcomes swallowed by the .then(noop, noop). So the one place that
-   *  recorded the extension was both unconditional and invisible to System
-   *  Activity. It now reports what happened, in the table the UI reads. */
-  const extended = result.ok === true
+  const extended = queued.ok
 
   await logSystem(
-    extended ? 'lock.reprogrammed' : 'lock.reprogram_failed',
+    extended ? 'lock.reschedule_queued' : 'lock.reprogram_failed',
     extended
-      ? `Extended code ${original.code} to cover linked stay ${earliestStart}→${latestEnd}`
-      : `Could NOT extend code ${original.code} for linked stay ${earliestStart}→${latestEnd} — the lock still holds the old window.`,
-    { code: original.code, start: earliestStart, end: latestEnd, updated: result.updated, errors: result.errors },
+      ? `Queued extension of code ${original.code} to cover linked stay ${earliestStart}→${latestEnd} on ${queued.queued.length} lock(s)`
+      : `Could NOT queue the extension of code ${original.code} for linked stay ${earliestStart}→${latestEnd}.`,
+    { code: original.code, start: earliestStart, end: latestEnd, queued: queued.queued, failed: queued.failed },
     original.property_id,
   )
-
-  if (!extended) {
-    await lockActionNeeded({
-      intent: 'reschedule', propertyId: original.property_id, code: original.code,
-      locks: result.failedLocks || [],
-      who: `linked stay ${earliestStart}→${latestEnd}`,
-      window: { startsAt, endsAt },
-      error: result.results?.find((x: any) => x.error)?.error || 'lock unreachable',
-    })
-  }
 
   return {
     ok: extended,
     note: extended
-      ? `Code ${original.code} extended to ${latestEnd}`
-      : `Code ${original.code} was NOT extended — do it by hand.`,
+      ? `Code ${original.code} extension queued to ${latestEnd} — the worker applies it on its next run.`
+      : `Code ${original.code} extension could NOT be queued — do it by hand.`,
     range: { start: earliestStart, end: latestEnd },
   }
 }

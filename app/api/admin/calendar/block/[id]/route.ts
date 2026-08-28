@@ -3,8 +3,8 @@ import { createAdminClient } from '@/lib/supabase/server'
 import { splitName } from '@/lib/keyholder/guest-match'
 import { logCalendarActivity } from '@/lib/calendar-activity'
 import { getAuth, hasRole, hasPermission, canAddBlocks, canDeleteOwnBlocks } from '@/lib/auth'
-import { reprogramBookingWindow, windowFromBooking } from '@/lib/seam'
-import { lockActionNeeded } from '@/lib/lock-alert'
+import { queueForBooking } from '@/lib/lock-queue'
+import { windowFromBooking } from '@/lib/lock-window'
 
 
 export async function PATCH(
@@ -91,44 +91,29 @@ export async function PATCH(
     }
   } catch {}
 
-  // if this edit touched dates or times, move the door-code window to match
+  //  A DATE OR TIME EDIT MOVES THE CODE'S WINDOW — via the queue, since the
+  //  server cannot touch a lock. reprogramBookingWindow used to be called here
+  //  and reported `updated: results.length`, the count of locks ATTEMPTED, so an
+  //  edit that reached nothing still announced a move.
   let lockUpdate: any = null
   const touchedTiming = ['start_date', 'end_date', 'early_checkin_time', 'late_checkout_time'].some(k => k in body)
   if (touchedTiming) {
-    try {
-      const { data: row } = await supabase.from('calendar_blocks')
-        .select('property_id, platform, start_date, end_date, early_checkin_time, late_checkout_time, door_code')
-        .eq('id', id).single()
-      const code = String(row?.door_code || '').replace(/\D/g, '').slice(-4)
-      if (row && code) {
-        const startsAt = windowFromBooking(row.start_date, row.early_checkin_time, false)
-        const endsAt = windowFromBooking(row.end_date, row.late_checkout_time, true)
-        lockUpdate = await reprogramBookingWindow({
-          propertyId: row.property_id,
-          platform: row.platform || 'direct',
-          code, startsAt, endsAt,
-        })
-        /*  `updated` used to be results.length, so an edit that reached no lock
-         *  still reported a window move. It counts successes now, and a lock the
-         *  edit did not reach raises the alert rather than returning quietly. */
-        if (!lockUpdate.ok) {
-          await lockActionNeeded({
-            intent: 'reschedule', propertyId: row.property_id, code,
-            locks: lockUpdate.failedLocks || [], bookingId: id, bookingKind: 'platform',
-            who: 'dates or times edited on the calendar',
-            window: { startsAt, endsAt },
-            error: lockUpdate.results?.find((x: any) => x.error)?.error || 'lock unreachable',
-          })
-        }
-      }
-    } catch (e: any) {
-      lockUpdate = { ok: false, error: e?.message || 'reprogram failed' }
-      await lockActionNeeded({
-        intent: 'reschedule', propertyId: (body as any).property_id || 'unknown',
+    const { data: row } = await supabase.from('calendar_blocks')
+      .select('property_id, platform, start_date, end_date, early_checkin_time, late_checkout_time, door_code')
+      .eq('id', id).single()
+    const code = String(row?.door_code || '').replace(/\D/g, '').slice(-4)
+    if (row && code) {
+      const startsAt = windowFromBooking(row.start_date, row.early_checkin_time, false)
+      const endsAt = windowFromBooking(row.end_date, row.late_checkout_time, true)
+      const queued = await queueForBooking({
         bookingId: id, bookingKind: 'platform',
+        propertyId: row.property_id, platform: row.platform,
+        action: 'reschedule', code, startsAt, endsAt,
         who: 'dates or times edited on the calendar',
-        error: e?.message || 'reprogram failed',
       })
+      lockUpdate = { queued: queued.queued, skipped: queued.skipped, failed: queued.failed, ok: queued.ok }
+    } else {
+      lockUpdate = { skipped: row ? 'no code on this booking' : 'booking not found' }
     }
   }
 

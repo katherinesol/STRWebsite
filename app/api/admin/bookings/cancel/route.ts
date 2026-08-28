@@ -4,7 +4,7 @@ import { hasRole, hasPermission, getAuth } from '@/lib/auth'
 import { planRefund, planFingerprint, directRefundGuard } from '@/lib/refund'
 import { decideLock, dateEffect } from '@/lib/cancellation'
 import { logSystem } from '@/lib/system-log'
-import { lockActionNeeded } from '@/lib/lock-alert'
+import { queueForBooking } from '@/lib/lock-queue'
 
 /*  Cancel or refund — one action, and one question decides everything it does.
  *
@@ -254,46 +254,43 @@ export async function POST(request: NextRequest) {
       refund that already left the bank. It is reported instead, where it can be
       seen and done by hand. */
   if (lock.action === 'revoke' && lock.code) {
-    /*  THE OUTER CATCH USED TO BE THE ONLY FAILURE PATH, AND IT NEVER RAN.
-     *  revokeCodeFromProperty tries each lock in its own try/catch and therefore
-     *  does not throw, so a total failure arrived here looking like a success
-     *  and this block logged `lock.revoked — "Revoked code 5105"`. It is kept
-     *  for a genuine throw (a missing API key), but the real decision is now
-     *  r.ok, and a code left live on a door raises the alert. */
-    try {
-      const { revokeCodeFromProperty } = await import('@/lib/seam')
-      const r = await revokeCodeFromProperty(b.propertyId, lock.code)
-      done.lock = { ok: r.ok, revoked: r.revoked, errors: r.errors, results: r.results }
+    /*  QUEUE THE REVOKE. The server cannot reach a lock, so it records the
+     *  intent and the worker removes the code.
+     *
+     *  STILL NON-FATAL, for the original reason: a lock problem must never roll
+     *  back a refund that has already left the bank. But the failure mode has
+     *  changed shape. Before, revokeCodeFromProperty swallowed every per-lock
+     *  error and returned as though it had worked, and this block wrote
+     *  "Revoked code 5105" into the log — an assertion about a door that was
+     *  still open. Now the only thing that can fail here is WRITING DOWN the
+     *  intent, which is loud, and the queue retries the rest.
+     *
+     *  THE GAP IS REAL AND WORTH NAMING: a cancellation at 2am revokes nothing
+     *  until the next drain. The code stays live in the meantime. That is a
+     *  security-relevant delay, so it is logged as an alert rather than a quiet
+     *  success, and the drain cadence is what bounds it. */
+    const queued = await queueForBooking({
+      bookingId: b.id,
+      bookingKind: kind,
+      propertyId: b.propertyId,
+      platform: b.platform,
+      action: 'revoke',
+      code: lock.code,
+      who: `${b.guest || b.id} (cancelled ${b.checkIn}–${b.checkOut})`,
+    })
 
-      if (r.ok) {
-        // reached every lock. Either the code was removed, or it was already gone.
-        await logSystem('lock.revoked',
-          r.nothingToRevoke
-            ? `Code ${lock.code} was already absent from every lock — ${b.guest || b.id} cancelled (${b.checkIn}–${b.checkOut})`
-            : `Revoked code ${lock.code} on ${r.revoked} lock(s) — ${b.guest || b.id} cancelled (${b.checkIn}–${b.checkOut})`,
-          { booking_id: b.id, code: lock.code, revoked: r.revoked, nothing_to_revoke: r.nothingToRevoke }, b.propertyId)
-      } else {
-        done.lock.action_needed = `Revoke code ${lock.code} by hand on ${r.failedLocks.join(', ') || 'the locks'}.`
-        await logSystem('lock.revoke_failed',
-          `Could NOT revoke ${lock.code} for cancelled booking ${b.id} — ${r.errors} lock(s) unreachable. Do it by hand.`,
-          { booking_id: b.id, code: lock.code, failed_locks: r.failedLocks, results: r.results }, b.propertyId)
-        await lockActionNeeded({
-          intent: 'revoke', propertyId: b.propertyId, code: lock.code,
-          locks: r.failedLocks, bookingId: b.id, bookingKind: kind,
-          who: `${b.guest || b.id} (cancelled ${b.checkIn}–${b.checkOut})`,
-          error: r.results.find((x: any) => x.error)?.error || null,
-        })
-      }
-    } catch (e: any) {
-      done.lock = { ok: false, error: e?.message || 'revoke failed', action_needed: `Revoke code ${lock.code} by hand.` }
-      await logSystem('lock.revoke_failed', `Could NOT revoke ${lock.code} for cancelled booking ${b.id}: ${e?.message}. Do it by hand.`, { booking_id: b.id, code: lock.code }, b.propertyId)
-      await lockActionNeeded({
-        intent: 'revoke', propertyId: b.propertyId, code: lock.code,
-        bookingId: b.id, bookingKind: kind,
-        who: `${b.guest || b.id} (cancelled ${b.checkIn}–${b.checkOut})`,
-        error: e?.message || 'revoke failed',
-      })
+    done.lock = {
+      queued: queued.queued, skipped: queued.skipped, failed: queued.failed,
+      ok: queued.ok,
+      note: 'Revoke queued. The code stays live on the door until the worker next runs.',
     }
+
+    await logSystem(
+      queued.ok ? 'lock.revoke_queued' : 'lock.revoke_failed',
+      queued.ok
+        ? `Queued revoke of code ${lock.code} on ${queued.queued.length} lock(s) — ${b.guest || b.id} cancelled (${b.checkIn}–${b.checkOut}). NOT yet removed from the door.`
+        : `Could NOT queue the revoke of ${lock.code} for cancelled booking ${b.id}. Remove it by hand.`,
+      { booking_id: b.id, code: lock.code, queued: queued.queued, failed: queued.failed }, b.propertyId)
   } else {
     done.lock = { skipped: lock.reason }
   }

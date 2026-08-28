@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { randomUUID } from 'crypto'
-import { programBookingLocks } from '@/lib/seam'
-import { lockActionNeeded } from '@/lib/lock-alert'
-import { chooseGuestCode } from '@/lib/lock-codes'
+import { queueForBooking } from '@/lib/lock-queue'
+import { windowFromBooking } from '@/lib/lock-window'
+import { preferredGuestCode } from '@/lib/lock-codes'
 import { resolveGuest } from '@/lib/keyholder/guest-resolve'
 import { createAdminClient } from '@/lib/supabase/server'
 import { differenceInDays } from 'date-fns'
@@ -94,55 +94,48 @@ export async function POST(request: NextRequest) {
     guestName: guest_name || null,
   })
 
-  // program the door code onto every lock for this property
-  let lockResult: any = null
-  let doorCode: string | null = null
-  try {
-    doorCode = await chooseGuestCode(property_id, guest_phone)
-    lockResult = await programBookingLocks({
-      propertyId: property_id,
-      platform: platform || 'direct',
-      code: doorCode,
-      phone: guest_phone,
-      name: `${guest_name || 'Guest'} · ${bookingReference}`,
-      startsAt: new Date(check_in + 'T16:00:00').toISOString(),
-      endsAt: new Date(check_out + 'T11:00:00').toISOString(),
-    })
-    await supabase.from('bookings').update({
-      lock_code: doorCode,
-      lock_programming: lockResult,
-    }).eq('id', booking!.id)
-    /*  programBookingLocks was already honest — it returns all_ok and
-     *  failed_count — but honesty nobody reads is indistinguishable from
-     *  silence. The result was stored on the booking and the route returned
-     *  ok:true regardless, so a guest could be created with no code on any door
-     *  and nothing anywhere said so. */
-    if (lockResult && lockResult.all_ok === false) {
-      await lockActionNeeded({
-        intent: 'program', propertyId: property_id, code: doorCode,
-        locks: (lockResult.results || []).filter((r: any) => r.managed_by === 'us' && !r.ok).map((r: any) => r.lock),
-        bookingId: booking!.id, bookingKind: 'direct',
-        who: `${guest_name || 'Guest'} · ${bookingReference}`,
-        window: { startsAt: new Date(check_in + 'T16:00:00').toISOString(), endsAt: new Date(check_out + 'T11:00:00').toISOString() },
-        error: (lockResult.results || []).find((r: any) => r.error)?.error || (lockResult.mismatch ? lockResult.mismatch.note : null),
-      })
-    }
-  } catch (e: any) {
-    lockResult = { error: e?.message || 'Lock programming failed', all_ok: false }
-    await supabase.from('bookings').update({ lock_programming: lockResult }).eq('id', booking!.id)
-    await lockActionNeeded({
-      intent: 'program', propertyId: property_id, code: doorCode,
-      bookingId: booking!.id, bookingKind: 'direct',
-      who: `${guest_name || 'Guest'} · ${bookingReference}`,
-      window: { startsAt: new Date(check_in + 'T16:00:00').toISOString(), endsAt: new Date(check_out + 'T11:00:00').toISOString() },
-      error: e?.message || 'Lock programming failed',
-    })
-  }
+  /*  QUEUE THE CODE, DO NOT PROGRAM IT. The server has no Schlage credentials
+   *  and never will, so this records what should happen and the local worker
+   *  makes it happen. Weeks ahead is fine: an Encode holds 100 codes and a
+   *  future-dated window self-activates, which is what the bulk run proved.
+   *
+   *  The code is a PREFERENCE, not a decision. Only the worker can see what is
+   *  already on the device, so it resolves collisions and writes back the code
+   *  it actually used. Storing a preferred code on the booking now means the
+   *  guest hub and the concierge have something to show immediately; the worker
+   *  corrects it if it had to differ. */
+  const doorCode = preferredGuestCode(guest_phone)
+  const startsAt = windowFromBooking(check_in, null, false)
+  const endsAt = windowFromBooking(check_out, null, true)
+
+  const queued = await queueForBooking({
+    bookingId: booking!.id,
+    bookingKind: 'direct',
+    propertyId: property_id,
+    platform: platform || 'direct',
+    action: 'program',
+    code: doorCode,
+    startsAt, endsAt,
+    who: `${guest_name || 'Guest'} · ${bookingReference}`,
+  })
+
+  await supabase.from('bookings').update({
+    lock_code: doorCode,
+    lock_programming: {
+      queued_at: new Date().toISOString(),
+      queued: queued.queued, skipped: queued.skipped, failed: queued.failed,
+      note: 'Intent recorded. The local worker programs the lock and reports back here.',
+    },
+  }).eq('id', booking!.id)
 
   // the caller must be able to see this without opening the booking row
   return NextResponse.json({
-    ok: true, booking_id: booking?.id, lock: lockResult,
-    lock_ok: lockResult?.all_ok !== false,
-    ...(lockResult?.all_ok === false ? { action_needed: `Code ${doorCode || '?'} is not on every lock — program it by hand.` } : {}),
+    ok: true, booking_id: booking?.id,
+    lock: {
+      queued: queued.queued, skipped: queued.skipped, failed: queued.failed,
+      code_requested: doorCode,
+    },
+    lock_ok: queued.ok,
+    ...(queued.ok ? {} : { action_needed: 'The lock intent could not be queued — program by hand.' }),
   })
 }
