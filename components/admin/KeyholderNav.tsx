@@ -23,14 +23,22 @@ export const SECTIONS = [
 // only through the "Legacy admin" link in the corner — which is how the door log
 // came to be reported as deleted when it had never been touched.
 //
-// They still point at /admin, because these four screens have not been rebuilt in
-// the light shell. That is deliberate: a working dark screen you can reach beats a
-// light one that does not exist yet. Repoint each href as it is rebuilt.
+// Rebuilt one at a time, and the href moves only when the light version exists.
+// A working dark screen you can reach beats a light one that does not.
+//
+// TWO OF THESE ARE NOT MERELY DARK, THEY ARE BROKEN, and that is why they did
+// not move with the other two on 2026-08-28. Locks and Staff Access read and
+// write through Seam, which is paused: locks/sweep asks Seam which codes are on
+// each device and writes the answer to lock_status, so with the account paused
+// it reports every upcoming stay as missing while the codes are in fact on the
+// locks, put there by pyschlage. Restyling that would have produced a prettier
+// screen telling the same lie. They stay on /admin, dark and equally wrong,
+// until the lock layer reads lock_status instead of Seam.
 export const ACCESS_ITEMS = [
-  { name: 'Locks', href: '/admin/locks', note: 'Codes and lock status' },
-  { name: 'Door Activity', href: '/admin/door-activity', note: 'Every entry and check-in' },
-  { name: 'Staff Access', href: '/admin/staff-access', note: 'Cleaner and contractor codes' },
-  { name: 'System Activity', href: '/admin/system-log', note: 'Everything the system did' },
+  { name: 'Locks', href: '/admin/locks', note: 'Codes and lock status — Seam-blind, see note' },
+  { name: 'Door Activity', href: '/keyholder/access/door-activity', note: 'Every entry and check-in' },
+  { name: 'Staff Access', href: '/admin/staff-access', note: 'Cleaner and contractor codes — Seam-blind' },
+  { name: 'System Activity', href: '/keyholder/access/system-log', note: 'Everything the system did' },
 ]
 
 export default function KeyholderNav({ initial, role = 'cleaner' }: { initial: string; role?: string }) {

@@ -345,8 +345,15 @@ being built as standalone `in` rows on `payments`, not as a property problem.
   **No 2026 total is trustworthy until it is.** Largest open data item.
 - **Host-fee percentage sweep** — every booking against its receipt. A wrong
   percentage means a wrong payout; Josh Klein's was overstated by $533.75.
-- **Tudor's $243.54** — tax collected on a refunded night, still in hand. Refund
-  the guest or remit the full 738.27. **A decision, not a task.**
+- **Tudor's $243.54 — DECIDED 2026-08-28. Remit 494.73; the rest is income.**
+  The guest was refunded per the refund policy; the tax over-collected on the
+  refunded night is retained. The row already carries this correctly: hst 391.87
+  + mat 102.86 = **494.73 owed**, against **738.27** VRBO passed through.
+  **The consequence to know:** the P&L counts tax as neither income nor expense,
+  so the retained 243.54 sits in `tax.passed_to_you` and never reaches the income
+  line. Cash is 243.54 ahead of what the statement explains. Deliberate for now —
+  restructuring the P&L for one booking is not worth it, but if retained
+  over-collection recurs it needs its own line.
 - **MAT return treatment** — the credit to confirm at filing.
 - **Heremela's $83.32 overpayment — query with Airbnb, do not assume.** Airbnb
   settled **$2,112.27** on damage claim `CLSF-06099978` against a request of
@@ -356,9 +363,10 @@ being built as standalone `in` rows on `payments`, not as a property problem.
   reclaim, and treating a surplus as good news because it is in your favour is
   how it turns into a surprise deduction later. Raise it with Airbnb and get the
   answer in writing. Payout ids `G-O7IFKBHGEBBH4` and `G-NIWJBBSNU6IIT`.
-- **Heremela repair costs** — to sit against the $2,464.57 recovered. **Until
-  these are entered the P&L shows the recovery as pure gain**, which overstates
-  what the stay actually netted.
+- **Heremela repair costs — DROPPED 2026-08-28** ("not important"). Accepted
+  consequence: the P&L shows the $2,464.57 recovery as pure gain, so that stay
+  reads ~$2,464 more profitable than it was. Not an error to chase — a known
+  overstatement to remember when reading the number.
 - **Molhem's VRBO trace** — a note pointing at a booking in the missing months.
 - **Per and Mikaela stay at $0 deliberately.** The flag doing its job is the point.
 
