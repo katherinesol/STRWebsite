@@ -101,6 +101,21 @@ Notes:
     },
   },
   {
+    name: 'count_nights',
+    description: `How many nights a property was (or will be) occupied over a date range, and how full that is. Use for ANY occupancy question — "how many days is Nickel Beach rented in 2026", "how busy was Royal York West this summer", "what's our occupancy rate".
+
+Do NOT try to answer these by pulling rows with query_data and adding up the dates yourself. Reservations live in two tables, cancelled stays and owner blocks have to be excluded, and a stay overlapping the edge of the range must be clipped to it — all of which this does server-side and exactly.`,
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        property_id: { type: 'string', enum: ['royal-york-east', 'royal-york-west', 'nickel-beach'], description: 'Omit for all properties combined' },
+        from: { type: 'string', description: 'Start of the range, YYYY-MM-DD (inclusive)' },
+        to: { type: 'string', description: 'End of the range, YYYY-MM-DD (exclusive)' },
+      },
+      required: ['from', 'to'],
+    },
+  },
+  {
     name: 'propose_block',
     description: `Propose blocking dates so they cannot be booked. This does NOT write anything — the owner sees a confirm card first. Use when they want dates held for themselves, for friends and family, or for cleaning or maintenance: "block Nickel Beach Sep 3 to 7", "hold Royal York West for my parents next weekend", "the west unit is having the floors done Oct 1-3".
 
@@ -158,7 +173,102 @@ NEVER invent money. If they did not say a price, leave the amounts out — the o
   },
 ]
 
+/*  OCCUPANCY, COUNTED ONCE AND PROPERLY.
+ *
+ *  "How many nights was Nickel Beach rented in 2026" was returning a blank
+ *  screen. Part of that was the tool loop giving up before it answered, but the
+ *  rest was this: answering meant pulling both reservation tables, filtering out
+ *  cancellations and owner blocks, and subtracting 29 pairs of dates in the
+ *  model's head. Every one of those is a place to be quietly wrong, and a
+ *  language model doing date arithmetic across dozens of rows is the least
+ *  reliable part of the whole system.
+ *
+ *  THE CLIP IS THE PART THAT WOULD HAVE BEEN GOT WRONG. A stay from Dec 28 to
+ *  Jan 3 contributes four nights to one year and two to the next, not six to
+ *  whichever end you happen to be asking about. Row-by-row addition either
+ *  double-counts it or drops it.
+ *
+ *  Nights, not days, and deliberately: a stay from the 1st to the 3rd is two
+ *  nights. That is how the platforms count, how the tax is computed, and how
+ *  the owner thinks about it. */
+async function countNights(input: any, ctx: HaussyCtx) {
+  const from = String(input.from || '').slice(0, 10)
+  const to = String(input.to || '').slice(0, 10)
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to)) {
+    return { ok: false, error: 'from and to must be YYYY-MM-DD' }
+  }
+  if (to <= from) return { ok: false, error: '"to" must be after "from"' }
+
+  const supabase = createAdminClient()
+  const day = 86400000
+  const asDate = (d: string) => new Date(d + 'T00:00:00Z').getTime()
+  const rangeStart = asDate(from), rangeEnd = asDate(to)
+
+  // a stay counts only for the part of it inside the range
+  const clip = (s: string, e: string) => {
+    const a = Math.max(asDate(s), rangeStart)
+    const b = Math.min(asDate(e), rangeEnd)
+    return b > a ? Math.round((b - a) / day) : 0
+  }
+
+  let plat = supabase.from('calendar_blocks')
+    .select('property_id, start_date, end_date, guest_name, platform, reason, block_for, status')
+    .lt('start_date', to).gt('end_date', from).neq('status', 'cancelled')
+  let dir = supabase.from('bookings')
+    .select('property_id, check_in, check_out, status')
+    .lt('check_in', to).gt('check_out', from)
+  if (input.property_id) {
+    plat = plat.eq('property_id', input.property_id)
+    dir = dir.eq('property_id', input.property_id)
+  }
+  const [{ data: pb, error: pe }, { data: db, error: de }] = await Promise.all([plat, dir])
+  if (pe || de) return { ok: false, error: (pe || de)?.message || 'query failed' }
+
+  const byProperty: Record<string, any> = {}
+  const bump = (pid: string, key: string, n: number) => {
+    byProperty[pid] = byProperty[pid] || { platform_nights: 0, direct_nights: 0, owner_blocked_nights: 0, stays: 0 }
+    byProperty[pid][key] += n
+  }
+
+  for (const b of pb || []) {
+    const n = clip(b.start_date, b.end_date)
+    if (!n) continue
+    // an owner block is not a rented night, and counting it as one would
+    // overstate occupancy with the owner's own holidays
+    if (b.reason === 'owner' || b.block_for) bump(b.property_id, 'owner_blocked_nights', n)
+    else { bump(b.property_id, 'platform_nights', n); bump(b.property_id, 'stays', 1) }
+  }
+  for (const b of db || []) {
+    if ((b as any).status === 'cancelled') continue
+    const n = clip((b as any).check_in, (b as any).check_out)
+    if (!n) continue
+    bump(b.property_id, 'direct_nights', n); bump(b.property_id, 'stays', 1)
+  }
+
+  const available = Math.round((rangeEnd - rangeStart) / day)
+  const props = Object.entries(byProperty).map(([property_id, v]: any) => {
+    const rented = v.platform_nights + v.direct_nights
+    return {
+      property_id, ...v, rented_nights: rented,
+      nights_in_range: available,
+      occupancy_pct: Math.round((rented / available) * 1000) / 10,
+    }
+  })
+  const total = props.reduce((a, p) => a + p.rented_nights, 0)
+
+  return {
+    ok: true,
+    data: {
+      from, to, nights_in_range: available,
+      by_property: props,
+      total_rented_nights: total,
+      note: 'Nights, not days: a stay from the 1st to the 3rd is 2 nights. Stays crossing the edge of the range are counted only for the part inside it. Cancellations and owner blocks are excluded from rented nights.',
+    },
+  }
+}
+
 export async function runTool(name: string, input: any, ctx: HaussyCtx): Promise<{ ok: boolean; data?: any; error?: string }> {
+  if (name === 'count_nights') return countNights(input, ctx)
   if (name === 'propose_task') {
     if (ctx.role !== 'owner') return { ok: false, error: 'Only the owner can create tasks.' }
     return { ok: true, data: { proposed: true, ...input } }
@@ -243,7 +353,13 @@ export async function runTool(name: string, input: any, ctx: HaussyCtx): Promise
   const supabase = createAdminClient()
   try {
     // GUARD 3: SELECT only, row-capped. No write path exists here.
-    let q = supabase.from(table).select('*')
+    //  COUNT ALONGSIDE THE ROWS, so truncation can be reported rather than
+    //  hidden. The cap has always existed; what did not exist was any way for
+    //  the model to know it had been applied. It would receive exactly 200 rows,
+    //  have no idea more were behind them, and answer with total confidence from
+    //  a partial set — which is a worse failure than refusing, because it looks
+    //  like an answer.
+    let q = supabase.from(table).select('*', { count: 'exact' })
     const filters = Array.isArray(input.filters) ? input.filters : []
     for (const f of filters) {
       if (!f?.column || !f?.op) continue
@@ -262,9 +378,21 @@ export async function runTool(name: string, input: any, ctx: HaussyCtx): Promise
     const limit = Math.min(Number(input.limit) || 100, 200)  // hard cap
     q = q.limit(limit)
 
-    const { data, error } = await q
+    const { data, error, count } = await q
     if (error) return { ok: false, error: error.message }
-    return { ok: true, data }
+    const truncated = typeof count === 'number' && count > (data?.length ?? 0)
+    return {
+      ok: true,
+      data: truncated
+        ? {
+            rows: data,
+            returned: data?.length ?? 0,
+            total_matching: count,
+            truncated: true,
+            note: `Only ${data?.length ?? 0} of ${count} matching rows were returned. Say so in your answer — do NOT present a total as if it covered everything. Narrow the filters, or use count_nights for occupancy questions.`,
+          }
+        : data,
+    }
   } catch (err: any) {
     return { ok: false, error: err?.message || 'Query failed' }
   }

@@ -195,10 +195,27 @@ def code_of(ac):
     return t.zfill(4) if len(t) < 4 else t
 
 
+OUR_LABEL = re.compile(r"\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2}$")
+
 def ours(name):
-    """A code this project created, by the names we write."""
+    """A code this project created, judged by the name it left behind.
+
+    THREE GENERATIONS OF NAME, and all of them must still be recognised:
+      Seam         "Reprogrammed · 2915", "Guest Name · RS-1002"
+      bulk run     "Jerry Wei · airbnb · 2026-08-29"
+      current      "Jerry Wei Aug 29"
+
+    The current form has no separator, so the dot test alone would have called
+    every code the worker writes FOREIGN — and foreign means untouchable. It
+    would have refused to revoke or reschedule its own work, and reported all of
+    it as orphaned. Matched on the trailing "Mon D" instead, which Airbnb's
+    "09/01 Aelita 2a2Waj" and staff codes like AMZN or Liz do not have."""
     n = (name or "").strip()
-    return ("·" in n) or n.startswith("Reprogrammed")
+    if not n:
+        return False
+    if n.startswith("Reprogrammed") or "·" in n:
+        return True
+    return bool(OUR_LABEL.search(n))
 
 
 def sched_of(ac):
@@ -485,10 +502,15 @@ def do_program(st, lk, row, lock_row):
     if not chosen:
         return False, "no free 4-digit code on this lock", None, None
 
-    label = f"{row.get('_who') or 'Guest'} · {row['booking_kind']} · {(row.get('starts_at') or '')[:10]}"
+    label = row.get("_label") or "Guest"
     try:
-        lk.add_access_code(AccessCode(name=label, code=chosen,
-                                      schedule=TemporarySchedule(start=starts, end=ends)))
+        lk.add_access_code(AccessCode(
+            name=label, code=chosen,
+            schedule=TemporarySchedule(start=starts, end=ends),
+            # tell me when a code is used — this is the only entry signal left
+            # now that Seam's webhook is going away
+            notify_on_use=True,
+        ))
     except Exception as ex:
         # A timeout is not a failure. Schlage's cloud is eventually consistent
         # and a call that did not return has often landed anyway; retrying
@@ -603,9 +625,11 @@ def phase_drain(st, devices):
                 continue
             who = describe(st, r)
             r["_who"] = who
+            r["_label"] = code_label(st, r)
             head = (f"      {r['action']:<11} {r.get('code') or '—':<6} {who}"
                     + (f"   [{tor_short(r.get('starts_at'))} → {tor_short(r.get('ends_at'))}]"
-                       if r.get('ends_at') else ""))
+                       if r.get('ends_at') else "")
+                    + f"   name=\"{r.get('_label')}\"")
             if not COMMIT:
                 print(head + "   (dry run)")
                 continue
@@ -650,6 +674,34 @@ def phase_drain(st, devices):
                     print(f"         gave up after {MAX_ATTEMPTS} attempts — alert raised")
 
 
+def code_label(st, r):
+    """The name the lock stores, and it is a 24-CHARACTER FIELD.
+
+    "First Last Mon D" — Jerry Wei Aug 29. Anything longer is cut by the lock,
+    not by us, and a silently truncated name is how "Royal York Apt 2 Emergency
+    Exit" style mismatches start. Truncating deliberately at least keeps the
+    first name and month intact, which is what makes a code identifiable when
+    you are looking at a list of them in the app."""
+    name, start = None, None
+    if r["booking_kind"] == "platform":
+        b = next((x for x in st.plat if x["id"] == r["booking_id"]), None)
+        if b:
+            name, start = (b.get("guest_name") or "").strip(), b["start_date"]
+    else:
+        b = next((x for x in st.direct if x["id"] == r["booking_id"]), None)
+        if b:
+            name, start = (b.get("booking_reference") or "").strip(), b["check_in"]
+    if not start:
+        start = (r.get("starts_at") or "")[:10]
+    try:
+        d = datetime.strptime(start, "%Y-%m-%d")
+        when = f"{d.strftime('%b')} {d.day}"
+    except Exception:
+        when = start or ""
+    label = f"{name or 'Guest'} {when}".strip()
+    return label[:24]
+
+
 def describe(st, r):
     if r["booking_kind"] == "platform":
         b = next((x for x in st.plat if x["id"] == r["booking_id"]), None)
@@ -659,6 +711,83 @@ def describe(st, r):
 
 
 # ─────────────────────── phase 3: sweep + lock_status ────────────────────────
+def phase_relabel(st, devices):
+    """Bring existing codes up to the current convention: the 24-character name
+    format, and Notify Me When Code Is Used switched on.
+
+    Neither changes access. The name is a label and the notification is an
+    outbound alert, so this cannot lock anyone out — but it goes through the same
+    save() that Royal Side keeps refusing, so it is paced and capped like every
+    other write.
+
+    NOTIFY MATTERS MORE THAN IT LOOKS. It is about to be the only live entry
+    signal: Seam's webhook pushed a door event the moment it happened, and its
+    replacement only sees an opening when this worker next runs. A phone
+    notification from the lock itself closes that gap and costs nothing.
+
+    A STAY IN PROGRESS IS LEFT ALONE, same rule as everywhere else. Renaming a
+    code cannot lock a guest out, but the write behind it is the one that failed
+    at an occupied door on 2026-08-28, and the rule is worth more than the
+    tidiness of one label."""
+    print("\n── 0. LABELS & NOTIFY — bring existing codes to the current format ──")
+    wanted = {}
+    for b in st.plat:
+        c = digits4(b.get("door_code"))
+        if c: wanted[c] = (b.get("guest_name") or "Guest", b["start_date"], b["start_date"] <= st.today <= b["end_date"])
+    for b in st.direct:
+        c = digits4(b.get("lock_code"))
+        if c: wanted[c] = (b.get("booking_reference") or "Guest", b["check_in"], b["check_in"] <= st.today <= b["check_out"])
+
+    fixed = held = 0
+    for devid, lk_row in st.row_for_device.items():
+        lk = devices.get(devid)
+        if lk is None:
+            continue
+        done_here = 0
+        for ac in codes_on(lk, refresh=True):
+            c = code_of(ac)
+            if c not in wanted or not ours(getattr(ac, "name", "")):
+                continue
+            name, start, live = wanted[c]
+            try:
+                d = datetime.strptime(start, "%Y-%m-%d")
+                want_name = f"{name} {d.strftime('%b')} {d.day}"[:24]
+            except Exception:
+                continue
+            need_name = (getattr(ac, "name", "") or "") != want_name
+            need_notify = not getattr(ac, "notify_on_use", False)
+            if not (need_name or need_notify):
+                continue
+            what = ", ".join(x for x in [
+                f'name "{getattr(ac,"name","")[:24]}" → "{want_name}"' if need_name else "",
+                "notify on" if need_notify else ""] if x)
+            if live:
+                print(f"   · {lk_row['lock_name']}: {c} — guest on site, left alone ({what})")
+                held += 1
+                continue
+            if done_here >= MAX_WRITES_PER_DEVICE:
+                print(f"   · {lk_row['lock_name']}: {c} held for the next run")
+                held += 1
+                continue
+            print(f"   → {lk_row['lock_name']}: {c} — {what}")
+            if not COMMIT:
+                continue
+            try:
+                ac.name = want_name
+                ac.notify_on_use = True
+                ac.save()
+                fixed += 1
+                done_here += 1
+                time.sleep(PACE_SECONDS)
+            except Exception as ex:
+                print(f"      failed — {type(ex).__name__}: {ex}")
+                done_here += 1
+    if not fixed and not held:
+        print("   every code already has the right name and notify on")
+    else:
+        print(f"   {fixed} updated, {held} held for later")
+
+
 def phase_sweep(st, devices):
     """Verify state rather than trust a push. Reads every lock and compares it
     with what the database says should be there, then writes lock_status back in
@@ -920,6 +1049,7 @@ def main():
     if missing:
         print(f"  !! not found on the account: {', '.join(sorted(set(missing)))}")
 
+    phase_relabel(st, devices)
     phase_mirror(st, devices)
     phase_drain(st, devices)
     phase_sweep(st, devices)

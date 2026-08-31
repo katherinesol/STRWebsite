@@ -4,7 +4,12 @@ import { hasRole, getAuth } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/server'
 import { TOOL_DEFS, runTool, HaussyCtx } from '@/lib/haussy/tools'
 
-const MAX_TOOL_ROUNDS = 3  // cap tool-call loops per message (cost/abuse containment)
+//  Four, not three. Reservations live in two tables, so an occupancy or
+//  who's-here question spends two rounds gathering before it can say a word,
+//  and a single correction then pushed the answer past the cap. The forced
+//  answer below is the real safety net; this just stops it being needed for
+//  ordinary questions.
+const MAX_TOOL_ROUNDS = 4  // cap tool-call loops per message (cost/abuse containment)
 
 export async function POST(request: NextRequest) {
   // GATE: owner + co-owner only. Never guest-facing.
@@ -74,6 +79,42 @@ RULES:
       })
     }
     convo.push({ role: 'user', content: toolResults })
+  }
+
+  /*  THE LOOP COULD END WITHOUT AN ANSWER, and that is what a blank reply was.
+   *
+   *  If the last permitted round came back still calling tools, those tools ran,
+   *  their results were pushed onto the conversation — and then the loop
+   *  exited. The model was never asked what the results meant. finalText held
+   *  whatever text happened to accompany that last tool call, which is usually
+   *  nothing, and an empty string was returned as though it were an answer.
+   *
+   *  "How many nights was Nickel Beach rented in 2026" hit it every time:
+   *  reservations live in two tables, so it costs two rounds before a word can
+   *  be said, and any correction at all pushes the answer past the cap.
+   *
+   *  One more call with the tools REMOVED. It cannot ask for anything else, so
+   *  it has to answer from what it already gathered — and it has everything,
+   *  because the results are all in convo. */
+  if (!finalText.trim()) {
+    try {
+      const forced = await client.messages.create({
+        model: 'claude-sonnet-5',
+        max_tokens: 1500,
+        system: systemPrompt + `\n\nYou have run out of tool calls for this message. Answer NOW from the tool results already in this conversation. If they are not enough, say exactly what is missing and what you would need to look up — do not stay silent, and do not invent anything.`,
+        messages: convo,
+      })
+      finalText = forced.content.filter((b: any) => b.type === 'text').map((b: any) => b.text).join('\n')
+    } catch {
+      // fall through to the guard below
+    }
+  }
+
+  /*  And if even that produced nothing, say so. An empty bubble reads as the
+      assistant ignoring the question; it was in fact working and ran out of
+      room. Silence that looks like indifference is the worst of both. */
+  if (!finalText.trim()) {
+    finalText = "I couldn't finish that one — it needed more lookups than I'm allowed in a single message. Try narrowing it (one property, or a shorter date range), or ask me for the occupancy figure directly."
   }
 
   // audit log — every question + every tool call
