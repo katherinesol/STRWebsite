@@ -264,7 +264,11 @@ class State:
             self.row_for_device.setdefault(l["schlage_device_id"], l)
         # platform + direct bookings that are not over yet
         self.plat = sb("calendar_blocks?select=id,property_id,platform,start_date,end_date,door_code,guest_name,"
-                       f"early_checkin_time,late_checkout_time,checked_in_at,status&status=neq.cancelled&end_date=gte.{self.today}&order=start_date")
+                       "early_checkin_time,late_checkout_time,checked_in_at,status,is_booking,accommodation,"
+                       f"payout_amount,guest_id,confirmation_code&status=neq.cancelled&end_date=gte.{self.today}&order=start_date")
+        #  filled in by the name and mirror phases, read by the report at the end
+        self.recovered: dict = {}     # booking_id -> first name Airbnb knows
+        self.mismatch: dict = {}      # booking_id -> (ours, theirs)
         self.direct = sb("bookings?select=id,property_id,check_in,check_out,lock_code,checked_in_at,booking_reference,"
                          f"guest_id&check_out=gte.{self.today}&order=check_in")
         self._devices = None
@@ -395,6 +399,7 @@ def phase_mirror(st, devices):
             continue
 
         changed += 1
+        st.mismatch[b["id"]] = (ourcode or None, abnb_code)
         print(f"   ⚠ {label:<38} Airbnb {abnb_code}  ≠  ours {ourcode or '—'}"
               + (f"   (matched on date; Airbnb calls them '{abnb_first}')" if first is None else ""))
         if not COMMIT:
@@ -601,6 +606,25 @@ def phase_drain(st, devices):
         print("   queue empty")
         return
     # Grouped by DEVICE, not by lock row: Royal Side is one lock with two rows.
+    #  AN INTENT CAN OUTLIVE ITS STAY. Royal Side refused Aelita's code for four
+    #  days running; by the time the queue got to it she had checked out and
+    #  left. Programming it now would put a code on a door for a window that
+    #  closed yesterday — harmless at the lock, but it burns the one write per
+    #  device that a real upcoming guest needed, and it reports "done" for work
+    #  that meant nothing.
+    stale = [r for r in rows if r.get("ends_at") and parse_ts(r["ends_at"]) < now_utc()]
+    for r in stale:
+        rows.remove(r)
+        print(f"   · {r['action']} {r.get('code')} — the stay ended {tor_short(r['ends_at'])}, retiring it")
+        if COMMIT:
+            sb(f"lock_actions?id=eq.{r['id']}", "PATCH", {
+                "status": "failed", "done_at": iso(now_utc()),
+                "last_error": "the stay ended before this could be applied",
+            }, prefer="return=minimal")
+    if not rows:
+        print("   nothing left to do")
+        return
+
     groups = defaultdict(list)
     for r in rows:
         groups[r["schlage_device_id"]].append(r)
@@ -674,6 +698,34 @@ def phase_drain(st, devices):
                     print(f"         gave up after {MAX_ATTEMPTS} attempts — alert raised")
 
 
+def standard_label(name, start_date):
+    """FirstName LastName MMMDD, 24 characters hard.
+
+    "Jerry Wei AUG29". The lock's name field is 24 characters and truncates
+    silently, so it is truncated here instead, deliberately and in an order that
+    keeps the code identifiable: THE DATE ALWAYS SURVIVES, because that is what
+    tells two stays by the same guest apart. If the full name will not fit the
+    surname drops to an initial, and only if that still overflows is the first
+    name cut."""
+    try:
+        d = datetime.strptime(str(start_date)[:10], "%Y-%m-%d")
+    except Exception:
+        return None
+    suf = f"{d.strftime('%b').upper()}{d.day:02d}"
+    parts = (name or "Guest").split()
+    first = parts[0] if parts else "Guest"
+    last = " ".join(parts[1:]) if len(parts) > 1 else ""
+    full = f"{first} {last} {suf}".replace("  ", " ").strip()
+    if len(full) <= 24:
+        return full
+    if last:
+        short = f"{first} {last[0]} {suf}"
+        if len(short) <= 24:
+            return short
+    room = 24 - len(suf) - 1
+    return f"{first[:room]} {suf}"
+
+
 def code_label(st, r):
     """The name the lock stores, and it is a 24-CHARACTER FIELD.
 
@@ -693,13 +745,7 @@ def code_label(st, r):
             name, start = (b.get("booking_reference") or "").strip(), b["check_in"]
     if not start:
         start = (r.get("starts_at") or "")[:10]
-    try:
-        d = datetime.strptime(start, "%Y-%m-%d")
-        when = f"{d.strftime('%b')} {d.day}"
-    except Exception:
-        when = start or ""
-    label = f"{name or 'Guest'} {when}".strip()
-    return label[:24]
+    return standard_label(name, start) or "Guest"
 
 
 def describe(st, r):
@@ -711,6 +757,67 @@ def describe(st, r):
 
 
 # ─────────────────────── phase 3: sweep + lock_status ────────────────────────
+def phase_names(st, devices):
+    """Fill a missing guest_name from Airbnb's own code label, before anything
+    is named after it.
+
+    Five upcoming stays have no guest_name — Airbnb's iCal feed does not always
+    carry one, so the row arrives with dates and a phone-derived code and nothing
+    to call the person. Naming their lock code "Guest SEP10" and then renaming it
+    the moment Airbnb publishes is two writes at a flaky lock for one label.
+
+    AIRBNB KNOWS THE NAME AND WRITES IT ON ITS OWN CODE: "09/10 Priya 4kQ2ab".
+    Only the first name, which is all this can recover — but "Priya SEP10" beats
+    "Guest SEP10" and it is the same name the guest sees in their Airbnb app.
+
+    THE HONEST LIMIT: Airbnb creates its per-stay code about a week before
+    arrival, so this fills the near ones and leaves the far ones as Guest until
+    their turn comes round. That is not a failure to report each run — it is
+    simply not knowable yet.
+
+    Matching is by date, and it STOPS if two Airbnb codes share that date, since
+    with no name there is nothing to break the tie and a guess here writes one
+    guest's name onto another's booking."""
+    print("\n── 0a. NAMES — recover missing guest names from Airbnb's own labels ──")
+    todo = [b for b in st.plat
+            if (b.get("platform") or "").lower() == "airbnb" and not (b.get("guest_name") or "").strip()]
+    if not todo:
+        print("   every booking already has a name")
+        return
+    filled = 0
+    for b in todo:
+        abnb = [l for l in st.locks_for(b["property_id"]) if l.get("airbnb_managed")]
+        mm, dd = b["start_date"][5:7], b["start_date"][8:10]
+        hits = []
+        for l in abnb:
+            lk = devices.get(l["schlage_device_id"])
+            if not lk:
+                continue
+            for ac in codes_on(lk):
+                m = AIRBNB_STAY.match((getattr(ac, "name", "") or "").strip())
+                if m and m.group(1) == mm and m.group(2) == dd:
+                    hits.append(m.group(3))
+        uniq = sorted(set(hits))
+        if len(uniq) > 1:
+            print(f"   ! {b['start_date']} {b['property_id']}: {len(uniq)} Airbnb codes share that date "
+                  f"({', '.join(uniq)}) — cannot tell them apart, left as Guest")
+            continue
+        if not uniq:
+            print(f"   · {b['start_date']} {b['property_id']}: Airbnb has not published its code yet — stays Guest for now")
+            continue
+        #  REPORTED, NOT WRITTEN. This name was parsed out of a label Airbnb
+        #  wrote, not taken from your records, and it becomes the guest's name
+        #  everywhere once saved — on the lock, in the concierge's answers, on
+        #  the booking. A parse is a good enough hint for a human to act on and
+        #  not good enough to become the record silently. It surfaces in the
+        #  report at the end; accepting it is a decision, not a side effect.
+        print(f"   → {b['start_date']} {b['property_id']}: Airbnb's label says \"{uniq[0]}\" — "
+              f"reported, NOT saved (verify it in Airbnb first)")
+        st.recovered[b["id"]] = uniq[0]
+        filled += 1
+    print(f"   {filled} name(s) available to confirm — none written")
+
+
 def phase_relabel(st, devices):
     """Bring existing codes up to the current convention: the 24-character name
     format, and Notify Me When Code Is Used switched on.
@@ -733,12 +840,15 @@ def phase_relabel(st, devices):
     wanted = {}
     for b in st.plat:
         c = digits4(b.get("door_code"))
-        if c: wanted[c] = (b.get("guest_name") or "Guest", b["start_date"], b["start_date"] <= st.today <= b["end_date"])
+        if c: wanted[c] = (b.get("guest_name") or "Guest", b["start_date"],
+                           b["start_date"] <= st.today <= b["end_date"],
+                           (b.get("platform") or "").lower())
     for b in st.direct:
         c = digits4(b.get("lock_code"))
-        if c: wanted[c] = (b.get("booking_reference") or "Guest", b["check_in"], b["check_in"] <= st.today <= b["check_out"])
+        if c: wanted[c] = (b.get("booking_reference") or "Guest", b["check_in"],
+                           b["check_in"] <= st.today <= b["check_out"], "direct")
 
-    fixed = held = 0
+    fixed = held = planned = 0
     for devid, lk_row in st.row_for_device.items():
         lk = devices.get(devid)
         if lk is None:
@@ -746,13 +856,23 @@ def phase_relabel(st, devices):
         done_here = 0
         for ac in codes_on(lk, refresh=True):
             c = code_of(ac)
-            if c not in wanted or not ours(getattr(ac, "name", "")):
+            if c not in wanted:
                 continue
-            name, start, live = wanted[c]
-            try:
-                d = datetime.strptime(start, "%Y-%m-%d")
-                want_name = f"{name} {d.strftime('%b')} {d.day}"[:24]
-            except Exception:
+            name, start, live, plat = wanted[c]
+            #  NORMALLY ONLY OUR OWN CODES ARE RENAMED. The exception is narrow
+            #  and deliberate: a code that matches one of OUR bookings, on a
+            #  NON-AIRBNB stay, even if something else wrote the label. RS-1003's
+            #  7633 is named "Guest  20pzm" — not ours by name, unmistakably ours
+            #  by the booking it matches.
+            #
+            #  The platform test is what makes this safe. On Apt 2, Airbnb's own
+            #  per-stay codes match our door_code values exactly, so a plain
+            #  "matches a booking" rule would have us renaming Airbnb's codes on
+            #  Airbnb's own door. An Airbnb stay never qualifies.
+            if not ours(getattr(ac, "name", "")) and plat == "airbnb":
+                continue
+            want_name = standard_label(name, start)
+            if not want_name:
                 continue
             need_name = (getattr(ac, "name", "") or "") != want_name
             need_notify = not getattr(ac, "notify_on_use", False)
@@ -761,15 +881,18 @@ def phase_relabel(st, devices):
             what = ", ".join(x for x in [
                 f'name "{getattr(ac,"name","")[:24]}" → "{want_name}"' if need_name else "",
                 "notify on" if need_notify else ""] if x)
-            if live:
-                print(f"   · {lk_row['lock_name']}: {c} — guest on site, left alone ({what})")
-                held += 1
-                continue
+            #  AN ON-SITE GUEST IS RENAMED LIKE ANY OTHER. This phase has no
+            #  delete path — it assigns ac.name, sets notify_on_use and calls
+            #  save(). The code digits and the schedule are never written, so
+            #  the worst case is a label that did not change. That is a
+            #  different risk from the reschedule fallback, which could remove
+            #  a code, and is why the on-site rule applies there and not here.
             if done_here >= MAX_WRITES_PER_DEVICE:
                 print(f"   · {lk_row['lock_name']}: {c} held for the next run")
                 held += 1
                 continue
             print(f"   → {lk_row['lock_name']}: {c} — {what}")
+            planned += 1
             if not COMMIT:
                 continue
             try:
@@ -782,10 +905,12 @@ def phase_relabel(st, devices):
             except Exception as ex:
                 print(f"      failed — {type(ex).__name__}: {ex}")
                 done_here += 1
-    if not fixed and not held:
+    if not (fixed or held or planned):
         print("   every code already has the right name and notify on")
+    elif COMMIT:
+        print(f"   {fixed} updated, {held} held for the next run")
     else:
-        print(f"   {fixed} updated, {held} held for later")
+        print(f"   {planned} would be renamed, {held} held for a later run")
 
 
 def phase_sweep(st, devices):
@@ -1012,6 +1137,109 @@ def phase_logs(st, devices):
         print("   nothing new")
 
 
+def phase_needs_info(st, devices):
+    """The to-do list: bookings a human has to finish.
+
+    Every one of these was previously discovered one at a time, weeks apart, by
+    whatever happened to trip over it — a nameless code, a guest arriving with
+    digits that did not match, a payout that never reached the P&L. They are all
+    the same category of problem (a reservation the system knows about but does
+    not fully know), and they belong in one place at the end of a run rather than
+    scattered through it.
+
+    Nothing here is a lock fault. A missing name or an unentered payout does not
+    stop a door opening, which is exactly why none of it ever surfaced."""
+    print("\n" + "=" * 78)
+    print("BOOKINGS NEEDING INFO — a human has to fill these in")
+    print("=" * 78)
+
+    items = []
+
+    def add(b, kind, what, fix=None, dates=None, prop=None):
+        items.append({
+            "id": b.get("id"), "prop": prop or b.get("property_id"),
+            "dates": dates or f"{b.get('start_date')}→{b.get('end_date')}",
+            "platform": b.get("platform") or "direct",
+            "kind": kind, "what": what, "fix": fix,
+        })
+
+    for b in st.plat:
+        name = (b.get("guest_name") or "").strip()
+        code = digits4(b.get("door_code"))
+        plat = (b.get("platform") or "").lower()
+
+        #  A SHELL: the feed created it and nobody ever enriched it. Checked
+        #  first, because reporting five separate gaps on one row buries the
+        #  fact that the row is simply empty.
+        blank = [k for k, v in (("money", b.get("accommodation") or b.get("payout_amount")),
+                                ("guest link", b.get("guest_id")),
+                                ("name", name),
+                                ("confirmation", b.get("confirmation_code"))) if not v]
+        if len(blank) >= 3:
+            got = st.recovered.get(b["id"])
+            fix = "open the booking and enter the platform receipt"
+            if got:
+                #  Carry the recovered name onto the shell line. Without this the
+                #  one piece of information we DID manage to recover is swallowed
+                #  by the row being reported as empty — which is the opposite of
+                #  useful when the name is the thing you are missing.
+                fix += f' — Airbnb calls the guest "{got}"'
+            elif plat == "airbnb":
+                fix += "; Airbnb has not published its code yet, so no name is recoverable"
+            elif plat == "vrbo":
+                fix += "; VRBO publishes neither name nor code"
+            add(b, "SHELL", "no " + ", no ".join(blank), fix)
+            continue
+
+        if not name:
+            got = st.recovered.get(b["id"])
+            add(b, "NO NAME",
+                f'the code will be named "Guest {b["start_date"][5:7]}"' if not got else "no guest name on the booking",
+                f'Airbnb calls them "{got}" — accept it, or enter the full name' if got
+                else ("Airbnb has not published its code yet; re-run nearer the stay"
+                      if plat == "airbnb" else f"{plat} publishes no name — enter it by hand"))
+
+        if b["id"] in st.mismatch:
+            ours_c, theirs = st.mismatch[b["id"]]
+            add(b, "CODE MISMATCH", f"we have {ours_c or '—'}, {plat} has {theirs}",
+                f"the mirror will set door_code to {theirs} and re-queue both doors on --commit")
+
+        #  VRBO PUBLISHES NO CODE AT ALL. Not a fault and not fixable by any
+        #  amount of syncing — it is read off the dashboard by hand or the guest
+        #  arrives at a door with nothing.
+        if not code:
+            add(b, "NO CODE", f"no door_code on a {plat} booking",
+                "VRBO carries no code in its feed — read it off the dashboard"
+                if plat == "vrbo" else "set a code so the worker can program it")
+
+        if code and not b.get("confirmation_code"):
+            add(b, "NO CONFIRMATION", f"code {code} is on the locks but the booking has no confirmation number",
+                "the guest cannot be verified in the portal or by the concierge")
+
+    for b in st.direct:
+        if not b.get("lock_code"):
+            add(b, "NO CODE", "direct booking with no lock code", "set one so it can be programmed",
+                dates=f"{b['check_in']}→{b['check_out']}", prop=b["property_id"])
+
+    if not items:
+        print("  nothing outstanding — every upcoming booking is complete.")
+        return
+
+    order = ["SHELL", "CODE MISMATCH", "NO NAME", "NO CONFIRMATION", "NO CODE"]
+    items.sort(key=lambda i: (order.index(i["kind"]) if i["kind"] in order else 9, i["dates"]))
+    for i in items:
+        print(f"\n  [{i['kind']}]  {i['dates']}  {i['prop']} · {i['platform']}")
+        print(f"      {i['what']}")
+        if i["fix"]:
+            print(f"      → {i['fix']}")
+        print(f"      id {i['id']}")
+
+    from collections import Counter
+    c = Counter(i["kind"] for i in items)
+    print(f"\n  {len(items)} item(s) across {len({i['id'] for i in items})} booking(s): "
+          + ", ".join(f"{n} {k.lower()}" for k, n in c.most_common()))
+
+
 def match_code_any(st, devid, code):
     """A shared door's entry could belong to a guest of either property."""
     for pid in st.props_for_device.get(devid, ()):
@@ -1049,11 +1277,13 @@ def main():
     if missing:
         print(f"  !! not found on the account: {', '.join(sorted(set(missing)))}")
 
+    phase_names(st, devices)
     phase_relabel(st, devices)
     phase_mirror(st, devices)
     phase_drain(st, devices)
     phase_sweep(st, devices)
     phase_logs(st, devices)
+    phase_needs_info(st, devices)
 
     print("\nDone." + ("" if COMMIT else "  Re-run with --commit to apply."))
 

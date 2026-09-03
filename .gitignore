@@ -39,3 +39,10 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# The Schlage worker runs locally and authenticates as the owner.
+# schlage_creds.py reads the password from the macOS Keychain; it must never be
+# committed, and neither must a venv that could carry a cached token.
+tools/schlage/schlage_creds.py
+schlage_creds.py
+*schlage-venv*
