@@ -895,16 +895,47 @@ def phase_relabel(st, devices):
             planned += 1
             if not COMMIT:
                 continue
+            #  SAVE DOES TWO THINGS AND THE SECOND ONE FAILS.
+            #
+            #  AccessCode.save() sends "updateaccesscode" — the rename — and then
+            #  calls _notification.save(). Every code here has notify OFF, so no
+            #  notification exists and pyschlage CREATES one, which Schlage's own
+            #  backend rejects with "e.body.map is not a function" — a JavaScript
+            #  error from their server, not a fault in this script. It hit Apt 2
+            #  Emergency Exit and Port Colborne, which are not flaky, which is
+            #  what showed it apart from Royal Side's timeouts.
+            #
+            #  THE RENAME IS SENT BEFORE THE NOTIFICATION, so it has usually
+            #  already landed by the time the exception is raised. Reporting that
+            #  as a failure is wrong twice over: it hides work that succeeded,
+            #  and it makes the next run retry a rename that is already done.
+            #  So the outcome is read back off the lock rather than inferred
+            #  from whether save() threw.
             try:
                 ac.name = want_name
                 ac.notify_on_use = True
                 ac.save()
-                fixed += 1
-                done_here += 1
+                fixed += 1; done_here += 1
                 time.sleep(PACE_SECONDS)
             except Exception as ex:
-                print(f"      failed — {type(ex).__name__}: {ex}")
                 done_here += 1
+                time.sleep(4)
+                landed = None
+                try:
+                    for a in codes_on(lk, refresh=True):
+                        if code_of(a) == c:
+                            landed = (getattr(a, "name", "") or "") == want_name
+                            break
+                except Exception:
+                    pass
+                if landed:
+                    fixed += 1
+                    print(f"      renamed OK — but notify could not be switched on ({type(ex).__name__}). "
+                          f"Turn it on in the Schlage app.")
+                elif landed is False:
+                    print(f"      failed, name unchanged — {type(ex).__name__}: {str(ex)[:70]}")
+                else:
+                    print(f"      unclear, could not re-read the lock — {type(ex).__name__}: {str(ex)[:70]}")
     if not (fixed or held or planned):
         print("   every code already has the right name and notify on")
     elif COMMIT:
