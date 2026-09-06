@@ -19,6 +19,25 @@ backlog under *Payment reconciliation*.
 
 ---
 
+## How to use this file
+
+**Read this before auditing anything.** In-system reconciliation is CLOSED (see
+Open, at the end): every platform booking has been through the figures endpoint
+and every payout reconciles. A row that looks wrong against a formula is far
+more likely to be a row whose receipt was unusual than a row that was recorded
+badly.
+
+On 2026-09-03 a formula-fit audit flagged sixteen rows and was almost entirely
+wrong — Аня Землюк was flagged for being correct, and Dan and Robert's 11% HST
+was reported as a new discovery when it is documented below with the arithmetic.
+Test against this file, not around it.
+
+**Tax was not consistently charged, so there is no rule to recover.** Receipts
+are the only truth; the output of an audit is a per-guest remittance correction,
+never a corrected formula. Only direct bookings get tax computed by us.
+
+---
+
 ## ⚠ THE TAX-COLLECTION GAP — the largest thing on this page
 
 **No booking of any kind exists in the system before 2026-05-16.** Not one
