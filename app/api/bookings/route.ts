@@ -24,6 +24,17 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
   }
 
+  /*  CARD IS NOT WIRED. There is no Stripe server SDK, no PaymentIntent and no
+   *  webhook in this codebase, so a card booking cannot be charged and must not
+   *  be accepted. Refused at the door rather than silently downgraded, so a
+   *  caller gets told rather than left believing a card was taken. */
+  if (payment_method === 'card') {
+    return NextResponse.json({
+      error: 'Card payment is not available yet. Please reserve by e-transfer.',
+      payment_methods: ['etransfer'],
+    }, { status: 400 })
+  }
+
   try {
     console.log('Step 1: find or create guest for', guest_email)
     console.log('STEP 1, service key present:', !!process.env.SUPABASE_SERVICE_ROLE_KEY, 'url present:', !!process.env.NEXT_PUBLIC_SUPABASE_URL)
@@ -89,7 +100,15 @@ export async function POST(request: NextRequest) {
         booking: {
           property_id, check_in, check_out, nights, guests,
           guests_adults, guests_children,
-          status: payment_method === 'card' ? 'confirmed' : 'pending_payment',
+          //  ALWAYS pending_payment. This line used to read
+          //      payment_method === 'card' ? 'confirmed' : 'pending_payment'
+          //  and nothing charged the card, so choosing "card" on a public page
+          //  produced a CONFIRMED reservation for a guest who had paid nothing.
+          //  Card is refused above until Stripe is actually wired, and even if a
+          //  request arrives claiming one, a booking is not confirmed here —
+          //  confirmation follows money, and money arrives by e-transfer and is
+          //  matched by hand.
+          status: 'pending_payment',
           payment_method,
           accommodation: finalAccommodation,
           cleaning_fee, hst, mat, addon_fee, total,

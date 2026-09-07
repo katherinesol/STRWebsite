@@ -4,6 +4,7 @@ import Nav from '@/components/ui/Nav'
 import Footer from '@/components/ui/Footer'
 import { Suspense } from 'react'
 import BookingCheckout from '@/components/booking/BookingCheckout'
+import { siteConfig } from '@/lib/site-config'
 
 export async function generateStaticParams() {
   return getAllProperties().map(p => ({ id: p.id }))
@@ -27,7 +28,7 @@ export default async function BookingPage({
             Loading...
           </div>
         }>
-          <BookingCheckout property={property} />
+          <BookingCheckout property={property} etransferEmail={siteConfig.payments.etransferEmail} />
         </Suspense>
       </div>
       <Footer />

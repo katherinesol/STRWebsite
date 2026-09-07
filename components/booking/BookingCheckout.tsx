@@ -59,7 +59,7 @@ const inputStyle: React.CSSProperties = {
   borderRadius: '2px', boxSizing: 'border-box',
 }
 
-export default function BookingCheckout({ property }: { property: Property }) {
+export default function BookingCheckout({ property, etransferEmail }: { property: Property; etransferEmail: string }) {
   const searchParams = useSearchParams()
   const checkIn = searchParams.get('checkIn') || ''
   const checkOut = searchParams.get('checkOut') || ''
@@ -67,7 +67,15 @@ export default function BookingCheckout({ property }: { property: Property }) {
   const [guestCount, setGuestCount] = useState(parseInt(searchParams.get('guests') || '2'))
   const [adultsCount, setAdultsCount] = useState(parseInt(searchParams.get('guests') || '2'))
   const [childrenCount, setChildrenCount] = useState(0)
-  const [paymentMethod, setPaymentMethod] = useState<'card' | 'etransfer'>('card')
+  /*  E-TRANSFER ONLY, AND THE CARD OPTION IS GONE RATHER THAN DISABLED.
+   *
+   *  The card path rendered a grey box reading "Stripe payment form loads here"
+   *  and then POSTed payment_method 'card', which /api/bookings turns straight
+   *  into status 'confirmed'. A guest could hold a confirmed reservation on a
+   *  public page having paid nothing, and the page told them a deposit was due
+   *  today. Stripe is not wired: there is no server SDK, no PaymentIntent and no
+   *  webhook. Until there is, offering the choice is the bug. */
+  const paymentMethod = 'etransfer' as const
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [phone, setPhone] = useState('')
@@ -453,36 +461,21 @@ export default function BookingCheckout({ property }: { property: Property }) {
             </div>
           </div>
 
-          {/* payment method */}
+          {/* payment method — e-transfer only until Stripe is wired */}
           <div style={{ marginBottom: '40px' }}>
             <SectionLabel>Payment method</SectionLabel>
-            <div style={{ display: 'flex', gap: '1px', marginBottom: '16px' }}>
-              {(['card', 'etransfer'] as const).map(method => (
-                <button key={method} onClick={() => setPaymentMethod(method)} style={{ flex: 1, padding: '14px', background: paymentMethod === method ? 'var(--noir)' : 'var(--linen)', color: paymentMethod === method ? 'var(--chalk)' : 'var(--muted)', border: '0.5px solid var(--sand)', fontSize: '11px', letterSpacing: '.1em', textTransform: 'uppercase', cursor: 'pointer', fontFamily: 'var(--sans)' }}>
-                  {method === 'card' ? 'Credit / Debit card' : 'E-transfer'}
-                </button>
-              ))}
-            </div>
-            {paymentMethod === 'card' ? (
-              <div style={{ background: 'var(--linen)', border: '0.5px solid var(--sand)', padding: '20px' }}>
-                <div style={{ fontSize: '13px', color: 'var(--muted)', marginBottom: '12px' }}>Card payment powered by Stripe. Your card details are never stored.</div>
-                <div style={{ background: 'var(--sand)', height: '48px', borderRadius: '2px', display: 'flex', alignItems: 'center', paddingLeft: '14px' }}>
-                  <span style={{ fontSize: '12px', color: 'var(--stone)' }}>Stripe payment form loads here</span>
-                </div>
-                <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '10px' }}>Your booking will be confirmed immediately upon payment.</div>
-              </div>
-            ) : (
-              <div style={{ background: 'var(--linen)', border: '0.5px solid var(--sand)', padding: '20px' }}>
+            <div style={{ background: 'var(--linen)', border: '0.5px solid var(--sand)', padding: '20px' }}>
                 <div style={{ fontSize: '13px', color: 'var(--muted)', lineHeight: 1.7, marginBottom: '12px' }}>
                   Send your deposit of <strong style={{ color: 'var(--noir)' }}>${deposit}</strong> to:
                 </div>
-                <div style={{ fontSize: '14px', fontWeight: 500, color: 'var(--noir)', marginBottom: '4px' }}>[your-email@domain.com]</div>
+                <div style={{ fontSize: '14px', fontWeight: 500, color: 'var(--noir)', marginBottom: '4px' }}>
+                  {etransferEmail || 'We will email you the transfer details within the hour.'}
+                </div>
                 <div style={{ fontSize: '12px', color: 'var(--muted)', lineHeight: 1.6 }}>
                   Use your name and check-in date as the message.<br />
                   Your booking will be confirmed within 24 hours of receipt.
                 </div>
-              </div>
-            )}
+            </div>
           </div>
 
           {/* payment schedule */}
@@ -490,7 +483,7 @@ export default function BookingCheckout({ property }: { property: Property }) {
             <SectionLabel>Payment schedule</SectionLabel>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
               {[
-                { label: `Deposit (${property.depositPercent}%)`, amount: depositWithAddons, date: 'Due today', note: 'Secures your booking' },
+                { label: `Deposit (${property.depositPercent}%)`, amount: depositWithAddons, date: 'On receipt of your transfer', note: 'Secures your booking' },
                 { label: '50% of remaining balance', amount: secondWithAddons, date: secondDueDate ? format(secondDueDate, 'MMMM d, yyyy') : '60 days before check-in' },
                 { label: 'Final payment', amount: finalWithAddons, date: finalDueDate ? format(finalDueDate, 'MMMM d, yyyy') : '30 days before check-in' },
               ].map(({ label, amount, date, note }) => (

@@ -107,7 +107,7 @@ export default function BookingWidget({ property }: { property: Property }) {
               <span>Total</span><span>${total}</span>
             </div>
             <div style={{ fontSize: '12px', color: 'var(--amber)', textAlign: 'right' }}>
-              ${deposit} due today ({property.depositPercent}% deposit)
+              ${deposit} deposit ({property.depositPercent}%) by e-transfer
             </div>
           </div>
         </div>
@@ -136,7 +136,7 @@ export default function BookingWidget({ property }: { property: Property }) {
 
       {canBook && (
         <div style={{ fontSize: '11px', color: 'var(--muted)', textAlign: 'center', marginTop: '10px' }}>
-          {property.depositPercent}% due today · No platform fees
+          Reserve by e-transfer · No platform fees
         </div>
       )}
 
