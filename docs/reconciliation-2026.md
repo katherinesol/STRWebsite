@@ -855,7 +855,7 @@ export.
 
 | | amount | stays | what it is |
 |---|---|---|---|
-| **Under-collected** | **3,824.41** | 10 | tax never charged to the guest. **Owed regardless — out of pocket.** |
+| **Under-collected** | ~~3,824.41~~ | 10 | superseded — computed tax ON TOP of what the guest paid. See *OWED BY BUCKET* above: the correct figure is **4,121.83**, with the tax backed out where nothing was collected. |
 | Over-collected | 347.71 | 11 | charged more than the rules require. **Cash in hand.** |
 | net | 3,476.70 | 21 | true of neither |
 
