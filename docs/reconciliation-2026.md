@@ -770,23 +770,60 @@ neither is Heremela's. They need entering the same way the Heremela payouts do.
 
 ## OWED BY BUCKET — the remittance figures
 
-**Total to remit: $4,264.47.**
+**Total to remit: $3,631.62.**
 
 | property | filing period | HST owed | MAT owed | total owed |
 |---|---|---|---|---|
-| Nickel Beach | 2026 Q1 | 282.15 | 31.86 | 314.01 |
-| Nickel Beach | 2026 Q2 | 1,438.19 | 346.24 | 1,784.43 |
-| Nickel Beach | 2026 Q3 | 1,516.66 | 408.04 | 1,924.70 |
-| Royal York West | 2026 Q3 | 241.33 | 0.00 | 241.33 |
-| **TOTAL** | | **3,478.33** | **786.14** | **4,264.47** |
+| Nickel Beach | 2026 Q1 | 241.59 | 21.74 | 263.33 |
+| Nickel Beach | 2026 Q2 | 1,228.30 | 289.84 | 1,518.14 |
+| Nickel Beach | 2026 Q3 | 1,293.56 | 345.87 | 1,639.43 |
+| Royal York West | 2026 Q3 | 210.72 | 0.00 | 210.72 |
+| **TOTAL** | | **2,974.17** | **657.45** | **3,631.62** |
 
 By authority:
 
 | to | amount |
 |---|---|
-| **HST — CRA** | **3,478.33** |
-| **MAT — Port Colborne** | **786.14** |
+| **HST — CRA** | **2,974.17** |
+| **MAT — Port Colborne** | **657.45** |
 | **MAT — Toronto** | **0.00** |
+
+### WHERE NOTHING WAS CHARGED, THE TAX IS BACKED OUT — not added on top
+
+**This is the whole basis of the figure and it was got wrong once.** An earlier
+version of this table said 4,264.47 by computing tax *on top of* what the guest
+paid. That assumes more can still be collected. It cannot: those guests were
+never charged, they have gone, and the amount received is all there will ever be.
+The consideration is therefore deemed **tax-inclusive** and the tax comes **out
+of** it.
+
+    added on top    G x rate           4,264.47
+    backed out      G / (1 + rate)     3,631.62      overstated by 632.85
+
+Applied to the seven stays with nothing collected:
+
+| Guest | received | backed-out HST | backed-out MAT | vs on-top |
+|---|---|---|---|---|
+| Mary Weir | 8,124.00 | 934.62 | 265.37 | −207.97 |
+| Heremela Molla | 5,712.80 | 657.22 | 183.29 | −145.00 |
+| Erica Yu | 3,120.00 | 358.94 | 95.02 | −77.30 |
+| Marc Losier | 2,864.00 | 329.49 | 86.30 | −70.61 |
+| Brendan O'Hanlon | 2,100.00 | 241.59 | 60.28 | −50.68 |
+| Mark Vallena | 2,100.00 | 241.59 | 60.28 | −50.68 |
+| Jensen Yang | 1,214.90 | 139.77 | 78.51 | −47.80 |
+
+The divisor follows the encoded base rather than a flat 1.17: MAT applies to the
+room only and then sits inside the HST base, so the factor is
+`(1 + room/G x matRate) x 1.13`.
+
+Bookings where tax **was** charged are unaffected — there the tax genuinely sat
+on top, and the shortfall is simply owed minus collected.
+
+**This corrects the ledger's "fourth tax-failure mode" below.** Backing out was
+recorded there as a *wrong* pattern for Mary and Erica on the grounds that it
+"understates both taxes". It does not; it is the correct treatment where nothing
+was collected. What was wrong about it was only the shortcut — dividing by a flat
+1.17 rather than by the encoded base.
 
 **Why this is higher than the 3,824.41 net shortfall.** That figure netted HST
 against MAT inside each booking. These are different authorities: HST
