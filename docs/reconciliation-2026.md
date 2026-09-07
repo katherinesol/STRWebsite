@@ -543,8 +543,13 @@ O'Hanlon and Mark Vallena, and both are easy to cross-file.
 
 ## Held — not written, waiting on a document or a decision
 
-**Mary Weir** and **Jensen Yang** both store `taxes_collected` = 0.00. To be
-confirmed as genuinely zero rather than a missing figure when reached.
+~~**Mary Weir** and **Jensen Yang** both store `taxes_collected` = 0.00. To be
+confirmed as genuinely zero rather than a missing figure when reached.~~
+**CLOSED** — both were recording errors, not genuine zeroes. Jensen is
+**$125.56** (MAT $103.27 plus $22.30 of HST on the service fee, with no HST on
+the stay at all), resolved under *Jensen Yang — a partial collection* above.
+Mary's is likewise a figure, not a zero. Left struck through rather than deleted
+because chasing this closed question is exactly what a stale Held entry causes.
 
 **Per and Mikaela** stay at $0.00 by instruction. The flag is doing its job and
 no amount is to be invented to clear it.
@@ -619,6 +624,60 @@ recorded in the system yet.
 
 ---
 
+## The Airbnb earnings report reconciles — nothing is missing
+
+**Source: Airbnb earnings report, 1 Jan – 6 Sep 2026, generated 7 Sep 2026.**
+The first independent document to check this database against, rather than
+checking the database against itself.
+
+**Both listings reconcile to the cent.**
+
+Airbnb's "Gross earnings" is not room+cleaning. It bundles three things, and the
+decomposition is what makes the comparison work:
+
+    gross  =  room + cleaning  +  pass-through tax  +  resolutions
+
+Nickel Beach: `46,684.65 − 2,880.28 − 2,739.57 = 41,064.80`, and the database
+holds **41,064.80**. Service fees and pass-through tax match exactly on both
+listings with no adjustment at all.
+
+Royal York West needs one further step: removing **Jerry Wei** (Aug 29–31),
+**Aelita Sun** (Sep 1–2) and **Ziyue Jia** (Sep 4–7) lands on `6,167.75 /
+225.62 / 610.90` — the report's three figures, exact on all three columns. Those
+three had not paid out by 6 September.
+
+**The report mixes two bases in one document.** Its nights figure for Royal York
+West is **41**, which counts all thirteen stays including those three, while its
+earnings exclude them. Nights are counted by stay date, earnings by payout date.
+Do not read one against the other.
+
+### What this closes
+
+**There are no missing Airbnb bookings for 1 Jan – 6 Sep 2026.** Both listings
+reconcile exactly against Airbnb's own document, so the set in the database is
+complete. **February, March and April are genuinely $0.00** on the report — not
+absent data, no bookings. January is a single stay and it is Brendan, already
+entered.
+
+So *"1 Jan – 15 May was never entered"* is **resolved for Airbnb**. What remains
+unentered for that period is **VRBO and Houfy only**, and this report says
+nothing about either.
+
+**Royal York East does not appear in the report at all** — no Airbnb earnings
+have ever been received for it. That matches the database's zero bookings and is
+now confirmed from Airbnb's side rather than inferred from an absent iCal feed.
+
+### Two figures to chase
+
+- **Resolutions $2,739.57** against the ledger's **$2,464.57** of recorded
+  Heremela payouts — **$275.00 unaccounted**. All resolutions are Nickel Beach,
+  which the exact reconciliation confirms.
+- **January gross $2,275.00** against Brendan's room+cleaning of **$2,100.00** —
+  **$175.00** unexplained, with no pass-through and no resolution in that month
+  to absorb it.
+
+---
+
 ## Open
 
 ### In-system reconciliation is CLOSED
@@ -657,10 +716,23 @@ below. A 2026 total is not trustworthy until that period is in.
   under *Payment reconciliation*. Not three separate gaps: platform bookings have
   no payment history, invoice payments have no account, and invoice payments have
   no reference are one problem seen three ways. See the scope note below.
-- **Enter 1 Jan – 15 May 2026.** The whole period, all three properties, from
-  Airbnb/VRBO/Houfy records. Prerequisite for any 2026 total being trustworthy.
+- **Enter 1 Jan – 15 May 2026 — NARROWED to VRBO and Houfy.** The Airbnb
+  earnings report reconciles both listings exactly for 1 Jan – 6 Sep, so no
+  Airbnb booking is missing and Feb–Apr were genuinely empty. What is still
+  unentered for that period is VRBO and Houfy, which need their own exports.
 - **Full-year tax sweep by booking date.** Total exposure across every Airbnb
-  reservation, not a date window.
+  reservation, not a date window. **What this needs, and why the earnings report
+  is not enough:** the report gives period totals, not per-reservation lines, and
+  carries no booking dates — and the booking date is the mechanism. The export
+  required is Airbnb's **transaction history** (Earnings → Transaction history →
+  CSV, "Paid" for the completed year plus "Upcoming" for reservations already
+  taken), which is per-reservation and carries the confirmation code. Booking
+  dates come from each reservation, not from that file. The sweep then walks
+  every reservation in booking-date order, applies its listing's own cutoff
+  (Nickel Beach 23 Mar – 16 May; Royal York West 4–6 July; Royal York East
+  unestablished and inheriting neither), and totals owed-minus-collected. The
+  $1,942.52 recorded above is seven bookings examined, not a total, and the
+  sweep is what sizes it.
 
 - **Molhem's VRBO trace.** The survivor's note reads "Added from vrbo — no email
   on file", yet the owner confirms the Airbnb stay is his only one. So the note
