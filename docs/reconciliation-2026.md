@@ -673,13 +673,28 @@ trading. Airbnb's zero for February stands.
 database holds zero rows for the period, and three independent platform
 documents agree. The period was empty, not unrecorded.
 
-### One Stripe payment has no booking
+### `JNUUJIU651` — it was in the database all along
 
-`JNUUJIU651` — **$3,836.43**, paid 26 August 2026, successful. It appears in
-**no** table: not `calendar_blocks`, not `bookings`, not `payments`. The code
-shape matches Houfy's. Either a Houfy reservation that never synced, or a
-payment against something else entirely. **Open — the largest single unexplained
-figure on this page.**
+**$3,836.43**, paid 26 August. Reported here first as appearing in *no* table.
+It appears in `calendar_blocks.ical_uid` as **`1-JNUUJIU651`** — the search that
+declared it missing selected four columns and `ical_uid` was not among them.
+Third false negative in one session from a query too narrow to see its answer.
+
+It is **William H Henry**, Nickel Beach, 1–5 Oct, 4 nights, 8 guests — the Houfy
+shell that had synced with dates and a door code and nothing else. Not a missing
+guest, not unattributed money: a row waiting to be enriched.
+
+Entered, reconciling at +0.00:
+
+    745.00 x 4 nights   2,980.00
+    cleaning              299.00
+    Houfy flat 17%        557.43     (2,980 + 299) x 0.17, exact
+    total               3,836.43     = the Stripe charge
+
+Owed by the rules is **560.97** (MAT 119.20 + HST 441.77), so it is **short by
+3.54** — the same systematic Houfy shortfall recorded above, for the same
+reason: a flat combined rate applies both taxes to one base while the rules put
+MAT inside the HST base.
 
 ### What this closes
 
@@ -745,9 +760,16 @@ The last three:
   `guest_total` 2,842 -> 3,957.99. Owed 506.90 against VRBO's 506.91: **one
   cent.** The cleanest confirmation yet that VRBO applies the rules exactly.
 
-**What "closed" does not mean.** Every booking *in the system* is reconciled.
-1 Jan - 15 May 2026 was never entered at all, and remains the largest open item
-below. A 2026 total is not trustworthy until that period is in.
+**And the period that was thought missing was empty.** This section once carried
+a caveat that 1 Jan – 15 May had never been entered and that no 2026 total was
+trustworthy until it was. That was wrong, and it stood for months. Nothing is
+booked between 1 February and 15 May 2026 on any platform — Airbnb reconciles
+both listings exactly, VRBO matches five of six payouts with the sixth explained
+by a year-crossing stay, and Houfy matches through Stripe. **The 2026 totals were
+trustworthy the whole time.**
+
+The assumption was never tested against a platform document, only against the
+database's own emptiness — which is the same evidence, read twice.
 
 
 - **Host-fee percentage on every booking**, checked against its receipt. See the
@@ -763,10 +785,13 @@ below. A 2026 total is not trustworthy until that period is in.
   explained by a year-crossing stay; Houfy matches through Stripe. Nothing is
   booked between 1 Feb and 15 May on any platform. **The period was empty, not
   unrecorded** — the assumption that drove this item for months was wrong.
-- **`JNUUJIU651` — $3,836.43 Stripe payment with no booking.** 26 Aug 2026.
-  Houfy-shaped code, absent from every table.
-- **Two unrecorded resolution payouts** — Mark Vallena $100.00 (15 Jun) and
-  Brendan O'Hanlon $175.00 (26 Jan). Income received, never entered.
+- ~~**`JNUUJIU651` — $3,836.43 Stripe payment with no booking.**~~ **CLOSED.**
+  It was the Houfy shell for 1–5 Oct, findable in `ical_uid`. Entered as William
+  H Henry, reconciling at +0.00.
+- ~~**Two unrecorded resolution payouts.**~~ **CLOSED.** Mark Vallena $100.00
+  and Brendan O'Hanlon $175.00 recorded as `damage_recovery` against Checking
+  0377, the same path Heremela's three took. All five now total **2,739.57**,
+  the Airbnb report exactly.
 - **Full-year tax sweep by booking date.** Total exposure across every Airbnb
   reservation, not a date window. **What this needs, and why the earnings report
   is not enough:** the report gives period totals, not per-reservation lines, and
