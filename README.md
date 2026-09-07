@@ -93,6 +93,24 @@ A formula-fit audit of already-correct rows manufactures findings. The rows were
 not wrong; the formula was. **Check the ledger first, and test against it rather
 than around it.**
 
+**And search widely before declaring anything missing.** The same failure has now
+happened three times in one session, each time a query too narrow to see its own
+answer:
+
+- *"`JNUUJIU651` appears in no table"* — it was in `calendar_blocks.ical_uid` as
+  `1-JNUUJIU651`. The search selected four columns and `ical_uid` was not among
+  them. It turned out to be **William H Henry**, a real guest arriving in four
+  weeks with his code already on the lock.
+- *"None of the Stripe payments match a booking"* — four of five did. The search
+  looked in `bookings`; Houfy reservations live in `calendar_blocks`.
+- *"Sixteen rows are wrong"* — they were tested against a formula rather than
+  against the record.
+
+A narrow query reports absence **confidently**, and confident absence is what
+gets acted on. Before concluding something is missing, search every table it
+could plausibly live in and select every column that could hold the key — not
+the columns the question was framed around.
+
 ---
 
 ## Getting started
