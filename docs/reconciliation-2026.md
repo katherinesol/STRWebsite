@@ -651,6 +651,36 @@ West is **41**, which counts all thirteen stays including those three, while its
 earnings exclude them. Nights are counted by stay date, earnings by payout date.
 Do not read one against the other.
 
+### VRBO and Houfy also reconcile — the period is empty, not missing
+
+**VRBO** (statement, payouts 1 Jan – 7 Sep 2026): **six bookings, five match the
+database payout exactly** — Amanda, Tudor, Viatcheslav, Hala, Elizabeth. The
+sixth, **Lyle Parkinson HA-JDDR2B**, shows 929.38 on the statement against
+2,153.03 stored; his stay crosses the year (30 Dec 2025 – 2 Jan 2026) and the
+statement only covers payouts falling inside 2026, so the two figures are
+measuring different things. To confirm, not to correct.
+
+**Houfy**, via the Stripe transaction export: `LSQUHDC829` Laura Escobar and
+`IVMUYQF047` Amanda Stanek both match their stored payouts exactly, and
+`TGYCYMY998` Samuel Séguin's two payments — 5,817.65 on 16 Feb and 1,424.65 on
+19 May — sum to **7,242.30**, his stored `guest_total` to the cent. That is the
+two-deposit booking recorded above as having nowhere to live.
+
+**The February Stripe payment is a deposit for a July stay**, not February
+trading. Airbnb's zero for February stands.
+
+**Nothing is booked between 1 February and 15 May 2026 on any platform.** The
+database holds zero rows for the period, and three independent platform
+documents agree. The period was empty, not unrecorded.
+
+### One Stripe payment has no booking
+
+`JNUUJIU651` — **$3,836.43**, paid 26 August 2026, successful. It appears in
+**no** table: not `calendar_blocks`, not `bookings`, not `payments`. The code
+shape matches Houfy's. Either a Houfy reservation that never synced, or a
+payment against something else entirely. **Open — the largest single unexplained
+figure on this page.**
+
 ### What this closes
 
 **There are no missing Airbnb bookings for 1 Jan – 6 Sep 2026.** Both listings
@@ -667,14 +697,26 @@ nothing about either.
 have ever been received for it. That matches the database's zero bookings and is
 now confirmed from Airbnb's side rather than inferred from an absent iCal feed.
 
-### Two figures to chase
+### Both chased figures are the same two payouts — RESOLVED
 
-- **Resolutions $2,739.57** against the ledger's **$2,464.57** of recorded
-  Heremela payouts — **$275.00 unaccounted**. All resolutions are Nickel Beach,
-  which the exact reconciliation confirms.
-- **January gross $2,275.00** against Brendan's room+cleaning of **$2,100.00** —
-  **$175.00** unexplained, with no pass-through and no resolution in that month
-  to absorb it.
+The transaction-history CSV settles them, and they turn out to be one finding.
+There are **five** resolution payouts, not three:
+
+| Paid | Guest | Reservation | Amount | Resolution |
+|---|---|---|---|---|
+| 12 Aug | Heremela Molla | HMHC9JF4XE | 1,525.50 | AirCover CLSF-06099978 |
+| 29 Jul | Heremela Molla | HMHC9JF4XE | 352.30 | 17852536118667 |
+| 28 Jul | Heremela Molla | HMHC9JF4XE | 586.77 | AirCover CLSF-06099978 |
+| **15 Jun** | **Mark Vallena** | HMYS5WCHCF | **100.00** | CLA-ZRW8PZXWZD |
+| **26 Jan** | **Brendan O'Hanlon** | HMW2S4PD4Q | **175.00** | CLA-K3C24DWYHY |
+
+They total **2,739.57**, exactly the report. The $275.00 gap is Mark Vallena's
+$100 plus Brendan's $175 — **and Brendan's $175 dated 26 January is also the
+January gross gap**: 2,100.00 reservation + 175.00 resolution = **2,275.00**,
+the report's January figure to the cent.
+
+**Both are unrecorded income.** Money Airbnb sent that the books do not hold, and
+neither is Heremela's. They need entering the same way the Heremela payouts do.
 
 ---
 
@@ -716,10 +758,15 @@ below. A 2026 total is not trustworthy until that period is in.
   under *Payment reconciliation*. Not three separate gaps: platform bookings have
   no payment history, invoice payments have no account, and invoice payments have
   no reference are one problem seen three ways. See the scope note below.
-- **Enter 1 Jan – 15 May 2026 — NARROWED to VRBO and Houfy.** The Airbnb
-  earnings report reconciles both listings exactly for 1 Jan – 6 Sep, so no
-  Airbnb booking is missing and Feb–Apr were genuinely empty. What is still
-  unentered for that period is VRBO and Houfy, which need their own exports.
+- ~~**Enter 1 Jan – 15 May 2026.**~~ **CLOSED.** Airbnb reconciles both listings
+  exactly; the VRBO statement matches five of six payouts with the sixth
+  explained by a year-crossing stay; Houfy matches through Stripe. Nothing is
+  booked between 1 Feb and 15 May on any platform. **The period was empty, not
+  unrecorded** — the assumption that drove this item for months was wrong.
+- **`JNUUJIU651` — $3,836.43 Stripe payment with no booking.** 26 Aug 2026.
+  Houfy-shaped code, absent from every table.
+- **Two unrecorded resolution payouts** — Mark Vallena $100.00 (15 Jun) and
+  Brendan O'Hanlon $175.00 (26 Jan). Income received, never entered.
 - **Full-year tax sweep by booking date.** Total exposure across every Airbnb
   reservation, not a date window. **What this needs, and why the earnings report
   is not enough:** the report gives period totals, not per-reservation lines, and
