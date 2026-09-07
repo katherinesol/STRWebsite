@@ -1,3 +1,34 @@
+── TAX: THE SETTLED CONTEXT (do not re-investigate) ──
+
+- Airbnb did NOT collect accommodation tax, over-collected or under-collected on
+  some bookings because of a SETTINGS issue on the listings (per-listing cutoff
+  dates: Nickel Beach 24 Mar–23 Apr 2026, RYW 4–6 Jul 2026). This is KNOWN and
+  UNDERSTOOD. Katherine is aware she owes tax that was not collected.
+- Do NOT re-investigate the cause, do NOT re-audit the rows, do NOT produce
+  accountant handoffs or remittance-mechanics advice, do NOT debate over- vs
+  under-collection framing. All of that is settled.
+- THE ONLY JOB: compute how much is OWED under the MAT and HST rules, per
+  property and per filing period, and report the number so Katherine can remit
+  it. That's it.
+
+── THE RULES TO APPLY ──
+
+- HST 13% on accommodation + cleaning (Ontario).
+- MAT: Port Colborne 4% on room; Toronto 6% on room (RYW/RYE). Use the base
+  already encoded in `lib/tax-rates.ts` — do not re-decide it.
+- For each booking where tax was under-collected: owed = (tax the rules say
+  applies) − (tax actually collected). Sum by property and by tax type (HST /
+  Port Colborne MAT / Toronto MAT) and by filing period.
+
+── THE OUTPUT KATHERINE NEEDS ──
+
+One table: `property | filing period | HST owed | MAT owed | total owed`, plus a
+per-booking backup she can hand to the CRA or the City if asked. The $3,824.41
+already computed is the starting point — break it into these buckets. Nothing
+else.
+
+---
+
 # VRBO / Airbnb tax audit — parked batch
 
 What the platforms actually collect and remit, versus what the rules say is owed.

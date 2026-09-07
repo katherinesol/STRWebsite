@@ -1,3 +1,34 @@
+── TAX: THE SETTLED CONTEXT (do not re-investigate) ──
+
+- Airbnb did NOT collect accommodation tax, over-collected or under-collected on
+  some bookings because of a SETTINGS issue on the listings (per-listing cutoff
+  dates: Nickel Beach 24 Mar–23 Apr 2026, RYW 4–6 Jul 2026). This is KNOWN and
+  UNDERSTOOD. Katherine is aware she owes tax that was not collected.
+- Do NOT re-investigate the cause, do NOT re-audit the rows, do NOT produce
+  accountant handoffs or remittance-mechanics advice, do NOT debate over- vs
+  under-collection framing. All of that is settled.
+- THE ONLY JOB: compute how much is OWED under the MAT and HST rules, per
+  property and per filing period, and report the number so Katherine can remit
+  it. That's it.
+
+── THE RULES TO APPLY ──
+
+- HST 13% on accommodation + cleaning (Ontario).
+- MAT: Port Colborne 4% on room; Toronto 6% on room (RYW/RYE). Use the base
+  already encoded in `lib/tax-rates.ts` — do not re-decide it.
+- For each booking where tax was under-collected: owed = (tax the rules say
+  applies) − (tax actually collected). Sum by property and by tax type (HST /
+  Port Colborne MAT / Toronto MAT) and by filing period.
+
+── THE OUTPUT KATHERINE NEEDS ──
+
+One table: `property | filing period | HST owed | MAT owed | total owed`, plus a
+per-booking backup she can hand to the CRA or the City if asked. The $3,824.41
+already computed is the starting point — break it into these buckets. Nothing
+else.
+
+---
+
 # 2026 reconciliation
 
 Running ledger for the 2026 books. One item at a time: identified, verified
@@ -734,6 +765,49 @@ the report's January figure to the cent.
 
 **Both are unrecorded income.** Money Airbnb sent that the books do not hold, and
 neither is Heremela's. They need entering the same way the Heremela payouts do.
+
+---
+
+## OWED BY BUCKET — the remittance figures
+
+**Total to remit: $4,264.47.**
+
+| property | filing period | HST owed | MAT owed | total owed |
+|---|---|---|---|---|
+| Nickel Beach | 2026 Q1 | 282.15 | 31.86 | 314.01 |
+| Nickel Beach | 2026 Q2 | 1,438.19 | 346.24 | 1,784.43 |
+| Nickel Beach | 2026 Q3 | 1,516.66 | 408.04 | 1,924.70 |
+| Royal York West | 2026 Q3 | 241.33 | 0.00 | 241.33 |
+| **TOTAL** | | **3,478.33** | **786.14** | **4,264.47** |
+
+By authority:
+
+| to | amount |
+|---|---|
+| **HST — CRA** | **3,478.33** |
+| **MAT — Port Colborne** | **786.14** |
+| **MAT — Toronto** | **0.00** |
+
+**Why this is higher than the 3,824.41 net shortfall.** That figure netted HST
+against MAT inside each booking. These are different authorities: HST
+over-collected on a stay cannot offset MAT under-collected on the same stay.
+Split by tax type and summing only what is short, the figure is 4,264.47.
+
+**Toronto MAT is zero.** Every Royal York West stay had MAT over-collected —
+Airbnb billed 8.5% past the drop to 6%, and it remits Toronto MAT itself, so
+that sits between Airbnb and the city. Only HST is short there.
+
+Filing period is the quarter the stay began. Rates and bases are
+`lib/tax-rates.ts` as encoded: MAT on the room, then inside the HST base;
+Port Colborne 4%, Toronto 8.5% before 31 Jul 2026 and 6% after; MAT exempt at
+30+ nights.
+
+**One outlier for the backup.** Josh Klein `HMYSXQHJWP` shows MAT collected 0.00
+against 153.60 owed — Airbnb remitted no occupancy tax on that reservation at
+all, unlike every other Nickel Beach stay. It is the single largest MAT line.
+
+Per-booking backup: 21 rows with HST owed / collected / due and MAT owed /
+collected / due, in the sweep section below.
 
 ---
 
