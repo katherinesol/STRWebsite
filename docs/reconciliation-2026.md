@@ -839,6 +839,16 @@ service fee** — so there was no service fee for Airbnb to charge HST on. **MAT
 was collected in full. Port Colborne does not drop.** He contributes `19.97` of
 HST to bucket B.
 
+**INDEPENDENTLY RE-DERIVED, 2026-09-07.** `tools/tax/recompute-airbnb-owed.py`
+was written from the method rather than from the working script — different
+structure, reading the CSV fresh, and self-checking that every backed-out row
+reconstitutes the amount received (all seven do, within a cent of rounding). It
+reproduced **4,121.83 to the cent**: CRA 2,903.22, Port Colborne 750.54, Toronto
+78.51, unsplit 389.56 across 11 rows.
+
+Four revisions meant the method was being found while it was being applied. One
+clean recompute from the settled method is the check that it holds. It does.
+
 **This computation is CLOSED.** What remains is remittance and the B split,
 neither of which is a code or data question.
 

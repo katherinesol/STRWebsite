@@ -20,6 +20,34 @@
   applies) − (tax actually collected). Sum by property and by tax type (HST /
   Port Colborne MAT / Toronto MAT) and by filing period.
 
+── THE SETTLED METHOD (start here; do not rediscover it) ──
+
+Five rules. The figure was revised four times before these were stable, and every
+revision came from one of them being missed.
+
+1. **Never-charged stays: back the tax OUT of what was received.** The amount is
+   tax-inclusive — the guest was never charged, they have gone, nothing more can
+   be collected. Divisor is the encoded base, `(1 + room/received x matRate) x
+   1.13`, NOT a flat 1.17, because MAT applies to the room only and then sits
+   inside the HST base.
+2. **Charged stays: the tax sat on top.** Owed is computed by the rules and the
+   shortfall is owed minus collected. Do not back anything out of these.
+3. **NO credit for the `Airbnb remitted tax` column.** It is HST on Airbnb's own
+   guest service fee — Airbnb's liability, never tax collected on the host's
+   behalf. Confirmed exactly twice: Brendan `296.47 x 13% = 38.54`, Аня `268.80
+   x 13% = 34.94`. Crediting it understates what is owed.
+4. **Split by authority: HST/CRA, MAT/Port Colborne, MAT/Toronto. NEVER net HST
+   against MAT.** They are different authorities; over-collection on one cannot
+   offset under-collection on the other.
+5. **Leave the unsplittable unsplit.** Where Airbnb's pass-through sometimes
+   carries the MAT and sometimes does not, the total is determinable but the
+   HST/MAT division is not. List those rows and leave the amount whole.
+
+`tools/tax/recompute-airbnb-owed.py` implements exactly this and is an
+independent re-derivation, not the working script. It self-checks that every
+backed-out row reconstitutes the amount received, and reproduced **4,121.83 to
+the cent** on 2026-09-07.
+
 ── THE OUTPUT KATHERINE NEEDS ──
 
 One table: `property | filing period | HST owed | MAT owed | total owed`, plus a
