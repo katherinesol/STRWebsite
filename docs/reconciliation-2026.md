@@ -23,7 +23,7 @@
 ── THE OUTPUT KATHERINE NEEDS ──
 
 One table: `property | filing period | HST owed | MAT owed | total owed`, plus a
-per-booking backup she can hand to the CRA or the City if asked. The $3,824.41
+per-booking backup she can hand to the CRA or the City if asked. The $4,121.83
 already computed is the starting point — break it into these buckets. Nothing
 else.
 
@@ -768,83 +768,79 @@ neither is Heremela's. They need entering the same way the Heremela payouts do.
 
 ---
 
-## OWED BY BUCKET — the remittance figures
+## OWED BY BUCKET — the remittance figures  ·  **CLOSED**
 
-**Total to remit: $3,631.62.**
+**Total to remit: $4,121.83.**
 
-| property | filing period | HST owed | MAT owed | total owed |
-|---|---|---|---|---|
-| Nickel Beach | 2026 Q1 | 241.59 | 21.74 | 263.33 |
-| Nickel Beach | 2026 Q2 | 1,228.30 | 289.84 | 1,518.14 |
-| Nickel Beach | 2026 Q3 | 1,293.56 | 345.87 | 1,639.43 |
-| Royal York West | 2026 Q3 | 210.72 | 0.00 | 210.72 |
-| **TOTAL** | | **2,974.17** | **657.45** | **3,631.62** |
-
-By authority:
+| property | filing period | HST | MAT | unsplit | total |
+|---|---|---|---|---|---|
+| Nickel Beach | 2026 Q1 | 241.59 | 60.28 | 0.00 | 301.87 |
+| Nickel Beach | 2026 Q2 | 1,228.30 | 329.87 | 6.64 | 1,564.81 |
+| Nickel Beach | 2026 Q3 | 1,293.56 | 360.39 | 19.97 | 1,673.92 |
+| Royal York West | 2026 Q3 | 139.77 | 78.51 | 362.95 | 581.23 |
+| **TOTAL** | | **2,903.22** | **829.05** | **389.56** | **4,121.83** |
 
 | to | amount |
 |---|---|
-| **HST — CRA** | **2,974.17** |
-| **MAT — Port Colborne** | **657.45** |
-| **MAT — Toronto** | **0.00** |
+| **HST — CRA** | **2,903.22** |
+| **MAT — Port Colborne** | **750.54** |
+| **MAT — Toronto** | **78.51** |
+| unsplit — see B below | 389.56 |
 
-### WHERE NOTHING WAS CHARGED, THE TAX IS BACKED OUT — not added on top
+### The figure moved three times. Why, and which part is solid.
 
-**This is the whole basis of the figure and it was got wrong once.** An earlier
-version of this table said 4,264.47 by computing tax *on top of* what the guest
-paid. That assumes more can still be collected. It cannot: those guests were
-never charged, they have gone, and the amount received is all there will ever be.
-The consideration is therefore deemed **tax-inclusive** and the tax comes **out
-of** it.
+`4,264.47` → `3,631.62` → `4,121.83`. Two of those were wrong and the reasons
+are worth keeping, because each was an assumption smuggled in as arithmetic.
 
-    added on top    G x rate           4,264.47
-    backed out      G / (1 + rate)     3,631.62      overstated by 632.85
+1. **4,264.47 — tax added on top.** Wrong. Those guests were never charged and
+   have gone; nothing more can be collected, so the amount received is the whole
+   consideration and the tax comes **out of** it, not onto it.
+2. **3,631.62 — backed out, but crediting Airbnb's own tax.** Wrong. The
+   `Airbnb remitted tax` column is **HST on Airbnb's guest service fee** —
+   Airbnb's liability, not tax collected for the host. Confirmed exactly twice:
+   Brendan `296.47 x 13% = 38.54` and Аня `268.80 x 13% = 34.94`. Crediting it
+   against MAT understated what is owed.
+3. **4,121.83 — correct.** Tax backed out where nothing was collected, and only
+   the pass-through counted as reaching the host.
 
-Applied to the seven stays with nothing collected:
+### A — nothing collected: $3,732.27, and the split is known
 
-| Guest | received | backed-out HST | backed-out MAT | vs on-top |
-|---|---|---|---|---|
-| Mary Weir | 8,124.00 | 934.62 | 265.37 | −207.97 |
-| Heremela Molla | 5,712.80 | 657.22 | 183.29 | −145.00 |
-| Erica Yu | 3,120.00 | 358.94 | 95.02 | −77.30 |
-| Marc Losier | 2,864.00 | 329.49 | 86.30 | −70.61 |
-| Brendan O'Hanlon | 2,100.00 | 241.59 | 60.28 | −50.68 |
-| Mark Vallena | 2,100.00 | 241.59 | 60.28 | −50.68 |
-| Jensen Yang | 1,214.90 | 139.77 | 78.51 | −47.80 |
+Seven stays. The whole amount received is the host's, so both taxes come out of
+it and the split follows the encoded rules. Divisor is
+`(1 + room/G x matRate) x 1.13`, not a flat 1.17, because MAT applies to the room
+only and then sits inside the HST base.
 
-The divisor follows the encoded base rather than a flat 1.17: MAT applies to the
-room only and then sits inside the HST base, so the factor is
-`(1 + room/G x matRate) x 1.13`.
+| guest | received | HST | MAT |
+|---|---|---|---|
+| Mary Weir | 8,124.00 | 934.62 | 265.37 |
+| Heremela Molla | 5,712.80 | 657.22 | 183.29 |
+| Erica Yu | 3,120.00 | 358.94 | 95.02 |
+| Marc Losier | 2,864.00 | 329.49 | 86.30 |
+| Brendan O'Hanlon | 2,100.00 | 241.59 | 60.28 |
+| Mark Vallena | 2,100.00 | 241.59 | 60.28 |
+| Jensen Yang | 1,214.90 | 139.77 | 78.51 |
+| **subtotal** | | **2,903.22** | **829.05** |
 
-Bookings where tax **was** charged are unaffected — there the tax genuinely sat
-on top, and the shortfall is simply owed minus collected.
+### B — collected but short: $389.56, and the split is NOT known
 
-**This corrects the ledger's "fourth tax-failure mode" below.** Backing out was
-recorded there as a *wrong* pattern for Mary and Erica on the grounds that it
-"understates both taxes". It does not; it is the correct treatment where nothing
-was collected. What was wrong about it was only the shortcut — dividing by a flat
-1.17 rather than by the encoded base.
+Eleven stays. The **total** is determinable; dividing it between HST and MAT is
+not. Airbnb's pass-through sometimes contains the MAT and sometimes does not —
+Josh Klein's `708.70` is exactly `HST 555.10 + MAT 153.60`, while Lashley
+Winter's `141.57` is exactly `1,089.00 x 13%` with no MAT at all. No rule fits,
+which is the same inconsistency recorded throughout this page. **That split needs
+the receipts or an accountant; it is not to be invented.**
 
-**Why this is higher than the 3,824.41 net shortfall.** That figure netted HST
-against MAT inside each booking. These are different authorities: HST
-over-collected on a stay cannot offset MAT under-collected on the same stay.
-Split by tax type and summing only what is short, the figure is 4,264.47.
+### Josh Klein — checked, and the number stands
 
-**Toronto MAT is zero.** Every Royal York West stay had MAT over-collected —
-Airbnb billed 8.5% past the drop to 6%, and it remits Toronto MAT itself, so
-that sits between Airbnb and the city. Only HST is short there.
+His `Airbnb remitted tax` of `0.00` is not a missing MAT remittance. His
+pass-through of `708.70` already contains it (`555.10 + 153.60`), and his column
+reads zero because his was the host-only 15.5% structure with a **$0.00 guest
+service fee** — so there was no service fee for Airbnb to charge HST on. **MAT
+was collected in full. Port Colborne does not drop.** He contributes `19.97` of
+HST to bucket B.
 
-Filing period is the quarter the stay began. Rates and bases are
-`lib/tax-rates.ts` as encoded: MAT on the room, then inside the HST base;
-Port Colborne 4%, Toronto 8.5% before 31 Jul 2026 and 6% after; MAT exempt at
-30+ nights.
-
-**One outlier for the backup.** Josh Klein `HMYSXQHJWP` shows MAT collected 0.00
-against 153.60 owed — Airbnb remitted no occupancy tax on that reservation at
-all, unlike every other Nickel Beach stay. It is the single largest MAT line.
-
-Per-booking backup: 21 rows with HST owed / collected / due and MAT owed /
-collected / due, in the sweep section below.
+**This computation is CLOSED.** What remains is remittance and the B split,
+neither of which is a code or data question.
 
 ---
 
@@ -951,7 +947,7 @@ database's own emptiness — which is the same evidence, read twice.
   0377, the same path Heremela's three took. All five now total **2,739.57**,
   the Airbnb report exactly.
 - ~~**Full-year tax sweep by booking date.**~~ **DONE** — see the section above.
-  3,824.41 under-collected across 10 stays, 347.71 over-collected across 11.
+  4,121.83 owed across 10 stays, 347.71 over-collected across 11.
   What remains is a decision, not an investigation: how the under-collection is
   remitted and whether the over-collection is returned, remitted or retained.
   ~~**What this needed, and why the earnings report was not enough:** the report gives period totals, not per-reservation lines, and

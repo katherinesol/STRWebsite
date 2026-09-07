@@ -23,9 +23,10 @@
 ── THE OUTPUT KATHERINE NEEDS ──
 
 One table: `property | filing period | HST owed | MAT owed | total owed`, plus a
-per-booking backup she can hand to the CRA or the City if asked. The $3,824.41
-already computed is the starting point — break it into these buckets. Nothing
-else.
+per-booking backup she can hand to the CRA or the City if asked. **ANSWERED: $4,121.83** — HST to CRA 2,903.22, MAT to Port Colborne 750.54, MAT
+to Toronto 78.51, plus 389.56 whose HST/MAT split needs receipts. Full working
+and the per-booking backup are in `docs/reconciliation-2026.md` under *OWED BY
+BUCKET*. **This computation is CLOSED.**
 
 ---
 
