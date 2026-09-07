@@ -76,10 +76,12 @@ Sorted by booking date the split is clean, with no interleaving at all, while
 sorted by stay date it is scattered — Mary stays in July untaxed, Аня in May
 taxed. The stay date is ruled out; the reservation date decides.
 
-**The switch happened between 23 March and 16 May 2026, and that is settled.**
-The lower bound is Heremela, booked 23 March and untaxed. The upper bound needs
-no further evidence: Аня's stay begins **16 May** and she is taxed, so she
-reserved on or before that day and after the switch.
+**The switch happened between 24 March and 23 April 2026** — narrowed from the
+earlier "23 March to 16 May" once the transaction history gave real booking
+dates instead of inferences. Erica Yu **booked 24 March** and is untaxed; Аня
+**booked 23 April** and is taxed. The old upper bound came from reading Аня's
+*stay* date as a proxy for her reservation date, which the export makes
+unnecessary.
 
 **No more work on pinning the date down.** Narrowing eight weeks to two would
 change nothing owed — every booking in hand states its own tax status on its own
@@ -735,6 +737,51 @@ neither is Heremela's. They need entering the same way the Heremela payouts do.
 
 ---
 
+## THE FULL-YEAR SWEEP — run, from the transaction history
+
+**Source: Airbnb transaction history CSV, 1 Jan – 7 Sep 2026.** Twenty-one
+reservations, each carrying its own `Booking date`, which is the column the
+earnings report does not have and the whole reason this needed a different
+export.
+
+**Total exposure: $3,476.70 net.** But it must not be reported as one number.
+
+| | amount | stays | what it is |
+|---|---|---|---|
+| **Under-collected** | **3,824.41** | 10 | tax never charged to the guest. **Owed regardless — out of pocket.** |
+| Over-collected | 347.71 | 11 | charged more than the rules require. **Cash in hand.** |
+| net | 3,476.70 | 21 | true of neither |
+
+The two are different kinds of money. The under-collection is a liability that
+exists whether or not the guest can be reached. The over-collection is cash held
+that may be owed onward, refundable, or retained — the Tudor question, decided
+per guest. Netting them reports a figure that describes neither.
+
+**The five pre-cutoff stays carry $3,189.33 of the under-collection:**
+
+| Booked | Guest | Stay | room+cleaning | collected | owed | short |
+|---|---|---|---|---|---|---|
+| 2025-11-04 | Mary Weir | Jul 11 | 8,124.00 | 161.15 | 1,407.96 | **+1,246.81** |
+| 2025-12-03 | Brendan O'Hanlon | Jan 23 | 2,100.00 | 38.54 | 352.55 | +314.01 |
+| 2026-01-31 | Marc Losier | Jun 4 | 2,864.00 | 52.56 | 486.40 | +433.84 |
+| 2026-02-20 | Mark Vallena | Jun 12 | 2,100.00 | 38.54 | 352.55 | +314.01 |
+| 2026-03-21 | Heremela Molla | Jun 15 | 5,712.80 | 104.85 | 985.51 | +880.66 |
+
+Plus two inside the cutoff window: **Erica Yu +474.00** (booked 24 March,
+untaxed) and **Jensen Yang +140.52** (the partial collection — MAT charged, no
+HST).
+
+**Against the ledger's earlier 1,942.52.** That figure came from four stays.
+Mary Weir alone adds 1,246.81 and Erica Yu 474.00 — both were named on this page
+but never costed. The real under-collection is **roughly double** what was
+recorded.
+
+**This half is now closed.** The sweep needed the transaction history and has
+had it; nothing further is required from the platform to size the Airbnb
+exposure.
+
+---
+
 ## Open
 
 ### In-system reconciliation is CLOSED
@@ -792,9 +839,11 @@ database's own emptiness — which is the same evidence, read twice.
   and Brendan O'Hanlon $175.00 recorded as `damage_recovery` against Checking
   0377, the same path Heremela's three took. All five now total **2,739.57**,
   the Airbnb report exactly.
-- **Full-year tax sweep by booking date.** Total exposure across every Airbnb
-  reservation, not a date window. **What this needs, and why the earnings report
-  is not enough:** the report gives period totals, not per-reservation lines, and
+- ~~**Full-year tax sweep by booking date.**~~ **DONE** — see the section above.
+  3,824.41 under-collected across 10 stays, 347.71 over-collected across 11.
+  What remains is a decision, not an investigation: how the under-collection is
+  remitted and whether the over-collection is returned, remitted or retained.
+  ~~**What this needed, and why the earnings report was not enough:** the report gives period totals, not per-reservation lines, and
   carries no booking dates — and the booking date is the mechanism. The export
   required is Airbnb's **transaction history** (Earnings → Transaction history →
   CSV, "Paid" for the completed year plus "Upcoming" for reservations already
@@ -802,9 +851,7 @@ database's own emptiness — which is the same evidence, read twice.
   dates come from each reservation, not from that file. The sweep then walks
   every reservation in booking-date order, applies its listing's own cutoff
   (Nickel Beach 23 Mar – 16 May; Royal York West 4–6 July; Royal York East
-  unestablished and inheriting neither), and totals owed-minus-collected. The
-  $1,942.52 recorded above is seven bookings examined, not a total, and the
-  sweep is what sizes it.
+  unestablished and inheriting neither), and totals owed-minus-collected.~~
 
 - **Molhem's VRBO trace.** The survivor's note reads "Added from vrbo — no email
   on file", yet the owner confirms the Airbnb stay is his only one. So the note
