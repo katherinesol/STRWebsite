@@ -16,6 +16,60 @@ gaps · **SHELL** the UI exists but nothing behind it · **SPEC** not started.
 
 # PART 1 — ADMIN / HOST
 
+## LAUNCH SEQUENCE — and what is *not* urgent
+
+**Nobody books through this site yet.** That single fact reprioritises several
+things that have been described in here as live exposures. They are architectural
+gaps that are now *fixed but not yet needed* — worth keeping straight so they are
+not re-raised as emergencies.
+
+### The outbound feed is fixed; the subscriptions deliberately are not
+
+`/api/ical/[propertyId]` now publishes every current and future booking, with
+`?exclude=<platform>` so a platform never receives its own reservations echoed
+back. Verified in production: Royal York West publishes its five upcoming stays
+(was zero), Nickel Beach publishes eight including Houfy's and VRBO's.
+
+**No platform is subscribed to it, on purpose.** Cross-platform double-booking
+only becomes possible once guests actually book through the Houfy CTAs, and the
+export URLs will change with the domain — subscribing now means entering them
+twice. The fix ships early so the feed is already correct on the day it matters.
+
+### When Katherine is ready to launch, in this order
+
+1. **Update the domain.**
+2. **Subscribe each platform to its own exclude URL** — the export is ready and
+   verified, this is a copy-paste into three listing calendar settings:
+
+       Airbnb → https://<domain>/api/ical/<property>?token=<ICAL_SECRET>&exclude=airbnb
+       Houfy  → https://<domain>/api/ical/<property>?token=<ICAL_SECRET>&exclude=houfy
+       VRBO   → https://<domain>/api/ical/<property>?token=<ICAL_SECRET>&exclude=vrbo
+
+3. **Last-minute availability, as an explicit per-date admin override** — never a
+   feed filter. See below.
+
+### Why last-minute booking is NOT a feed filter
+
+Airbnb labels *everything* it blocks `Airbnb (Not available)` with no description
+and one UID prefix: the advance-notice buffer, preparation-time turnover nights,
+and dates the host held by hand are **indistinguishable in the feed**. Nickel
+Beach carries eleven such blocks and most bracket real stays — they are turnover
+nights, not notice buffers.
+
+Filtering them to expose last-minute dates would publicly offer turnover nights
+and any date deliberately held. There is no positive in-feed marker that says
+*this one is a notice buffer*, so the feature must come from an explicit admin
+action, where the intent is recorded rather than inferred.
+
+### Still open, and genuinely unknown
+
+- **Royal York West has no VRBO feed** in `ical_feeds`. If that suite is listed on
+  VRBO, its bookings are invisible to this site.
+- Whether any platform is currently subscribed to the export is not visible from
+  this side — it lives in each listing's calendar settings.
+
+---
+
 ## On-site checkout was REMOVED, 9 September 2026 — do not revive it
 
 **Booking is Houfy for now.** `/booking/[id]`, `components/booking/` (BookingWidget,
