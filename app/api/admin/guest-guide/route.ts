@@ -44,7 +44,13 @@ export async function PUT(request: NextRequest) {
  *  co-owner would 403 every guest and break the guide. It returns only whether a
  *  PDF exists and its public-bucket URL; the writes above are gated. Listed with
  *  the tier 4 deliberate exceptions rather than left looking like an oversight. */
+/*  Admin-only, and gated like every other method here. It could not be until
+ *  today: the public guest hub fetched its House Guide from this GET, so adding
+ *  the check that obviously belonged would have broken the hub for guests. The
+ *  hub now uses /api/guest/guide, which is public on purpose, and this returns
+ *  to being what its name says. */
 export async function GET(request: NextRequest) {
+  if (!await hasRole('owner', 'co-owner')) return NextResponse.json({ error: 'Not allowed' }, { status: 403 })
   const propertyId = request.nextUrl.searchParams.get('property_id') || ''
   if (!propertyId) return NextResponse.json({ error: 'property_id required' }, { status: 400 })
   const supabase = createAdminClient()

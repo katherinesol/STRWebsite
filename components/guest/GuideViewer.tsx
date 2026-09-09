@@ -12,7 +12,7 @@ export default function GuideViewer({ propertyId }: { propertyId: string }) {
   const pdfRef = useRef<any>(null)
 
   useEffect(() => {
-    fetch(`/api/admin/guest-guide?property_id=${propertyId}`)
+    fetch(`/api/guest/guide?property_id=${propertyId}`)
       .then(r => r.json())
       .then(d => { setExists(d.exists); setPdfUrl(d.url); })
       .catch(() => {})
