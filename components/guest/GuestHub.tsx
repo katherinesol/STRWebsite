@@ -2,7 +2,9 @@
 import { useState, useEffect, useRef } from 'react'
 import GuideViewer from '@/components/guest/GuideViewer'
 
-type HubData = { checkIn: string; checkOut: string; amenities: string[]; houseRules: string[]; faq: { q: string; a: string }[]; highlights: string[]; areaDescription: string; description: string }
+import type { POI } from '@/lib/properties'
+
+type HubData = { checkIn: string; checkOut: string; amenities: string[]; houseRules: string[]; faq: { q: string; a: string }[]; highlights: string[]; areaDescription: string; description: string; pois: POI[]; parkingSpots: number }
 
 /* ── design tokens (Solhaus Guest Hub) ───────────────────────── */
 const C = {
@@ -27,8 +29,14 @@ const C = {
 const MONO = "'IBM Plex Mono', monospace"
 const SANS = 'Jost, Helvetica, sans-serif'
 
-export default function GuestHub({ propertyId, propertyName, data }: { propertyId: string; propertyName: string; data?: HubData }) {
-  const [view, setView] = useState<'home' | 'guide' | 'recs'>('home')
+export default function GuestHub({ propertyId, propertyName, data, houfyUrl, contact }: {
+  propertyId: string
+  propertyName: string
+  data?: HubData
+  houfyUrl?: string
+  contact?: { email?: string; phone?: string }
+}) {
+  const [view, setView] = useState<'home' | 'guide' | 'recs' | 'arrival'>('home')
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', justifyContent: 'center', background: C.page, fontFamily: SANS, color: C.ink, WebkitFontSmoothing: 'antialiased' }}>
@@ -60,6 +68,14 @@ export default function GuestHub({ propertyId, propertyName, data }: { propertyI
             <div style={{ padding: '34px 24px 8px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
               <div style={eyebrow}>During your stay</div>
 
+              <button onClick={() => setView('arrival')} className="gh-card" style={cardStyle}>
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                  <div style={cardTitle}>Arrival &amp; Getting In</div>
+                  <div style={cardSub}>Door code, parking, arriving late</div>
+                </div>
+                <div style={chevron}>›</div>
+              </button>
+
               <button onClick={() => setView('guide')} className="gh-card" style={cardStyle}>
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '3px' }}>
                   <div style={cardTitle}>House Guide</div>
@@ -78,12 +94,41 @@ export default function GuestHub({ propertyId, propertyName, data }: { propertyI
             </div>
 
             <Concierge />
+
+            {/*  BOOKING GOES TO HOUFY. Houfy takes no host commission and charges
+              *  the guest no service fee, so booking here rather than through a
+              *  platform is genuinely better for both sides — which is why this
+              *  says what it does instead of a vague "book direct". A property
+              *  with no listing shows nothing at all rather than a dead card. */}
+            {houfyUrl && (
+              <div style={{ padding: '14px 24px 0' }}>
+                <a href={houfyUrl} target="_blank" rel="noopener noreferrer" className="gh-card"
+                  style={{ ...cardStyle, background: C.sheet, border: `1px solid ${C.lineHover}` }}>
+                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                    <div style={cardTitle}>Book with Solhaus</div>
+                    <div style={cardSub}>No guest service fee, any future stay</div>
+                  </div>
+                  <div style={chevron}>›</div>
+                </a>
+              </div>
+            )}
+
             <DirectBookingCapture propertyId={propertyId} />
+            <ReachUs contact={contact} />
           </>
         )}
 
         {view === 'guide' && <SubPage title="House Guide" onBack={() => setView('home')}><GuideViewer propertyId={propertyId} /></SubPage>}
-        {view === 'recs' && <SubPage title="Local Recommendations" onBack={() => setView('home')}><p style={placeholder}>Local recommendations coming soon — dining, coffee, and things to do nearby.</p></SubPage>}
+        {view === 'recs' && (
+          <SubPage title="Local Recommendations" onBack={() => setView('home')}>
+            <Nearby pois={data?.pois || []} />
+          </SubPage>
+        )}
+        {view === 'arrival' && (
+          <SubPage title="Arrival &amp; Getting In" onBack={() => setView('home')}>
+            <Arrival data={data} />
+          </SubPage>
+        )}
 
         {/* ── footer ── */}
         <div style={{ marginTop: 'auto', background: C.footer, padding: '34px 24px 40px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
@@ -91,6 +136,127 @@ export default function GuestHub({ propertyId, propertyName, data }: { propertyI
           <div style={{ fontFamily: MONO, fontSize: '10px', letterSpacing: '0.24em', textTransform: 'uppercase', color: C.muteFoot, textAlign: 'center' }}>solhaus</div>
         </div>
 
+      </div>
+    </div>
+  )
+}
+
+/*  LOCAL RECOMMENDATIONS, from the real place data.
+ *
+ *  lib/properties.ts has carried six places per property — with genuine walking
+ *  and driving times — since the file was written, while this screen said
+ *  "coming soon". Nothing needed collecting; it needed rendering.
+ *
+ *  Ordered nearest-first by however you would actually get there: a two-minute
+ *  walk to the beach outranks a six-minute drive to the shops, which is the
+ *  order a guest standing in the doorway cares about. */
+const CATEGORY_LABEL: Record<string, string> = {
+  restaurant: 'Eat', cafe: 'Coffee', transit: 'Transit', grocery: 'Groceries',
+  beach: 'Beach', park: 'Outdoors', attraction: 'Worth the trip', pharmacy: 'Pharmacy',
+}
+
+function Nearby({ pois }: { pois: POI[] }) {
+  if (!pois.length) return <p style={placeholder}>We&apos;re still writing this one up.</p>
+
+  const effort = (p: POI) => p.walkMins ?? ((p.driveMins ?? 999) + 100)
+  const sorted = [...pois].sort((a, b) => effort(a) - effort(b))
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column' }}>
+      {sorted.map((p, i) => (
+        <div key={p.id} style={{
+          display: 'flex', alignItems: 'baseline', gap: '14px', padding: '16px 4px',
+          borderBottom: i === sorted.length - 1 ? 'none' : `1px solid ${C.line}`,
+        }}>
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            <div style={{ fontSize: '17px', fontWeight: 400, color: C.ink }}>{p.name}</div>
+            <div style={{ fontFamily: MONO, fontSize: '9.5px', letterSpacing: '0.18em', textTransform: 'uppercase', color: C.mute }}>
+              {CATEGORY_LABEL[p.category] || p.category}
+            </div>
+            {p.note ? <div style={{ fontSize: '14px', fontWeight: 300, color: C.body, lineHeight: 1.5 }}>{p.note}</div> : null}
+          </div>
+          <div style={{ flex: 'none', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '3px' }}>
+            {p.walkMins ? <Badge label="walk" mins={p.walkMins} strong /> : null}
+            {p.driveMins ? <Badge label="drive" mins={p.driveMins} strong={!p.walkMins} /> : null}
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function Badge({ label, mins, strong }: { label: string; mins: number; strong?: boolean }) {
+  return (
+    <div style={{
+      fontFamily: MONO, fontSize: '10px', letterSpacing: '0.06em', whiteSpace: 'nowrap',
+      color: strong ? C.accent : C.mute,
+    }}>{mins} min {label}</div>
+  )
+}
+
+/*  ARRIVAL. The check-in and check-out times are the property's real ones, not
+ *  copy — the same values the lock windows are built from, so this screen and
+ *  the door agree by construction.
+ *
+ *  IT DELIBERATELY DOES NOT SHOW A DOOR CODE. The hub is reachable by anyone who
+ *  knows the URL; codes reach a guest through their own booking. */
+function Arrival({ data }: { data?: HubData }) {
+  const rows: [string, string][] = [
+    ['Check-in', data?.checkIn || '4:00 PM'],
+    ['Check-out', data?.checkOut || '11:00 AM'],
+  ]
+  if (data?.parkingSpots) rows.push(['Parking', `${data.parkingSpots} space${data.parkingSpots > 1 ? 's' : ''} on site`])
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '22px' }}>
+      <div style={{ display: 'flex', flexDirection: 'column' }}>
+        {rows.map(([k, v], i) => (
+          <div key={k} style={{
+            display: 'flex', alignItems: 'baseline', gap: '14px', padding: '14px 4px',
+            borderBottom: i === rows.length - 1 ? 'none' : `1px solid ${C.line}`,
+          }}>
+            <div style={{ fontFamily: MONO, fontSize: '10px', letterSpacing: '0.18em', textTransform: 'uppercase', color: C.mute, width: '78px', flex: 'none' }}>{k}</div>
+            <div style={{ fontSize: '17px', fontWeight: 300, color: C.ink }}>{v}</div>
+          </div>
+        ))}
+      </div>
+      <div style={{ background: C.card, border: `1px solid ${C.line}`, padding: '20px 22px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+        <div style={{ fontSize: '17px', fontWeight: 400, color: C.ink }}>Your door code</div>
+        <div style={{ fontSize: '14.5px', fontWeight: 300, lineHeight: 1.6, color: C.body }} className="gh-pretty">
+          Sent with your booking confirmation, and again the morning you arrive.
+          Arriving late is fine — the code works from check-in time onward. Message
+          us below if you need it resent.
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/*  REACH US. Renders only the channels that have a real address behind them: a
+ *  hub that prints a placeholder phone number is worse than one that prints
+ *  none, because a guest will actually dial it. */
+function ReachUs({ contact }: { contact?: { email?: string; phone?: string } }) {
+  const rows = [
+    contact?.email ? { k: 'Email', v: contact.email, href: `mailto:${contact.email}` } : null,
+    contact?.phone ? { k: 'Text', v: contact.phone, href: `tel:${contact.phone.replace(/[^+\d]/g, '')}` } : null,
+  ].filter(Boolean) as { k: string; v: string; href: string }[]
+  if (!rows.length) return null
+
+  return (
+    <div style={{ padding: '26px 24px 0' }}>
+      <div style={{ borderTop: `1px solid ${C.line}`, paddingTop: '26px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+        <div style={eyebrow}>Reach us</div>
+        <div style={{ display: 'flex', flexDirection: 'column' }}>
+          {rows.map((r, i) => (
+            <div key={r.k} style={{
+              display: 'flex', alignItems: 'baseline', gap: '14px', padding: '13px 4px',
+              borderBottom: i === rows.length - 1 ? 'none' : `1px solid ${C.line}`,
+            }}>
+              <div style={{ fontFamily: MONO, fontSize: '10px', letterSpacing: '0.18em', textTransform: 'uppercase', color: C.mute, width: '62px', flex: 'none' }}>{r.k}</div>
+              <a href={r.href} style={{ fontSize: '16px', fontWeight: 300, color: C.accent, textDecoration: 'none' }}>{r.v}</a>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   )
