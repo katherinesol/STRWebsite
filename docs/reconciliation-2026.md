@@ -11,6 +11,21 @@
   property and per filing period, and report the number so Katherine can remit
   it. That's it.
 
+── WHO REMITS WHICH MAT (re-derived wrong twice; do not re-derive) ──
+
+**Airbnb remits Toronto MAT. Airbnb does NOT remit Port Colborne MAT —
+Katherine remits all Port Colborne MAT on every platform. Do not net Airbnb
+against Port Colborne MAT, ever.**
+
+Consequences:
+
+- **MAT — Port Colborne:** Katherine remits ALL of it, Airbnb included. The
+  mat-return form computing MAT on every Port Colborne booking is CORRECT.
+  There is no double-pay risk here.
+- **MAT — Toronto:** Airbnb DOES remit it. Katherine's true exposure is Houfy
+  only. This is the ONLY double-count risk — if she also paid Toronto MAT off
+  the form, it was paid twice.
+
 ── THE RULES TO APPLY ──
 
 - HST 13% on accommodation + cleaning (Ontario).
