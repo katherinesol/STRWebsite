@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { createAdminClient } from '@/lib/supabase/server'
 
 function parseICal(icalText: string): { start: string; end: string }[] {
   const events: { start: string; end: string }[] = []
@@ -56,25 +57,31 @@ export async function GET(request: NextRequest) {
   const propertyId = searchParams.get('property')
   if (!propertyId) return NextResponse.json({ error: 'Missing property' }, { status: 400 })
 
-  const urlMap: Record<string, string[]> = {
-    'nickel-beach': [
-      process.env.NICKEL_BEACH_AIRBNB_ICAL || '',
-      process.env.NICKEL_BEACH_VRBO_ICAL || '',
-      process.env.NICKEL_BEACH_HOUFY_ICAL || '',
-    ],
-    'royal-york-east': [
-      process.env.ROYAL_YORK_EAST_AIRBNB_ICAL || '',
-      process.env.ROYAL_YORK_EAST_VRBO_ICAL || '',
-      process.env.ROYAL_YORK_EAST_HOUFY_ICAL || '',
-    ],
-    'royal-york-west': [
-      process.env.ROYAL_YORK_WEST_AIRBNB_ICAL || '',
-      process.env.ROYAL_YORK_WEST_VRBO_ICAL || '',
-      process.env.ROYAL_YORK_WEST_HOUFY_ICAL || '',
-    ],
-  }
+  /*  FEEDS COME FROM ical_feeds, NOT FROM ENVIRONMENT VARIABLES.
+   *
+   *  This used to read a hardcoded urlMap of NICKEL_BEACH_* / ROYAL_YORK_*_ICAL
+   *  vars. Only the three NICKEL_BEACH ones were ever set in production, so every
+   *  other property returned an EMPTY calendar — a public availability endpoint
+   *  reporting a fully-open suite that in fact had five confirmed Airbnb stays in
+   *  the next month, the first arriving the following day. The note left below
+   *  already recorded that Royal York West's var "was never set in production";
+   *  the map stayed anyway, so the bug outlived its own documentation.
+   *
+   *  ical_feeds is what lib/ical-sync.ts reads, so availability and the synced
+   *  calendar_blocks now agree by construction instead of by two people
+   *  remembering to update two places. A feed added to the table works
+   *  immediately, with no redeploy and no new secret.
+   *
+   *  The URLs never leave the server: the response carries start/end only, so a
+   *  private calendarexport token cannot reach a public page through here. */
+  const supabase = createAdminClient()
+  const { data: feeds } = await supabase
+    .from('ical_feeds')
+    .select('url')
+    .eq('property_id', propertyId)
+    .eq('active', true)
 
-  const urls = (urlMap[propertyId] || []).filter(Boolean)
+  const urls = (feeds || []).map(f => f.url).filter(Boolean) as string[]
   const results = await Promise.all(urls.map(fetchFeed))
   const blocked = results.flat()
 
