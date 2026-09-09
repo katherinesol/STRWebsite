@@ -8,7 +8,7 @@ import PropertyOverview from '@/components/property/PropertyOverview'
 import PropertyAmenities from '@/components/property/PropertyAmenities'
 import PropertyFAQ from '@/components/property/PropertyFAQ'
 import NeighbourhoodMap from '@/components/property/NeighbourhoodMapWrapper'
-import BookingWidget from '@/components/booking/BookingWidget'
+import BookHoufy from '@/components/property/BookHoufy'
 import StickyBookingCTA from '@/components/property/StickyBookingCTA'
 
 export const revalidate = 300 // refresh photos every 5 min
@@ -27,6 +27,9 @@ export default async function PropertyPage({
   if (!property) notFound()
 
   const supabase = createAdminClient()
+  const { data: pricing } = await supabase
+    .from('property_pricing').select('base_rate').eq('property_id', id).maybeSingle()
+
   const { data: photoRows } = await supabase
     .from('property_photos')
     .select('id, storage_path, media_type, is_cover, tag, sort_order')
@@ -59,11 +62,11 @@ export default async function PropertyPage({
             <NeighbourhoodMap property={property} />
           </div>
           <div id="booking" className="prop-detail-sidebar" style={{ position: 'sticky', top: '80px', scrollMarginTop: '70px' }}>
-            <BookingWidget property={property} />
+            <BookHoufy property={property} nightly={pricing?.base_rate ?? null} />
           </div>
         </div>
       </div>
-      <StickyBookingCTA propertyName={property.name} fromPrice={(property as any).base_rate || null} />
+      <StickyBookingCTA propertyName={property.name} fromPrice={pricing?.base_rate ?? property.nightly} houfyUrl={property.houfyUrl} />
       <Footer />
     </>
   )

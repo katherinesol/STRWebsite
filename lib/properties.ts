@@ -38,6 +38,11 @@ export type Property = {
   icalUrls: { airbnb?: string; vrbo?: string; houfy?: string }
   airbnbUrl?: string
   vrboUrl?: string
+  /** The PUBLIC Houfy listing a guest books on — not the calendarexport token in
+   *  icalUrls, which is a private feed. Booking happens on Houfy: it takes no host
+   *  commission, so the whole rate reaches the property and the guest pays no
+   *  platform service fee. A property with no houfyUrl is NOT BOOKABLE and its
+   *  page says so; it never gets a dead button. */
   houfyUrl?: string
   parkingSpots: number
   earlyCheckinAvailable: boolean
@@ -97,6 +102,7 @@ export const PROPERTIES: Record<string, Property> = {
 
   'royal-york-west': {
     id: 'royal-york-west',
+    houfyUrl: 'https://houfy.com/h/royal-york-west-suite',
     name: 'Royal York West Suite',
     neighbourhood: 'Mimico',
     city: 'Toronto, ON',
@@ -136,6 +142,7 @@ export const PROPERTIES: Record<string, Property> = {
 
   'nickel-beach': {
     id: 'nickel-beach',
+    houfyUrl: 'https://houfy.com/h/nickelbeachretreat',
     name: 'Nickel Beach Retreat',
     neighbourhood: 'Port Colborne',
     city: 'Niagara Region, ON',

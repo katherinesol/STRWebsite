@@ -16,6 +16,45 @@ gaps · **SHELL** the UI exists but nothing behind it · **SPEC** not started.
 
 # PART 1 — ADMIN / HOST
 
+## On-site checkout was REMOVED, 9 September 2026 — do not revive it
+
+**Booking is Houfy for now.** `/booking/[id]`, `components/booking/` (BookingWidget,
+BookingCheckout, its DateRangePicker) and the `POST /api/bookings` handler are
+deleted, not disabled.
+
+**Why deletion rather than a fix.** The route was public and returned 200. Its card
+path rendered a grey box reading *"Stripe payment form loads here"* and the API
+then ran `status: payment_method === 'card' ? 'confirmed' : 'pending_payment'` —
+so anyone POSTing `payment_method: 'card'`, through the page or straight at the
+endpoint, received a **confirmed booking having paid nothing**. Its e-transfer path
+was no better: it printed a hardcoded `[your-email@domain.com]`, so the "working"
+path told guests to send money to a fake address. Orphaning the page would have
+left the endpoint reachable and still writing real rows.
+
+**DO NOT REVIVE THE DELETED BookingCheckout.** It confirmed cards without charging
+them. Read it in git history if the structure is useful, and rebuild properly.
+
+**When on-site checkout returns, it is a fresh build:**
+
+- Stripe **server SDK** → a real PaymentIntent (none of this exists in the codebase today)
+- a **webhook** that confirms only after the charge clears
+- `pending_payment` → `confirmed` **post-charge**, never on request
+- **portal-access expiry** — the old launch blocker 2, still open
+
+Nothing reusable was lost: there was no Stripe integration to keep, only a shell
+that was live and writing to `bookings`.
+
+**Houfy is not a stopgap in economic terms.** It takes **0% host commission** — the
+17% a Nickel Beach guest sees is tax, not a platform fee — so there is no cut
+between guest and property and no guest service fee. Against Airbnb's 15.5% host
+fee it is the better deal for both sides, and it works today.
+
+**Royal York East has no Houfy listing** and no bookings, feeds or photos. Its page
+shows an explicit *not currently available* state with **no book button** rather
+than a dead link, and stays a placeholder until the property is actually operating.
+
+---
+
 ## Silent failures — nothing tells you when these break
 
 | | where | note |
