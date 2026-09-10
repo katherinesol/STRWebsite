@@ -605,6 +605,26 @@ def do_reschedule(st, lk, row, lock_row):
         # stay is in progress. There is a window between the two calls where the
         # door has no code, and a guest standing at it in that window is locked
         # out of a stay they are paying for.
+        #  READ THE LOCK BEFORE BELIEVING THE EXCEPTION.
+        #
+        #  save() sends the window write and THEN creates the notification, and
+        #  Schlage's backend throws "e.body.map is not a function" on the second
+        #  call while the first has already been accepted. Three times on 10
+        #  September this reported a failure for an amend that had landed — and
+        #  once that false report was acted on, sending Katherine to fix by hand
+        #  a window that was already correct.
+        #
+        #  The lock is the witness. Re-read the code and compare the window that
+        #  is actually stored; if it matches what was asked for, the write
+        #  succeeded whatever the exception said. Costs one read on a path that
+        #  has already failed, and only on that path.
+        try:
+            fresh = [a for a in codes_on(lk, refresh=True) if code_of(a) == want]
+            if fresh and same_window(fresh[0], starts, ends):
+                return True, None, want, f"amended — the write landed despite {type(ex).__name__} on the notification"
+        except Exception:
+            pass  # the re-read is a bonus; its failure must not mask the original
+
         if want in st.in_progress_on_device(lock_row["schlage_device_id"]):
             return False, f"amend failed ({ex}) and the guest is on site — refusing delete-and-re-add", None, None
         try:
@@ -661,6 +681,18 @@ def phase_drain(st, devices):
 
         wrote = 0
         for i, r in enumerate(items):
+            #  STARVATION CHECK. One write per device per run paces Royal Side,
+            #  which has a reputation for refusing rapid writes. But a row that
+            #  fails every time keeps taking that single slot, and everything
+            #  behind it waits forever while printing the same reassuring "held
+            #  for the next run". Twelve corrections needed five runs on 10
+            #  September, and would have needed unlimited ones had nobody looked:
+            #  two of Semon's rows failed repeatedly and starved Ryan, Amber and
+            #  Claudine of a turn. attempts is already counted; this just says so.
+            if r.get("attempts", 0) >= 3:
+                print(f"      !! {r['action']} {r.get('code')} has taken this device's write slot "
+                      f"{r['attempts']} times without landing — everything behind it is starved. "
+                      f"Read the lock: it may have succeeded. Clear or fix it before re-running.")
             if COMMIT and wrote >= MAX_WRITES_PER_DEVICE:
                 print(f"      {r['action']:<11} {r.get('code') or '—':<6} "
                       f"held for the next run — one write per device")
@@ -1311,7 +1343,39 @@ def match_code(st, pid, code):
 
 
 # ──────────────────────────────────── main ───────────────────────────────────
+def check_version():
+    """Refuse to run a copy that is behind the repo.
+
+    The password lives in Katherine's Keychain, so the worker is executed from
+    ~/Desktop while it is EDITED in the repo — two files, nothing keeping them in
+    step but a manual cp. On 10 September the timezone fix went into the repo and
+    the Desktop copy still had the old code; running it would have written twelve
+    wrong windows and reported every one as done, and the readback would have
+    been blamed on the false-failure bug rather than on running the wrong file.
+    It was caught by chance, one command before the run.
+
+    Compares this file against the repo copy and stops if they differ. Advisory
+    only if the repo cannot be found — someone running this from a machine
+    without the checkout should not be blocked."""
+    import hashlib, os
+    here = os.path.abspath(__file__)
+    repo = os.path.expanduser("~/Desktop/rental-direct/tools/schlage/schlage-worker.py")
+    if not os.path.exists(repo) or os.path.samefile(here, repo):
+        return
+    h = lambda f: hashlib.sha256(open(f, "rb").read()).hexdigest()
+    if h(here) != h(repo):
+        print("\n  !! THIS COPY IS OUT OF DATE")
+        print(f"     running : {here}")
+        print(f"     repo    : {repo}")
+        print("     They differ. The repo copy is the one that gets fixed, so this one is")
+        print("     almost certainly behind — and a stale worker writes wrong values while")
+        print("     reporting success. Refusing to run.\n")
+        print(f"     cp {repo} {here}\n")
+        raise SystemExit(1)
+
+
 def main():
+    check_version()
     print("THE WORKER — " + ("COMMITTING" if COMMIT else "DRY RUN, nothing will change"))
     st = State()
     print(f"  {len(st.locks)} active lock row(s), {len(st.plat)} platform + {len(st.direct)} direct booking(s) in scope")
