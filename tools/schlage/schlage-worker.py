@@ -154,13 +154,24 @@ def iso(dt):
 
 
 def tor_short(iso_str):
-    """An ISO instant as Toronto wall-clock, which is the only form worth
-    showing a human who is going to walk up to the lock."""
+    """A code window as the lock actually enforces it.
+
+    NO TIMEZONE CONVERSION, and that is the point. These values are code windows
+    — from the queue, or read back off a lock — and the lock enforces their
+    DIGITS as local time. This used to .astimezone(TOR), which subtracted four
+    hours from a number that was already local, so a correct 4pm check-in printed
+    as "12:00pm" and a correct 11am checkout as "7:00am". The data was right and
+    the output said otherwise, which is the worst way round: it made a fixed
+    window look broken and would have sent someone to "correct" it back.
+
+    Door-log event times go through tor_str instead. They come from Schlage's
+    event feed rather than from a code window, and are NOT known to share this
+    convention — so they are deliberately left alone rather than assumed."""
     if not iso_str:
         return "?"
     try:
-        return datetime.fromisoformat(str(iso_str).replace("Z", "+00:00")) \
-            .astimezone(TOR).strftime("%b %-d %-I:%M%p").replace("AM", "am").replace("PM", "pm")
+        dt = datetime.fromisoformat(str(iso_str).replace("Z", "+00:00"))
+        return dt.strftime("%b %-d %-I:%M%p").replace("AM", "am").replace("PM", "pm")
     except Exception:
         return str(iso_str)
 
@@ -335,8 +346,15 @@ def window_for_platform(b):
 
 
 def win(date_str, time_str, checkout):
-    """4pm in / 11am out, Toronto, unless overridden. ZoneInfo rather than a
-    fixed offset: a hardcoded -04:00 is EDT and expires on 2026-11-01."""
+    """4pm in / 11am out, unless overridden.
+
+    THE LOCK ENFORCES THE DIGITS, NOT THE INSTANT. This used to end in
+    .astimezone(timezone.utc), turning 4pm Toronto into 20:00Z on the assumption
+    that activationSecs is an epoch. It is not: the lock renders those seconds in
+    UTC and enforces the wall clock as LOCAL, so every code opened four hours
+    late and expired four hours late. Semon Mbrahtu proved it at the door, and
+    Airbnb — which writes these same locks — has always sent 16:00 for a 4pm
+    check-in. The hour asked for is the hour sent."""
     h, m = (11, 0) if checkout else (16, 0)
     if time_str:
         mm = re.match(r"(\d{1,2}):(\d{2})\s*(AM|PM)?", str(time_str), re.I)
@@ -345,7 +363,7 @@ def win(date_str, time_str, checkout):
             ap = (mm.group(3) or "").upper()
             if ap == "PM" and h != 12: h += 12
             if ap == "AM" and h == 12: h = 0
-    return datetime(*map(int, date_str.split("-")), h, m, tzinfo=TOR).astimezone(timezone.utc)
+    return datetime(*map(int, date_str.split("-")), h, m, tzinfo=timezone.utc)
 
 
 # ────────────────────────────── phase 1: mirror ──────────────────────────────

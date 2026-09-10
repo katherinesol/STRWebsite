@@ -215,14 +215,26 @@ export function windowFromBooking(dateStr: string, timeStr: string | null, isChe
   const jan = new Date(testDate.getFullYear(), 0, 1).getTimezoneOffset()
   const jul = new Date(testDate.getFullYear(), 6, 1).getTimezoneOffset()
   // Use Intl to get the actual Eastern offset for this date, robust to DST
-  const easternOffsetHours = (() => {
-    const fmt = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Toronto', timeZoneName: 'shortOffset' })
-    const part = fmt.formatToParts(new Date(dateStr + 'T12:00:00Z')).find(p => p.type === 'timeZoneName')
-    const m = part?.value.match(/GMT([+-]\d+)/)
-    return m ? parseInt(m[1]) : -4
-  })()
-  // local Eastern hour:min → UTC by subtracting the offset
-  const utcHour = hour - easternOffsetHours
+  /* *  THE LOCK ENFORCES THE DIGITS, NOT THE INSTANT.
+ *
+ *  This used to convert Toronto local to a true UTC instant — 4pm Toronto became
+ *  20:00Z — on the reasonable assumption that Schlage's activationSecs is an
+ *  epoch. It is not. The lock reads those seconds, renders them in UTC, and
+ *  enforces the resulting WALL CLOCK as local time. So 20:00Z opened the door at
+ *  8pm local, four hours after check-in, on every code this system has ever
+ *  written.
+ *
+ *  A guest proved it at the door: Semon Mbrahtu could not get in at 2:15pm with
+ *  18:15Z on his code, and could once it was hand-set to 14:15.
+ *
+ *  Airbnb has always known. It manages Apt 2 and the Port Colborne guest codes,
+ *  and it writes 16:00 for a 4pm check-in and 11:30 for checkout — digits, not
+ *  instants. Its codes work; ours were four hours late at both ends, which also
+ *  left every guest access until 3pm on their checkout day.
+ *
+ *  So: build the time with NO offset. The hour asked for is the hour sent.
+   */
+  const utcHour = hour
   const d = new Date(Date.UTC(
     parseInt(dateStr.slice(0, 4)),
     parseInt(dateStr.slice(5, 7)) - 1,
