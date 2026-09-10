@@ -2,6 +2,8 @@
 import { useState, useEffect } from 'react'
 import ParkingControl from '@/components/admin/ParkingControl'
 import TripPurposeField from '@/components/admin/TripPurposeField'
+import TaxToggleField from '@/components/admin/TaxToggleField'
+import { resolveApplyTax } from '@/lib/booking-tax'
 import { useRouter } from 'next/navigation'
 import { addDays, format } from 'date-fns'
 
@@ -64,6 +66,8 @@ export default function BookingEditForm({ booking }: { booking: any }) {
   const [bagDrop, setBagDrop] = useState(booking.bag_drop || 'none')
   const [instacart, setInstacart] = useState(booking.instacart_requested || false)
   const [vehicleCount, setVehicleCount] = useState(booking.vehicle_count || 0)
+  const [applyTax, setApplyTax] = useState<boolean>(resolveApplyTax(booking.apply_tax, 'direct'))
+  const [taxToggleNote, setTaxToggleNote] = useState(booking.tax_toggle_note || '')
   const [tripPurpose, setTripPurpose] = useState(booking.trip_purpose || '')
   const [tripPurposeNote, setTripPurposeNote] = useState(booking.trip_purpose_note || '')
   const [status, setStatus] = useState(booking.status || 'confirmed')
@@ -118,6 +122,8 @@ export default function BookingEditForm({ booking }: { booking: any }) {
           bag_drop: bagDrop,
           instacart_requested: instacart,
           vehicle_count: vehicleCount,
+          apply_tax: applyTax,
+          tax_toggle_note: taxToggleNote.trim() || null,
           trip_purpose: tripPurpose || null,
           trip_purpose_note: tripPurpose === 'Other' && tripPurposeNote.trim() ? tripPurposeNote.trim() : null,
           status,
@@ -210,6 +216,7 @@ export default function BookingEditForm({ booking }: { booking: any }) {
       ))}
       {field('Instacart', <Toggle value={instacart} onChange={setInstacart} />)}
       {field('Vehicles', <input type="number" value={vehicleCount} onChange={e => setVehicleCount(parseInt(e.target.value)||0)} min={0} style={{ ...inputStyle, maxWidth: '80px' }} />)}
+      {field('Apply tax', <TaxToggleField applyTax={applyTax} note={taxToggleNote} source="direct" onToggle={setApplyTax} onNoteChange={setTaxToggleNote} />)}
       {field('Purpose of trip', <TripPurposeField purpose={tripPurpose} note={tripPurposeNote} onPurposeChange={setTripPurpose} onNoteChange={setTripPurposeNote} />)}
       <ParkingControl bookingId={booking.id} bookingKind="direct" propertyId={booking.property_id} guestName={booking.guest_info?.name || booking.guest?.name} startDate={checkIn} endDate={checkOut} />
 

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { hasRole } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/server'
 import { matExempt, MAT_MAX_TAXABLE_NIGHTS } from '@/lib/tax-rates'
+import { resolveApplyTax } from '@/lib/booking-tax'
 
 const DAY = 86400000
 const QUARTERS: Record<string, [number, number]> = { Q1: [0, 2], Q2: [3, 5], Q3: [6, 8], Q4: [9, 11] }
@@ -31,7 +32,7 @@ export async function GET(request: NextRequest) {
   const supabase = createAdminClient()
   const { data: blocks } = await supabase
     .from('calendar_blocks')
-    .select('id, guest_name, platform, start_date, end_date, accommodation, discount, mat, taxes_collected, confirmation_code')
+    .select('id, guest_name, platform, start_date, end_date, accommodation, discount, mat, taxes_collected, confirmation_code, apply_tax')
     .eq('property_id', property)
     .eq('is_booking', true)
     .in('platform', platforms)
@@ -55,12 +56,23 @@ export async function GET(request: NextRequest) {
   for (const b of blocks || []) {
     const total = nights(b.start_date, b.end_date)
     if (total <= 0) continue
+    // apply_tax is the MASTER switch: false means "not taxable income at all"
+    // (e.g. a reimbursement) and supersedes every finer MAT rule below, so the
+    // two can never disagree. Only when tax applies do the MAT-specific
+    // exemptions (28-night rule, stay-group mat_treatment) come into play.
+    //  Resolved through resolveApplyTax, NOT `!== false`, so this and the
+    //  new-shell report at /api/admin/mat-return cannot drift. The two differ
+    //  only when apply_tax is null on a row whose platform is not airbnb, vrbo
+    //  or houfy: `!== false` calls that taxable, resolveApplyTax calls it exempt.
+    //  No row in the database hits that case today, so they agree by luck rather
+    //  than by construction — which is not a property worth relying on in a tax
+    //  return. One helper, one answer.
+    const taxable = resolveApplyTax(b.apply_tax, 'platform', b.platform)
     const linkExempt = linkedMatExempt.has(b.id)
-    // MAT applies to continuous stays of 30 days or less, so exemption starts at
-    // 31 days (30 nights) — the previous 28 exempted taxable stays and
-    // under-remitted. Shared with lib/tax-rates.ts so there is one threshold.
+    // MAT applies to continuous stays of 30 days or less; exemption starts at
+    // 31 days (30 nights). Shared with lib/tax-rates.ts so there is one threshold.
     const tooLong = matExempt(property, total)
-    const exempt = tooLong || linkExempt
+    const exempt = !taxable || tooLong || linkExempt
     const nightly = ((Number(b.accommodation) || 0) - (Number(b.discount) || 0)) / total
 
     let bookingNights = 0, bookingRevenue = 0, bookingMat = 0
@@ -93,7 +105,7 @@ export async function GET(request: NextRequest) {
         mat_due: exempt ? 0 : Math.round(bookingMat * 100) / 100,
         mat_recorded: Number(b.mat) || 0,
         exempt,
-        exempt_reason: tooLong ? `over ${MAT_MAX_TAXABLE_NIGHTS} nights` : (linkExempt ? 'linked stay (MAT-exempt)' : null),
+        exempt_reason: !taxable ? 'tax not applied (apply_tax off)' : (tooLong ? `over ${MAT_MAX_TAXABLE_NIGHTS} nights` : (linkExempt ? 'linked stay (MAT-exempt)' : null)),
         missing_accommodation: !b.accommodation,
       })
     }

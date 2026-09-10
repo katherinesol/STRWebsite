@@ -1,6 +1,8 @@
 'use client'
 import { useState } from 'react'
 import TripPurposeField from '@/components/admin/TripPurposeField'
+import TaxToggleField from '@/components/admin/TaxToggleField'
+import { resolveApplyTax } from '@/lib/booking-tax'
 import { useRouter } from 'next/navigation'
 import WaterUsageCard from '@/components/admin/WaterUsageCard'
 
@@ -107,6 +109,8 @@ export default function PlatformBookingForm({ block }: { block: any }) {
   const [form, setForm] = useState({
     guest_name: block.guest_name || '',
     guest_notes: block.guest_notes || '',
+    apply_tax: resolveApplyTax(block.apply_tax, 'platform', block.platform),
+    tax_toggle_note: block.tax_toggle_note || '',
     trip_purpose: block.trip_purpose || '',
     trip_purpose_note: block.trip_purpose_note || '',
     notes: block.notes || '',
@@ -156,6 +160,7 @@ export default function PlatformBookingForm({ block }: { block: any }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...form,
+          tax_toggle_note: String(form.tax_toggle_note || '').trim() || null,
           trip_purpose: form.trip_purpose || null,
           trip_purpose_note: form.trip_purpose === 'Other' && form.trip_purpose_note.trim() ? form.trip_purpose_note.trim() : null,
           guest_email: guestEmail,
@@ -221,6 +226,16 @@ export default function PlatformBookingForm({ block }: { block: any }) {
         </Field>
         <Field label="Phone">
           <input type="tel" value={guestPhone} onChange={e => setGuestPhone(e.target.value.replace(/[^\d+\-\s()]/g, ''))} placeholder="+1 416 000 0000" style={inputStyle} />
+        </Field>
+        <Field label="Apply tax">
+          <TaxToggleField
+            applyTax={form.apply_tax}
+            note={form.tax_toggle_note}
+            source="platform"
+            platform={block.platform}
+            onToggle={v => set('apply_tax', v)}
+            onNoteChange={v => set('tax_toggle_note', v)}
+          />
         </Field>
         <Field label="Purpose of trip">
           <TripPurposeField
