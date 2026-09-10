@@ -1,119 +1,15 @@
-import { createAdminClient } from '@/lib/supabase/server'
-export const dynamic = 'force-dynamic'
-import { format } from 'date-fns'
-import Link from 'next/link'
+import { redirect } from 'next/navigation'
 
-export default async function GuestsPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ q?: string }>
-}) {
-  const { q } = await searchParams
-  const supabase = createAdminClient()
-
-  let query = supabase
-    .from('guests')
-    .select('*, bookings(id, property_id, check_in, status), calendar_blocks!calendar_blocks_guest_id_fkey(id, is_booking, start_date)')
-    .order('created_at', { ascending: false })
-
-  if (q) {
-    query = query.or(`name.ilike.%${q}%,email.ilike.%${q}%`)
-  }
-
-  const { data: guests } = await query
-
-  return (
-    <div>
-      <div style={{ marginBottom: '28px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
-        <div>
-          <div style={{ fontSize: '10px', fontWeight: 500, letterSpacing: '.16em', textTransform: 'uppercase', color: '#9A9A92', marginBottom: '6px' }}>Management</div>
-          <h1 style={{ fontFamily: 'var(--serif)', fontSize: '32px', fontWeight: 300, color: '#F5F2EC', lineHeight: 1 }}>Guests.</h1>
-        </div>
-        <Link href="/admin/guests/new" style={{ padding: '10px 20px', background: 'var(--amber)', color: '#1A1A18', fontSize: '11px', letterSpacing: '.1em', textTransform: 'uppercase', textDecoration: 'none', fontWeight: 500 }}>
-          + Add guest
-        </Link>
-      </div>
-
-      {/* search */}
-      <form method="GET" style={{ marginBottom: '20px' }}>
-        <input
-          name="q"
-          defaultValue={q}
-          placeholder="Search by name or email..."
-          style={{
-            width: '100%', maxWidth: '400px', padding: '10px 14px',
-            background: '#363634', border: '0.5px solid #4A4A48',
-            color: '#F5F2EC', fontFamily: 'var(--sans)', fontSize: '13px',
-            outline: 'none', borderRadius: '2px', boxSizing: 'border-box',
-          }}
-        />
-      </form>
-
-      {/* table */}
-      <div style={{ background: '#242422', border: '0.5px solid #363634' }}>
-        <div className="row-head" style={{
-          display: 'grid', gridTemplateColumns: '1fr 180px 100px 80px 80px',
-          padding: '10px 20px', borderBottom: '0.5px solid #363634',
-          fontSize: '9px', fontWeight: 500, letterSpacing: '.14em',
-          textTransform: 'uppercase', color: '#666660',
-        }}>
-          <span>Guest</span>
-          <span>Last stay</span>
-          <span>Bookings</span>
-          <span>Flags</span>
-          <span></span>
-        </div>
-
-        {!guests?.length ? (
-          <div style={{ padding: '40px 20px', textAlign: 'center', fontSize: '13px', color: '#666660' }}>
-            No guests found
-          </div>
-        ) : guests.map(g => {
-          const bookings = (g.bookings as any[]) || []
-          const platformStays = ((g.calendar_blocks as any[]) || []).filter((b: any) => b.is_booking === true)
-          const totalStays = bookings.length + platformStays.length
-          const allStayDates = [
-            ...bookings.map((b: any) => b.check_in),
-            ...platformStays.map((b: any) => b.start_date),
-          ].filter(Boolean).sort().reverse()
-          const lastStayDate = allStayDates[0]
-          return (
-            <div key={g.id} className="row-grid" style={{
-              display: 'grid', gridTemplateColumns: '1fr 180px 100px 80px 80px',
-              padding: '14px 20px', borderBottom: '0.5px solid #363634',
-              alignItems: 'center',
-            }}>
-              <div>
-                <div style={{ fontSize: '13px', color: '#F5F2EC', fontWeight: 500 }}>{g.name}</div>
-                <div style={{ fontSize: '11px', color: '#9A9A92', marginTop: '2px' }}>{g.email}</div>
-              </div>
-              <div style={{ fontSize: '12px', color: '#AEAEA6' }}>
-                {lastStayDate ? format(new Date(lastStayDate + 'T12:00:00'), 'MMM d, yyyy') : '—'}
-              </div>
-              <div style={{ fontSize: '13px', color: '#AEAEA6' }}>{totalStays}</div>
-              <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
-                {g.returning_guest && (
-                  <span style={{ fontSize: '9px', padding: '2px 6px', background: '#0a1520', color: '#3498db', letterSpacing: '.08em', textTransform: 'uppercase' }}>Return</span>
-                )}
-                {g.locked_rate_enabled && (
-                  <span style={{ fontSize: '9px', padding: '2px 6px', background: '#2a1f0a', color: '#f39c12', letterSpacing: '.08em', textTransform: 'uppercase' }}>Locked rate</span>
-                )}
-                {g.id_verified && (
-                  <span style={{ fontSize: '9px', padding: '2px 6px', background: '#0a1f0f', color: '#2ecc71', letterSpacing: '.08em', textTransform: 'uppercase' }}>Verified</span>
-                )}
-              </div>
-              <div style={{ textAlign: 'right' }}>
-                <Link href={`/admin/guests/${g.id}`} style={{ fontSize: '11px', color: 'var(--amber)', textDecoration: 'none', letterSpacing: '.06em' }}>
-                  View →
-                </Link>
-              </div>
-            </div>
-          )
-        })}
-      </div>
-      <div style={{ fontSize: '12px', color: '#666660', marginTop: '12px' }}>
-        {guests?.length || 0} guest{guests?.length !== 1 ? 's' : ''}
-      </div>
-    </div>
-  )
+/*  Migrated to /keyholder/people.
+ *
+ *  Redirected rather than deleted: the new-shell equivalent does everything this
+ *  page did, so nothing is lost, and a redirect keeps every bookmark, old link
+ *  and browser-history entry working. Deleting would 404 them for no gain.
+ *
+ *  This is one of the ten pages with a proven equivalent. The other 28 /admin
+ *  pages are NOT redirected — most are still the only place to do what they do,
+ *  and hiding them would make a capability undiscoverable rather than migrated.
+ *  See the retirement report in docs/design/BACKLOG.md. */
+export default function LegacyRedirect() {
+  redirect('/keyholder/people')
 }

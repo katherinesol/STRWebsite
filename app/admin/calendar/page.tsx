@@ -1,29 +1,15 @@
-import { createAdminClient } from '@/lib/supabase/server'
-import MobileAgenda from '@/components/admin/MobileAgenda'
-import CalendarView from '@/components/admin/CalendarView'
+import { redirect } from 'next/navigation'
 
-export default async function CalendarPage() {
-  // Read only. iCal syncing runs from the daily cron and the explicit Sync-now
-  // button — never from a page view. See lib/ical-sync.ts.
-  const supabase = createAdminClient()
-  const [{ data: bookings }, { data: blocks }] = await Promise.all([
-    supabase
-      .from('bookings')
-      .select('id, property_id, check_in, check_out, guest_info:guests(name), status, early_checkin, early_checkin_time, early_checkin_granted, late_checkout, late_checkout_time, late_checkout_granted')
-      .in('status', ['confirmed', 'active', 'pending_payment'])
-      .order('check_in'),
-    supabase
-      .from('calendar_blocks')
-      .select('*')
-      .order('start_date'),
-  ])
-
-  return (
-    <>
-      <div className="cal-desktop">
-        <CalendarView bookings={bookings || []} blocks={blocks || []} />
-      </div>
-      <MobileAgenda bookings={bookings || []} blocks={blocks || []} />
-    </>
-  )
+/*  Migrated to /keyholder/stays/calendar.
+ *
+ *  Redirected rather than deleted: the new-shell equivalent does everything this
+ *  page did, so nothing is lost, and a redirect keeps every bookmark, old link
+ *  and browser-history entry working. Deleting would 404 them for no gain.
+ *
+ *  This is one of the ten pages with a proven equivalent. The other 28 /admin
+ *  pages are NOT redirected — most are still the only place to do what they do,
+ *  and hiding them would make a capability undiscoverable rather than migrated.
+ *  See the retirement report in docs/design/BACKLOG.md. */
+export default function LegacyRedirect() {
+  redirect('/keyholder/stays/calendar')
 }

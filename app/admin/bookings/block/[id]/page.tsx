@@ -1,55 +1,16 @@
-import { createAdminClient } from '@/lib/supabase/server'
-import { notFound } from 'next/navigation'
-import BookingSupportCard from '@/components/admin/BookingSupportCard'
-import { format } from 'date-fns'
-import Link from 'next/link'
-import PlatformBookingForm from '@/components/admin/PlatformBookingForm'
-import GiftCard from '@/components/admin/GiftCard'
-import WindLogCard from '@/components/admin/WindLogCard'
+import { redirect } from 'next/navigation'
 
-const PROPERTY_NAMES: Record<string, string> = {
-  'royal-york-east': 'Royal York East Suite',
-  'royal-york-west': 'Royal York West Suite',
-  'nickel-beach':    'Nickel Beach Retreat',
-}
-
-export default async function PlatformBookingPage({ params }: { params: Promise<{ id: string }> }) {
+/*  Migrated to /keyholder/stays/block/[id].
+ *
+ *  Redirected rather than deleted: the new-shell equivalent does everything this
+ *  page did, so nothing is lost, and a redirect keeps every bookmark, old link
+ *  and browser-history entry working. Deleting would 404 them for no gain.
+ *
+ *  This is one of the ten pages with a proven equivalent. The other 28 /admin
+ *  pages are NOT redirected — most are still the only place to do what they do,
+ *  and hiding them would make a capability undiscoverable rather than migrated.
+ *  See the retirement report in docs/design/BACKLOG.md. */
+export default async function LegacyRedirect({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const supabase = createAdminClient()
-
-  const { data: block } = await supabase
-    .from('calendar_blocks')
-    .select('*')
-    .eq('id', id)
-    .single()
-
-  if (!block) notFound()
-
-  return (
-    <div>
-      <div style={{ marginBottom: '24px' }}>
-        <Link href="/admin/bookings?tab=platform" style={{ fontSize: '11px', color: '#9A9A92', textDecoration: 'none', letterSpacing: '.06em' }}>← Platform bookings</Link>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: '12px' }}>
-          <div>
-            <div style={{ fontSize: '10px', fontWeight: 500, letterSpacing: '.14em', textTransform: 'uppercase', color: 'var(--amber)', marginBottom: '4px' }}>
-              {block.platform?.toUpperCase()} · {PROPERTY_NAMES[block.property_id]}
-            </div>
-            <h1 style={{ fontFamily: 'var(--serif)', fontSize: '28px', fontWeight: 300, color: '#F5F2EC', lineHeight: 1 }}>
-              {block.guest_name || 'Platform booking'}
-              {block.checked_in_at && <span style={{ marginLeft: '12px', fontSize: '11px', padding: '3px 9px', borderRadius: '4px', background: '#1f2a1a', color: '#7bc47b', verticalAlign: 'middle' }}>✓ checked in {new Date(block.checked_in_at).toLocaleString('en-US', { timeZone: 'America/Toronto', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</span>}
-            </h1>
-            <div style={{ fontSize: '12px', color: '#9A9A92', marginTop: '4px' }}>
-              {format(new Date(block.start_date), 'MMMM d')} → {format(new Date(block.end_date), 'MMMM d, yyyy')}
-            </div>
-          </div>
-        </div>
-      </div>
-      <PlatformBookingForm block={block} />
-      <div style={{ maxWidth: '520px', marginTop: '16px' }}>
-        <WindLogCard propertyId={block.property_id} checkIn={block.start_date} checkOut={block.end_date} bookingId={block.id} bookingKind="platform" />
-        <GiftCard bookingId={block.id} bookingKind="platform" />
-        <BookingSupportCard bookingId={block.id} source="platform" initialCode={block.confirmation_code} siteUrl={process.env.NEXT_PUBLIC_SITE_URL || 'https://rental-direct-five.vercel.app'} />
-      </div>
-    </div>
-  )
+  redirect(`/keyholder/stays/block/${id}`)
 }
