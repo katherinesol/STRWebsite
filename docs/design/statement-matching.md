@@ -1,5 +1,14 @@
 # Statement matching — rung 1
 
+> **THIS IS THE PLAID FEATURE. One item, not two.**
+>
+> Statement-matching and "connect the bank via Plaid" are the same feature with
+> different inputs: a CSV upload versus a live feed. Everything below about
+> matching, proposing and confirming applies unchanged. Plaid replaces the upload
+> step and adds Statements; it does not change what a match is or who confirms it.
+> Scoped in `docs/design/BACKLOG.md` under *Plaid*. Do not build both.
+
+
 **Design only. Nothing built. Builds after stage 3 and after Jan–May is entered.**
 
 Upload a bank statement for one account over one period, match its lines against

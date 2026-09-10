@@ -39,6 +39,25 @@ export async function GET() {
     const d = (direct || []).filter(b => b.property_id === pid)
     const cb = (blocks || []).filter(b => b.property_id === pid)
     const bookings = cb.filter(b => b.is_booking === true)
+    /*  CAREFUL IF YOU WIDEN THIS. An unenriched reservation — a row synced from a
+     *  platform feed carrying an ical_uid but no figures yet — belongs to NEITHER
+     *  set: it fails `bookings` because is_booking is false, and it fails this one
+     *  because it has no owner reason and no block_for. That is why its nights and
+     *  its null revenue stay out of ADR and RevPAR, which is correct: a stay with
+     *  no figures is uncosted, not zero-revenue, and counting Number(null) || 0
+     *  against real nights would drag the average down with money that was simply
+     *  never entered.
+     *
+     *  But it holds by a narrow condition rather than by design. Loosen this
+     *  predicate — say to `b.is_booking !== true` alone, which reads like a
+     *  simplification — and every unenriched reservation becomes off-market,
+     *  inflating days_blocked and shrinking days_available. Five such rows exist
+     *  today (three 2025 VRBO stays deliberately left unenriched, two Airbnb
+     *  shells), so the damage would be small and completely silent.
+     *
+     *  Occupancy is very slightly UNDERSTATED as a result, because those nights
+     *  count as available rather than booked. That is the right trade against
+     *  inventing revenue. */
     const offMarket = cb.filter(b => b.is_booking !== true && (b.reason === 'owner' || b.block_for))
 
     let nights = 0, revenue = 0

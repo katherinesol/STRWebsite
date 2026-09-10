@@ -16,6 +16,74 @@ gaps · **SHELL** the UI exists but nothing behind it · **SPEC** not started.
 
 # PART 1 — ADMIN / HOST
 
+## Plaid — the live-feed version of statement matching
+
+**Design only. Not built. Katherine decides now vs. later.**
+
+**This is the same item as `docs/design/statement-matching.md`, not a second one.**
+Plaid replaces the CSV upload with a bank connection and adds Statements. What a
+match is, and who confirms it, are unchanged.
+
+### What it replaces
+
+The manual *"did this payment actually land?"* check. Plaid Transactions reads the
+real bank; match against `payments`. Two directions, and the second is the one
+nobody remembers to ask:
+
+- **bank transaction with no payment row** → income never recorded, the RS-1002
+  class, generalised into a question the system asks by itself
+- **payment row with no bank transaction** → money believed landed that did not
+
+Statements closes the third: *did I record everything for the period.*
+
+### The plan, and its trap
+
+Free **Trial plan**: 10 Items, Transactions + Balance + Statements,
+auto-approved, no contract. A handful of bank accounts fits comfortably.
+
+**REMOVING AN ITEM DOES NOT FREE THE SLOT.** Every token ever issued counts
+against the cap of 10. A token lost and reconnected **burns two of ten**. So
+`access_token` must be persisted transactionally on first receipt, before anything
+else can fail — never written after a redirect that might not complete. That one
+detail is the difference between comfortable and locked out of your own plan.
+
+### The build
+
+1. **Plaid Link + OAuth**, redirect back, token stored immediately. ~1 day.
+2. **Transactions sync + storage**, incremental cursor. ~1 day.
+3. **Matching engine + confirm UI** — amount, date window, direction.
+   **~1.5–2 days.** The largest piece and the one that most rewards care: a
+   proposal list that is tedious to confirm will not be used, and an unused feed
+   is decoration.
+4. **Re-auth + Statements.** Banks expire consent; `ITEM_LOGIN_REQUIRED` must
+   surface as *"reconnect your bank"* or the feed silently goes stale — and
+   stale-clean looks exactly like genuinely-clean. ~1 day.
+
+**Roughly 3–5 focused days.** Not a weekend.
+
+### NON-NEGOTIABLE: matching proposes, never writes
+
+A match is a **suggestion Katherine confirms**. Nothing auto-created, nothing
+auto-deleted, ever. This is the same attribute-matching that once deleted a
+sibling's expense — the discipline is identical to the receipt and refund work,
+and it is not a preference.
+
+### Where it lives
+
+**Extends the Accounts surface.** A `bank_confirmed` / `reconciled_at` marker on
+`payments` — the "is this verified against the bank" signal Accounts has no way to
+express today — plus a needs-review queue and a reconnect banner. Not a new
+section.
+
+### Recommendation
+
+**After the current threads.** Nothing about it is urgent; no money is at risk
+today. It is the largest single build left. The house-guide PDFs for Nickel Beach
+and Royal York West are a smaller job with more immediate effect on guests being
+sent to Houfy right now.
+
+---
+
 ## LAUNCH SEQUENCE — and what is *not* urgent
 
 **Nobody books through this site yet.** That single fact reprioritises several
