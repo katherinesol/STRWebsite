@@ -8,6 +8,7 @@ import { torontoParts, torontoPlus } from '@/lib/keyholder/today-date'
 import TorontoClock from '@/components/keyholder/TorontoClock'
 import { formatTripPurpose, tripPurposeIcon, GIFT_ICON } from '@/lib/trip-purposes'
 import { L, F, microLabel, cardStyle, money, platformColour } from '@/lib/design-tokens'
+import AddressRequestRow from '@/components/keyholder/AddressRequestRow'
 
 export const dynamic = 'force-dynamic'
 
@@ -122,6 +123,31 @@ export default async function Today() {
      locks, because a page view must never touch a device. */
   const noCode = P.filter(b => b.start_date >= todayStr && b.start_date <= soonStr && !String(b.door_code || '').trim())
 
+  /*  Guests who have asked for the address and are still waiting on a decision.
+   *  Only 'requested' — once decided it leaves the list, and the 24h gate takes
+   *  over on its own either way. Joined to both booking tables because a request
+   *  can belong to either. */
+  const { data: openAddrReqs } = await supabase
+    .from('address_requests').select('booking_id, booking_kind, requested_at')
+    .eq('status', 'requested')
+
+  const addrRows = (openAddrReqs || []).map(r => {
+    const b: any = r.booking_kind === 'direct'
+      ? D.find((x: any) => x.id === r.booking_id)
+      : P.find((x: any) => x.id === r.booking_id)
+    if (!b) return null
+    const start = b.check_in || b.start_date
+    const days = Math.max(0, Math.round((new Date(start + 'T00:00:00Z').getTime() - new Date(todayStr + 'T00:00:00Z').getTime()) / 86400000))
+    return {
+      booking_id: r.booking_id,
+      booking_kind: r.booking_kind as 'platform' | 'direct',
+      guest: (b.guest_name || guestName(b) || 'A guest') as string,
+      property: PROPERTY_NAMES[b.property_id] || b.property_id,
+      checkIn: short(start),
+      daysAway: days,
+    }
+  }).filter(Boolean) as any[]
+
   const needs = [
     ...noTotal.map(b => ({ key: 't' + b.id, tone: L.red, text: `${guestName(b)}'s booking has no total on it, so nobody can tell whether they have paid.`, meta: `${PROPERTY_NAMES[b.property_id]} · ${short(b.check_in)} – ${short(b.check_out)}`, href: `/keyholder/stays/booking/${b.id}`, cta: 'Add the figures' })),
     ...noCode.map(b => ({ key: 'k' + b.id, tone: L.red, text: `${b.guest_name || 'A guest'} arrives ${short(b.start_date)} at ${PROPERTY_NAMES[b.property_id]} and no door code is set.`, meta: 'They would be standing outside', href: `/keyholder/stays/block/${b.id}`, cta: 'Set code' })),
@@ -186,10 +212,13 @@ export default async function Today() {
       <div style={section}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px' }}>
           <span style={{ fontSize: '15px', fontWeight: 600 }}>Needs you</span>
-          <span style={{ fontSize: '14px', color: L.inkFaint }}>{needs.length || 'nothing'}</span>
+          <span style={{ fontSize: '14px', color: L.inkFaint }}>{(needs.length + addrRows.length) || 'nothing'}</span>
         </div>
         <div style={{ ...cardStyle, overflow: 'hidden' }}>
-          {needs.length === 0 ? (
+          {addrRows.map((r, i) => (
+            <AddressRequestRow key={`ar-${r.booking_kind}-${r.booking_id}`} req={r} first={i === 0} />
+          ))}
+          {needs.length === 0 && addrRows.length === 0 ? (
             <div style={{ padding: '28px 22px', display: 'flex', flexDirection: 'column', gap: '5px' }}>
               <span style={{ fontFamily: F.serif, fontSize: '23px' }}>Nothing needs you.</span>
               <span style={{ fontSize: '14px', color: L.inkBody }}>Every arrival has a code and nobody owes you money.</span>
@@ -197,7 +226,7 @@ export default async function Today() {
           ) : needs.map((n, i) => (
             <Link key={n.key} href={n.href} style={{
               display: 'flex', alignItems: 'center', gap: '16px', padding: '17px 22px', textDecoration: 'none', color: L.ink,
-              borderTop: i ? `1px solid ${L.lineFaint}` : 'none',
+              borderTop: (i || addrRows.length) ? `1px solid ${L.lineFaint}` : 'none',
             }}>
               <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: n.tone, flex: 'none' }} />
               <span style={{ fontSize: '15px' }}>{n.text}</span>
