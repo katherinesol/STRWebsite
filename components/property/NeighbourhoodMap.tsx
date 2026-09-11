@@ -57,8 +57,32 @@ const circleLayer: CircleLayer = {
 export default function NeighbourhoodMap({ property }: { property: Property }) {
   const [selectedPOI, setSelectedPOI] = useState<POI | null>(null)
   const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN?.trim()
-  const pois = property.pois || []
+  /*  A POI WITHOUT USABLE COORDINATES IS SKIPPED, NOT RENDERED.
+   *
+   *  <Marker longitude={undefined}> does not degrade — it throws, and takes the
+   *  whole map with it. That never mattered while these came from a hand-written
+   *  TypeScript file where every entry was complete. They now come from a jsonb
+   *  column that a person edits, and the field-level fallback cannot help: `pois`
+   *  is one field, so an array with five good entries and one malformed one is a
+   *  perfectly valid non-null value and passes straight through.
+   *
+   *  So the bad entry is dropped and the other five still draw. The text list
+   *  below is built from the same filtered array, so map and list cannot
+   *  disagree about what is nearby. */
+  const usable = (p: any) => Number.isFinite(Number(p?.lat)) && Number.isFinite(Number(p?.lng))
+  const pois = (property.pois || []).filter(usable)
   const categories = [...new Set(pois.map(p => p.category))]
+
+  /*  The map centre, which was read straight off property.mapOffset in three
+   *  places with no guard. A null there is now a missing map rather than a
+   *  TypeError that blanks the section — and it falls back to the mean of the
+   *  POIs before giving up, because a map centred near the right places beats no
+   *  map on the page selling the property. */
+  const centre = property.mapOffset
+    ?? (pois.length
+        ? { lat: pois.reduce((t, p) => t + Number(p.lat), 0) / pois.length,
+            lng: pois.reduce((t, p) => t + Number(p.lng), 0) / pois.length }
+        : null)
 
   if (!token || token === 'your_token_here' || !property.mapOffset) {
     return (
@@ -74,7 +98,9 @@ export default function NeighbourhoodMap({ property }: { property: Property }) {
 
   const areaGeoJSON = {
     type: 'Feature' as const,
-    geometry: { type: 'Point' as const, coordinates: [property.mapOffset.lng, property.mapOffset.lat] },
+    //  centre is null-checked before the map renders; this object is only ever
+    //  consumed inside that guard, so the fallback pair is never drawn.
+    geometry: { type: 'Point' as const, coordinates: [centre?.lng ?? 0, centre?.lat ?? 0] },
     properties: {},
   }
 
@@ -95,10 +121,11 @@ export default function NeighbourhoodMap({ property }: { property: Property }) {
       </div>
 
       {/* map */}
+      {!centre ? null : (
       <div style={{ position: 'relative', height: '420px' }}>
         <Map
           mapboxAccessToken={token}
-          initialViewState={{ longitude: property.mapOffset.lng, latitude: property.mapOffset.lat, zoom: 14 }}
+          initialViewState={{ longitude: centre.lng, latitude: centre.lat, zoom: 14 }}
           style={{ width: '100%', height: '100%' }}
           mapStyle="mapbox://styles/mapbox/light-v11"
           scrollZoom={false}
@@ -109,7 +136,7 @@ export default function NeighbourhoodMap({ property }: { property: Property }) {
           </Source>
 
           {/* offset property pin */}
-          <Marker longitude={property.mapOffset.lng} latitude={property.mapOffset.lat}>
+          <Marker longitude={centre.lng} latitude={centre.lat}>
             <div style={{
               width: '14px', height: '14px', borderRadius: '50%',
               background: '#1A1A18', border: '3px solid #FAFAF8',
@@ -158,6 +185,7 @@ export default function NeighbourhoodMap({ property }: { property: Property }) {
           </div>
         )}
       </div>
+      )}
     </div>
   )
 }

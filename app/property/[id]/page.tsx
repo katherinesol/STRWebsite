@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation'
 import { createAdminClient } from '@/lib/supabase/server'
-import { getProperty, getAllProperties } from '@/lib/properties'
+import { getAllProperties } from '@/lib/properties'
+import { loadProperty } from '@/lib/properties-db'
 import Nav from '@/components/ui/Nav'
 import Footer from '@/components/ui/Footer'
 import PropertyHero from '@/components/property/PropertyHero'
@@ -23,7 +24,19 @@ export default async function PropertyPage({
   params: Promise<{ id: string }>
 }) {
   const { id } = await params
-  const property = getProperty(id)
+
+  /*  THE PUBLIC LISTING, READING THE TABLE.
+   *
+   *  Highest-consequence surface in the migration: indexed, it is the page that
+   *  sells the properties, and its CTA sends people to Houfy. So the rule that
+   *  made the hub safe matters more here, not less — a field the table leaves
+   *  null falls through to lib/properties.ts, and the worst a broken or missing
+   *  row can do is render exactly what this page rendered before.
+   *
+   *  generateStaticParams still comes from the file, so the set of pages that
+   *  exist is not something a bad row can change. A table that lost a property
+   *  cannot un-publish it; a table that invented one cannot publish it. */
+  const property = await loadProperty(id)
   if (!property) notFound()
 
   const supabase = createAdminClient()
