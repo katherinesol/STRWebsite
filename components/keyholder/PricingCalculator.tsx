@@ -108,13 +108,103 @@ function FeeRow({ propertyId, kind, label, sub, initialTarget, today }: {
   )
 }
 
-export default function PricingCalculator({ propertyId, propertyName, base, weekend, overrides, todayCleaning }: {
+
+/*  EXTRA GUEST — a rule, not a number.
+ *
+ *  $75 per guest per night above the property's maximum, so the charge depends on
+ *  the booking rather than sitting in a column. Katherine sets the RATE; the
+ *  worked example below it shows what that rate produces for a given overage and
+ *  length, grossed up per platform, because "$75" and "what a family of twelve
+ *  actually pays for four nights" are different questions and only the second one
+ *  is decidable by looking.
+ *
+ *  Tax: HST only, matching how computeTaxSplit already treats extras. Flagged in
+ *  the UI because a per-night, per-guest charge is arguably accommodation and may
+ *  warrant MAT — that is a question for Katherine's accountant, not for this
+ *  screen to decide quietly. */
+function ExtraGuestRow({ propertyId, maxGuests, initialRate }: {
+  propertyId: string
+  maxGuests: number
+  initialRate: number
+}) {
+  const [rate, setRate] = useState(String(initialRate))
+  const [over, setOver] = useState('2')
+  const [nights, setNights] = useState('4')
+
+  const r = Number(rate), o = Number(over), n = Number(nights)
+  const valid = [r, o, n].every(v => Number.isFinite(v) && v >= 0)
+  const targetNet = valid ? r * o * n : 0
+  const quotes = valid && targetNet > 0 ? quote(targetNet, propertyId, 'extra_guest') : []
+
+  const numBox = (v: string, set: (s: string) => void, w = '64px') => (
+    <span style={{ display: 'inline-flex', alignItems: 'center', border: `1px solid ${L.line}`, borderRadius: '7px', padding: '4px 9px', background: L.card }}>
+      <input value={v} onChange={e => set(e.target.value)} inputMode="decimal"
+        style={{ width: w, border: 'none', background: 'transparent', outline: 'none', fontFamily: F.mono, fontSize: '15px', color: L.ink }} />
+    </span>
+  )
+
+  return (
+    <div style={{ ...cardStyle, overflow: 'hidden', marginBottom: '18px' }}>
+      <div style={{ padding: '16px 22px', background: L.cardAlt, borderBottom: `1px solid ${L.lineSoft}`, display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
+        <div style={{ flex: 1, minWidth: '190px' }}>
+          <div style={{ fontSize: '16px', fontWeight: 600, color: L.ink }}>Extra guest</div>
+          <div style={{ fontSize: '12.5px', color: L.inkMuted, marginTop: '2px' }}>
+            Per guest per night above {maxGuests}, this property&apos;s maximum
+          </div>
+        </div>
+        <label style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 'none' }}>
+          <span style={microLabel}>You keep, per guest per night</span>
+          <span style={{ display: 'flex', alignItems: 'center', gap: '4px', border: `1px solid ${L.amberLine}`, background: L.amberWash, borderRadius: '8px', padding: '6px 10px' }}>
+            <span style={{ fontSize: '15px', color: L.inkMuted }}>$</span>
+            {numBox(rate, setRate, '58px')}
+          </span>
+        </label>
+      </div>
+
+      <div style={{ padding: '15px 22px', display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', fontSize: '14px', color: L.inkBody, borderBottom: `1px solid ${L.lineFaint}` }}>
+        <span>A booking with</span>
+        {numBox(over, setOver, '46px')}
+        <span>guest{o === 1 ? '' : 's'} over {maxGuests}, staying</span>
+        {numBox(nights, setNights, '46px')}
+        <span>night{n === 1 ? '' : 's'} —</span>
+        <strong style={{ color: L.ink, fontFamily: F.mono }}>
+          {o} x {n} x ${rate} = ${money(targetNet)}
+        </strong>
+        <span>to keep</span>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', fontSize: '13px' }}>
+        <div style={{ padding: '9px 22px', background: L.cardAlt, ...microLabel }}>Platform</div>
+        <div style={{ padding: '9px 12px', background: L.cardAlt, ...microLabel, textAlign: 'right' }}>Guest pays</div>
+        <div style={{ padding: '9px 22px', background: L.cardAlt, ...microLabel, textAlign: 'right' }}>You net</div>
+        {quotes.map(q => (
+          <div key={q.platform} style={{ display: 'contents' }}>
+            <div style={{ padding: '13px 22px', borderTop: `1px solid ${L.lineFaint}`, fontWeight: 600, color: L.ink }}>{PLATFORM_LABEL[q.platform]}</div>
+            <div style={{ padding: '13px 12px', borderTop: `1px solid ${L.lineFaint}`, textAlign: 'right', fontFamily: F.mono, color: L.ink }}>{money(q.listPrice)}</div>
+            <div style={{ padding: '13px 22px', borderTop: `1px solid ${L.lineFaint}`, textAlign: 'right', fontFamily: F.mono, fontWeight: 600, color: L.ink }}>{money(q.net)}</div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ padding: '12px 22px', borderTop: `1px solid ${L.lineFaint}`, fontSize: '12.5px', color: L.inkBody, lineHeight: 1.55 }}>
+        The rate is what you keep per guest per night — the charge itself is worked out per booking from
+        the guest count and length, so nothing here is a stored total.
+        <strong style={{ color: L.ink }}> Worth checking with your accountant:</strong> this is taxed as HST-only,
+        the same as cleaning. A per-night charge for a person sleeping there may instead count as
+        accommodation and attract MAT.
+      </div>
+    </div>
+  )
+}
+
+export default function PricingCalculator({ propertyId, propertyName, base, weekend, overrides, todayCleaning, maxGuests }: {
   propertyId: string
   propertyName: string
   base: number
   weekend: number | null
   overrides: { start_date: string; end_date: string; rate: number; label?: string | null }[]
   todayCleaning: Partial<Record<Platform, number>>
+  maxGuests: number
 }) {
   return (
     <div style={{ paddingTop: '24px', display: 'flex', flexDirection: 'column', gap: '6px', maxWidth: '980px' }}>
@@ -144,6 +234,12 @@ export default function PricingCalculator({ propertyId, propertyName, base, week
       <FeeRow propertyId={propertyId} kind="cleaning" label="Cleaning"
         sub="Charged once per stay. MAT does not apply, so only HST rides on it."
         initialTarget={todayCleaning.houfy ?? 0} today={todayCleaning} />
+
+      <FeeRow propertyId={propertyId} kind="pet" label="Pet"
+        sub="Flat, once per stay, every platform"
+        initialTarget={199} today={{ airbnb: 199 }} />
+
+      <ExtraGuestRow propertyId={propertyId} maxGuests={maxGuests} initialRate={75} />
 
       <div style={{ ...cardStyle, padding: '18px 22px', fontSize: '13px', color: L.inkBody, lineHeight: 1.6 }}>
         <strong style={{ color: L.ink }}>Nothing is saved from this screen.</strong> It is here so the

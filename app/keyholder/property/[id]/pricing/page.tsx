@@ -56,6 +56,7 @@ export default async function PricingTab({ params }: { params: Promise<{ id: str
         weekend={pricing?.weekend_rate != null ? Number(pricing.weekend_rate) : null}
         overrides={(overrides || []) as any}
         todayCleaning={todayCleaning as any}
+        maxGuests={property.guests || 0}
       />
     </div>
   )
