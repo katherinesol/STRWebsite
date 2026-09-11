@@ -26,6 +26,28 @@ Consequences:
   only. This is the ONLY double-count risk — if she also paid Toronto MAT off
   the form, it was paid twice.
 
+── WHICH FEES CARRY MAT (settled 2026-09-11; do not re-derive) ──
+
+Katherine put the extra-guest question to rest herself: **accommodation is the
+stay itself; a per-guest surcharge is a fee charged on top of it.** So MAT rides
+on the nightly rate and on nothing else.
+
+| Fee | HST 13% | MAT | Why |
+|---|---|---|---|
+| Nightly rate | yes | **yes** — 4% Port Colborne / 6% Toronto | it IS the accommodation |
+| Cleaning | yes | no | a service fee |
+| Pet — $199 flat per stay | yes | no | a service fee |
+| Extra guest — $75/guest/night over max | yes | no | a surcharge on the stay, not the stay |
+
+Extra guest was genuinely arguable and was flagged as open: it is charged per
+night, per person sleeping in the house, which is what accommodation looks like
+from the outside. Had it been accommodation, two things would have changed — the
+guest price (MAT inside the gross-up, as on nightly) and the MAT return. It is
+not, so neither does. `computeTaxSplit` already treats `extras` as HST-only,
+which means the engine was right before the question was asked; nothing in it
+changes. The pricing write path uses HST-only for cleaning, pet and extra guest,
+and MAT only on nightly.
+
 ── THE RULES TO APPLY ──
 
 - HST 13% on accommodation + cleaning (Ontario).

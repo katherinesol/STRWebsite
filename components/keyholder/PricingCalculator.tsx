@@ -118,10 +118,11 @@ function FeeRow({ propertyId, kind, label, sub, initialTarget, today }: {
  *  actually pays for four nights" are different questions and only the second one
  *  is decidable by looking.
  *
- *  Tax: HST only, matching how computeTaxSplit already treats extras. Flagged in
- *  the UI because a per-night, per-guest charge is arguably accommodation and may
- *  warrant MAT — that is a question for Katherine's accountant, not for this
- *  screen to decide quietly. */
+ *  Tax: HST only, matching how computeTaxSplit already treats extras. This was
+ *  put to Katherine as an open question — a per-night, per-person charge could be
+ *  read as accommodation, which would attract MAT — and she has answered it:
+ *  accommodation is the stay itself, and a surcharge is a fee on top of it. HST
+ *  only, no MAT. Settled; don't reopen it. */
 function ExtraGuestRow({ propertyId, maxGuests, initialRate }: {
   propertyId: string
   maxGuests: number
@@ -188,10 +189,8 @@ function ExtraGuestRow({ propertyId, maxGuests, initialRate }: {
 
       <div style={{ padding: '12px 22px', borderTop: `1px solid ${L.lineFaint}`, fontSize: '12.5px', color: L.inkBody, lineHeight: 1.55 }}>
         The rate is what you keep per guest per night — the charge itself is worked out per booking from
-        the guest count and length, so nothing here is a stored total.
-        <strong style={{ color: L.ink }}> Worth checking with your accountant:</strong> this is taxed as HST-only,
-        the same as cleaning. A per-night charge for a person sleeping there may instead count as
-        accommodation and attract MAT.
+        the guest count and length, so nothing here is a stored total. HST only, the same as cleaning:
+        it&apos;s a fee on top of the stay, not accommodation, so no MAT rides on it.
       </div>
     </div>
   )
