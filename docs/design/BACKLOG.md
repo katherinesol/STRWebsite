@@ -16,6 +16,68 @@ gaps · **SHELL** the UI exists but nothing behind it · **SPEC** not started.
 
 # PART 1 — ADMIN / HOST
 
+## Pet and extra-guest fees — charged, but not modelled
+
+**Katherine charges both. The schema has no concept of either.** No `pet` or
+`extra_guest` column exists in any table.
+
+### What is actually recorded
+
+**Two Airbnb pet fees landed, unlabelled.** Myriam Donaldson (27 Jun) and Diana
+Balthasar (22 Aug), $199.00 each, sitting in the generic `extras` column. They
+match the Airbnb transaction CSV's dedicated **Pet fee** column exactly, so the
+import mapped them — into a field that records an amount and nothing about what
+it was for.
+
+**This is not a revenue leak.** `extras` flows into income, the P&L and the MAT
+return; those $398 are counted, taxed and reconciled correctly, and this session's
+tax work is unaffected. The loss is *visibility*: nothing can say what pets earn,
+whether $199 is consistent, or whether the fee was charged when it should have
+been.
+
+**Extra-guest fees have no trace at all** — not in `extras`, not anywhere, ever.
+
+**And no booking on any platform records a pet.** No note, no flag, nothing. The
+only evidence a pet ever stayed is a number in a generic column.
+
+### Why only Airbnb — and it is not what it looks like
+
+VRBO and Houfy show zero `extras` throughout, but **they are not stripping a
+field**. iCal feeds carry DATES ONLY — no money, on any platform — so no fee can
+arrive by sync from anywhere. The two Airbnb pet fees exist because the Airbnb
+transaction CSV has a Pet fee column and that import mapped it. VRBO and Houfy
+figures are typed in by hand from receipts, and no VRBO or Houfy receipt seen so
+far carries a pet line: William H Henry's Houfy receipt is room + cleaning + tax,
+nothing else.
+
+**So the open question is not "does the sync drop it" but "were pets charged on
+VRBO or Houfy stays at all, and if so where did that money go?"** Those would be
+genuinely uncaptured, unlike the Airbnb ones. Only Katherine can answer it.
+
+### What is needed before modelling them
+
+The structure decides the maths and cannot be inferred from two data points:
+
+- **Pet fee** — per stay, per pet, or per pet per night? Both recorded instances
+  are exactly 199, which hints at per-stay, but two rows is not a rule.
+- **Extra-guest fee** — amount, the threshold it applies above, and per guest per
+  night or per guest per stay?
+- **Which platforms support each**, because if Houfy and VRBO have no pet-fee
+  field then "charge it everywhere" is not available, and the gross-up cannot
+  promise it.
+
+A per-stay fee is a simple target-net gross-up, like cleaning. A per-guest-per-
+night fee is a computed line needing count x nights, not a stored target.
+
+### Going forward
+
+Pet and extra-guest must write to **labelled fields**, not the `extras` bucket, so
+they are visible as fees. `extras` keeps its place for genuinely miscellaneous
+charges; it should not be where a known, repeating, named fee goes to lose its
+name.
+
+---
+
 ## Plaid — the live-feed version of statement matching
 
 **Design only. Not built. Katherine decides now vs. later.**
