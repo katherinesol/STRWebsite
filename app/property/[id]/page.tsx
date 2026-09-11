@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation'
 import { createAdminClient } from '@/lib/supabase/server'
 import { getAllProperties } from '@/lib/properties'
-import { loadProperty } from '@/lib/properties-db'
+import { loadProperty, publicProperty } from '@/lib/properties-db'
 import Nav from '@/components/ui/Nav'
 import Footer from '@/components/ui/Footer'
 import PropertyHero from '@/components/property/PropertyHero'
@@ -36,8 +36,13 @@ export default async function PropertyPage({
    *  generateStaticParams still comes from the file, so the set of pages that
    *  exist is not something a bad row can change. A table that lost a property
    *  cannot un-publish it; a table that invented one cannot publish it. */
-  const property = await loadProperty(id)
-  if (!property) notFound()
+  const full = await loadProperty(id)
+  if (!full) notFound()
+
+  /*  Everything below this line receives the PUBLIC projection. The exact
+   *  address never enters the payload, so it cannot be recovered from the page
+   *  source — which is where it was, before. */
+  const property = publicProperty(full)
 
   const supabase = createAdminClient()
   const { data: pricing } = await supabase

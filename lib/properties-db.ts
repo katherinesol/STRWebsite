@@ -107,3 +107,32 @@ export async function loadAllProperties(): Promise<Property[]> {
     return files
   }
 }
+
+/*  WHAT THE PUBLIC MAY SEE.
+ *
+ *  The exact street address was being served on /property/[id] — in the page's
+ *  serialized props, not visibly, but one View Source away and indexable. It was
+ *  passed to six components and rendered by none, and Next serialises every field
+ *  of an object it hands a client component whether anything reads it or not.
+ *
+ *  The type had carried "given to VERIFIED guests only; never rendered on public
+ *  marketing pages" since it was written. The intent was documented and never
+ *  enforced, which is the whole lesson: "no component renders it" is not a
+ *  security property. Only absence from the payload is.
+ *
+ *  So this strips at the source rather than trusting the consumer:
+ *
+ *    address   — the exact house. Booked guests get it through the hub, the
+ *                portal and the concierge, which are post-booking surfaces.
+ *    icalUrls  — currently empty for every property, stripped anyway: those
+ *                fields hold private calendarexport tokens, and the day someone
+ *                fills one in is not the day to remember this.
+ *
+ *  mapOffset STAYS. It is deliberately offset from the real address — roughly
+ *  300m — which is the standard host-safety radius and the thing the public map
+ *  is supposed to draw. Removing it would break the map to solve a problem it
+ *  does not have. */
+export function publicProperty(p: Property): Property {
+  const { address, icalUrls, ...safe } = p
+  return safe as Property
+}
