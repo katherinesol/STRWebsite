@@ -4,7 +4,7 @@ import { createAdminClient } from '@/lib/supabase/server'
 import { sendEscalationAlert } from '@/lib/email'
 import { fullStayContext, nightsBetween } from '@/lib/stay-groups'
 import { getCheckInDisplay, getCheckOutDisplay } from '@/lib/checkin-times'
-import { PROPERTIES } from '@/lib/properties'
+import { loadProperty } from '@/lib/properties-db'
 
 const BRAND = 'Zuhaus'  // guest-facing concierge brand — change here when finalized
 
@@ -83,7 +83,12 @@ export async function POST(request: NextRequest) {
 
   // Static property profile — the knowledge base is thin for some properties, so this
   // makes address-adjacent basics, amenities, rules and FAQ answerable without escalating.
-  const prop = PROPERTIES[booking.property_id]
+  /*  The concierge answers from the table, so a description or house rule
+   *  corrected in the property editor changes what it tells the next guest with
+   *  no deploy. Falls back to lib/properties.ts field by field, so a half-filled
+   *  row degrades to the profile it has always given rather than an assistant
+   *  that has forgotten the house rules. */
+  const prop = await loadProperty(booking.property_id)
   const profile = prop ? [
     `Name: ${prop.name} — ${prop.neighbourhood}, ${prop.city}`,
     prop.address ? `Address: ${prop.address}` : `Address: not on file — if they ask for the street address, escalate rather than guessing.`,

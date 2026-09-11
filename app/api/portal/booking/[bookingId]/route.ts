@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
-import { getProperty } from '@/lib/properties'
+import { loadProperty } from '@/lib/properties-db'
 
 export async function GET(
   request: NextRequest,
@@ -56,7 +56,9 @@ export async function GET(
   }
 
   // get POIs from property data
-  const property = getProperty(booking.property_id)
+  //  POIs and FAQ are content, so they come from the table with the file behind
+  //  them — the same source the guest hub and the public listing now read.
+  const property = await loadProperty(booking.property_id)
   const pois = property?.pois || []
 
   // get FAQ from property data
