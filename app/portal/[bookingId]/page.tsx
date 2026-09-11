@@ -38,6 +38,10 @@ export default function GuestPortal() {
   const [guides, setGuides] = useState<any[]>([])
   const [pois, setPois] = useState<any[]>([])
   const [accessCode, setAccessCode] = useState<string | null>(null)
+  const [address, setAddress] = useState<string | null>(null)
+  const [addressMessage, setAddressMessage] = useState<string | null>(null)
+  const [canRequestAddress, setCanRequestAddress] = useState(false)
+  const [requesting, setRequesting] = useState(false)
   const [search, setSearch] = useState('')
   const [activeSection, setActiveSection] = useState('stay')
 
@@ -59,6 +63,11 @@ export default function GuestPortal() {
       const now = new Date()
       const hoursUntil = (checkIn.getTime() - now.getTime()) / 3600000
       if (hoursUntil <= 48) setAccessCode(data.accessCode)
+      /*  The server decides. `address` arrives null unless the gate allowed it,
+       *  so there is nothing here to hide — which is the point. */
+      setAddress(data.address ?? null)
+      setAddressMessage(data.addressMessage ?? null)
+      setCanRequestAddress(!!data.canRequestAddress)
 
       setLoading(false)
     }
@@ -166,6 +175,56 @@ export default function GuestPortal() {
                 </>
               )}
             </div>
+
+            {/*  THE EXACT ADDRESS.
+              *
+              *  Shown from 24 hours before check-in, or earlier if Katherine has
+              *  approved a request. The guest is never shown the word "denied" —
+              *  a decision not to share it a week out reads as "closer to your
+              *  stay", because that is what it means: at T-24h it appears
+              *  regardless. */}
+            {(address || addressMessage) && (
+              <div style={{ background: 'white', border: '0.5px solid var(--sand)', padding: '24px', marginBottom: '16px' }}>
+                <div style={{ fontSize: '10px', fontWeight: 500, letterSpacing: '.16em', textTransform: 'uppercase', color: 'var(--amber)', marginBottom: '12px' }}>
+                  Address
+                </div>
+                {address ? (
+                  <div style={{ fontFamily: 'var(--serif)', fontSize: '20px', fontWeight: 300, color: 'var(--noir)', lineHeight: 1.45 }}>
+                    {address}
+                  </div>
+                ) : (
+                  <>
+                    <div style={{ fontSize: '15px', color: 'var(--muted)', lineHeight: 1.6 }}>{addressMessage}</div>
+                    {canRequestAddress && (
+                      <button
+                        disabled={requesting}
+                        onClick={async () => {
+                          setRequesting(true)
+                          const code = booking.booking_reference || ''
+                          const res = await fetch('/api/guest/address-request', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ booking_id: bookingId, code }),
+                          })
+                          if (res.ok) {
+                            setCanRequestAddress(false)
+                            setAddressMessage('Requested — we\u2019ll confirm shortly.')
+                          }
+                          setRequesting(false)
+                        }}
+                        style={{
+                          marginTop: '14px', padding: '11px 20px', background: 'var(--noir)',
+                          color: '#F0EDE6', border: 'none', cursor: requesting ? 'default' : 'pointer',
+                          fontSize: '11px', letterSpacing: '.1em', textTransform: 'uppercase',
+                          opacity: requesting ? 0.6 : 1,
+                        }}>
+                        {requesting ? 'Sending…' : 'Request the address'}
+                      </button>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
 
             {/* stay details */}
             <div style={{ background: 'white', border: '0.5px solid var(--sand)', padding: '24px', marginBottom: '16px' }}>

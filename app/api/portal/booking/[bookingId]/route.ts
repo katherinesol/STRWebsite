@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { loadProperty } from '@/lib/properties-db'
+import { addressState, showsAddress, guestAddressCopy } from '@/lib/address-visibility'
 
 export async function GET(
   request: NextRequest,
@@ -64,5 +65,46 @@ export async function GET(
   // get FAQ from property data
   const faq = property?.faq || []
 
-  return NextResponse.json({ booking: { ...booking, faq }, guides, accessCode, pois })
+  /*  THE EXACT ADDRESS, AND WHY IT IS ASSEMBLED HERE RATHER THAN FILTERED LATER.
+   *
+   *  The address is only PUT INTO the response when the gate says it may be
+   *  seen. It is never sent and hidden by the client, because that is precisely
+   *  the mistake the public listing made for months: no component rendered the
+   *  address, and it sat in the payload the whole time, one View Source away.
+   *  A value absent from the bytes cannot be read out of them.
+   *
+   *  Two independent paths, per Katherine's policy:
+   *    · from 24 hours before check-in it appears on its own;
+   *    · before that only if she has approved this guest's request.
+   *  A denial never suppresses the automatic reveal — saying "not yet" a week
+   *  out is a different decision from withholding the address of a house
+   *  someone is about to walk into.
+   *
+   *  Genuine Toronto time, not the lock worker's digits-as-local convention,
+   *  which is a Schlage backend workaround and would shift every reveal by four
+   *  hours. */
+  const { data: addrReq } = await supabase
+    .from('address_requests')
+    .select('status')
+    .eq('booking_id', bookingId)
+    .eq('booking_kind', 'direct')
+    .maybeSingle()
+
+  const addrState = addressState({
+    checkInDate: booking.check_in,
+    checkInTime: booking.early_checkin_granted ? booking.early_checkin_time : property?.checkIn,
+    request: addrReq as any,
+  })
+  const addressVisible = showsAddress(addrState)
+
+  return NextResponse.json({
+    booking: { ...booking, faq },
+    guides,
+    accessCode,
+    pois,
+    address: addressVisible ? (property?.address ?? null) : null,
+    addressState: addrState,
+    addressMessage: guestAddressCopy(addrState),
+    canRequestAddress: addrState === 'hidden',
+  })
 }
