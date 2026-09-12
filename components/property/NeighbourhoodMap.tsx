@@ -4,28 +4,29 @@ import Map, { Marker, Source, Layer } from 'react-map-gl/mapbox'
 import type { CircleLayer } from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import { Property, POI } from '@/lib/properties'
+import { categoryColour, categoryLabel, categoryPath } from '@/lib/poi-categories'
 
-const CATEGORY_COLORS: Record<string, string> = {
-  restaurant:  '#B8956B',
-  cafe:        '#8B6B4A',
-  transit:     '#3D6ECC',
-  grocery:     '#2ECC71',
-  beach:       '#06AED5',
-  park:        '#4CAF50',
-  attraction:  '#9B59B6',
-  pharmacy:    '#E74C3C',
-}
+/*  Colours and labels used to live here in two copies. They now come from
+ *  lib/poi-categories, which the Places editor reads as well — so the pin
+ *  Katherine drags is the pin the guest sees, and a ninth category is added
+ *  once rather than three times. */
+const CATEGORY_COLORS = new Proxy({}, { get: (_, k: string) => categoryColour(k) }) as Record<string, string>
+const CATEGORY_LABELS = new Proxy({}, { get: (_, k: string) => categoryLabel(k) }) as Record<string, string>
 
-const CATEGORY_LABELS: Record<string, string> = {
-  restaurant:  'Restaurant',
-  cafe:        'Café',
-  transit:     'Transit',
-  grocery:     'Grocery',
-  beach:       'Beach',
-  park:        'Park',
-  attraction:  'Attraction',
-  pharmacy:    'Pharmacy',
-}
+/*  An icon reads at pin size where a coloured dot needs a legend — and colour
+ *  alone excludes anyone who cannot separate these eight hues. */
+const PinIcon = ({ category, size = 22 }: { category: string; size?: number }) => (
+  <div style={{
+    width: size, height: size, borderRadius: '50%', display: 'grid', placeItems: 'center',
+    background: categoryColour(category), border: '2px solid #FAFAF8',
+    boxShadow: '0 1px 4px rgba(0,0,0,.25)', cursor: 'pointer',
+  }}>
+    <svg width={size * 0.55} height={size * 0.55} viewBox="0 0 24 24" fill="none"
+      stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d={categoryPath(category)} />
+    </svg>
+  </div>
+)
 
 function TravelBadge({ label, mins }: { label: string; mins: number }) {
   return (
@@ -114,7 +115,7 @@ export default function NeighbourhoodMap({ property }: { property: Property }) {
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '16px' }}>
         {categories.map(cat => (
           <div key={cat} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 10px', background: 'var(--linen)', border: '0.5px solid var(--sand)' }}>
-            <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: CATEGORY_COLORS[cat], flexShrink: 0, display: 'block' }} />
+            <PinIcon category={cat} size={16} />
             <span style={{ fontSize: '10px', letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--muted)' }}>{CATEGORY_LABELS[cat]}</span>
           </div>
         ))}
@@ -147,13 +148,7 @@ export default function NeighbourhoodMap({ property }: { property: Property }) {
           {/* POI markers */}
           {pois.map(poi => (
             <Marker key={poi.id} longitude={poi.lng} latitude={poi.lat} onClick={() => setSelectedPOI(poi)}>
-              <div style={{
-                width: '10px', height: '10px', borderRadius: '50%',
-                background: CATEGORY_COLORS[poi.category] || '#888880',
-                border: '2px solid #FAFAF8',
-                boxShadow: '0 1px 4px rgba(0,0,0,.25)',
-                cursor: 'pointer',
-              }} />
+              <PinIcon category={poi.category} />
             </Marker>
           ))}
         </Map>

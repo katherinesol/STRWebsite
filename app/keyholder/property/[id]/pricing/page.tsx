@@ -5,6 +5,7 @@ import { hasRole, hasPermission } from '@/lib/auth'
 import { loadProperty } from '@/lib/properties-db'
 import { L, F } from '@/lib/design-tokens'
 import PricingCalculator from '@/components/keyholder/PricingCalculator'
+import PropertyTabs from '@/components/keyholder/PropertyTabs'
 
 export const dynamic = 'force-dynamic'
 
@@ -43,12 +44,7 @@ export default async function PricingTab({ params }: { params: Promise<{ id: str
 
   return (
     <div>
-      <Link href="/keyholder/property" style={{ fontSize: '13px', color: L.link, textDecoration: 'none', fontWeight: 600 }}>
-        ← Property
-      </Link>
-      <div style={{ fontFamily: F.mono, fontSize: '11px', letterSpacing: '.16em', textTransform: 'uppercase', color: L.inkMuted, marginTop: '14px' }}>
-        {property.name}
-      </div>
+      <PropertyTabs id={id} name={property.name} active="pricing" />
       <PricingCalculator
         propertyId={id}
         propertyName={property.name}
