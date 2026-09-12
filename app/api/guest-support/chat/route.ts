@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { sessionMatches } from '@/lib/guest/prove'
 import Anthropic from '@anthropic-ai/sdk'
 import { createAdminClient } from '@/lib/supabase/server'
 import { sendEscalationAlert } from '@/lib/email'
@@ -12,18 +13,34 @@ const BRAND = 'Zuhaus'  // guest-facing concierge brand — change here when fin
 // Re-verifies the booking on every call (code + booking_id) so it can't be spoofed.
 export async function POST(request: NextRequest) {
   const { code, booking_id, source, messages } = await request.json()
-  if (!code || !booking_id || !Array.isArray(messages)) {
+
+  /*  TWO WAYS TO PROVE THIS IS YOUR BOOKING, and the cookie is the better one.
+   *
+   *  The code still works, because it has to: when GUEST_SESSION_SECRET is
+   *  absent no cookie is ever issued, and a guest who has just typed their code
+   *  must still be able to ask a question. But a guest who RESUMED a session no
+   *  longer has the code in the page at all — it is not kept anywhere readable
+   *  now — so the cookie has to count as proof on its own, or the concierge
+   *  breaks the moment someone reloads.
+   *
+   *  The cookie is only accepted for the booking it was issued for. A session
+   *  for one stay cannot be pointed at another stay's booking_id. */
+  const sessionOk = await sessionMatches(booking_id)
+
+  if ((!code && !sessionOk) || !booking_id || !Array.isArray(messages)) {
     return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
   }
   const supabase = createAdminClient()
-  const codeUp = String(code).trim().toUpperCase()
+  const codeUp = String(code || '').trim().toUpperCase()
 
   // re-verify booking matches the code
   let booking: any = null
   if (source === 'direct') {
-    const { data } = await supabase.from('bookings')
+    let q = supabase.from('bookings')
       .select('id, property_id, check_in, check_out, confirmation_code, lock_code, total, deposit_amount, deposit_paid_at, final_payment_amount, final_paid_at, early_checkin, early_checkin_time, early_checkin_granted, late_checkout, late_checkout_time, late_checkout_granted, guest:guests(name)')
-      .eq('id', booking_id).ilike('confirmation_code', codeUp).maybeSingle()
+      .eq('id', booking_id)
+    if (!sessionOk) q = q.ilike('confirmation_code', codeUp)
+    const { data } = await q.maybeSingle()
     if (data) booking = {
       property_id: data.property_id, guest_name: (data.guest as any)?.name,
       check_in: data.check_in, check_out: data.check_out, door_code: data.lock_code,
@@ -31,14 +48,17 @@ export async function POST(request: NextRequest) {
       row: data,
     }
   } else {
-    const { data } = await supabase.from('calendar_blocks')
+    let q = supabase.from('calendar_blocks')
       .select('id, property_id, start_date, end_date, confirmation_code, door_code, guest_name, guest_total, early_checkin_time, early_checkin_granted, late_checkout_time, late_checkout_granted')
       // a cancelled guest has no support access
       .neq('status', 'cancelled')
-      .eq('id', booking_id).ilike('confirmation_code', codeUp).maybeSingle()
+      .eq('id', booking_id)
+    if (!sessionOk) q = q.ilike('confirmation_code', codeUp)
+    const { data } = await q.maybeSingle()
     if (data) booking = {
       property_id: data.property_id, guest_name: data.guest_name,
       check_in: data.start_date, check_out: data.end_date, door_code: data.door_code,
+      confirmation_code: data.confirmation_code,
       payment: 'Your booking was made and paid through the platform (Airbnb/VRBO).',
       row: data,
     }

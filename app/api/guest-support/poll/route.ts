@@ -1,16 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
+import { sessionMatches } from '@/lib/guest/prove'
 
 // Returns the full message history for a verified booking's conversation. Guest polls this.
 export async function POST(request: NextRequest) {
   const { code, booking_id, source } = await request.json()
-  if (!code || !booking_id) return NextResponse.json({ error: 'Invalid' }, { status: 400 })
+
+  /*  A valid session for THIS booking counts as proof, because a guest who
+   *  resumed no longer has the code in the page. With no session the code is
+   *  required exactly as before. */
+  const sessionOk = await sessionMatches(booking_id)
+  if ((!code && !sessionOk) || !booking_id) return NextResponse.json({ error: 'Invalid' }, { status: 400 })
   const supabase = createAdminClient()
-  const codeUp = String(code).trim().toUpperCase()
+  const codeUp = String(code || '').trim().toUpperCase()
 
   // re-verify the code matches the booking (can't poll someone else's convo)
   const table = source === 'platform' ? 'calendar_blocks' : 'bookings'
-  const { data: b } = await supabase.from(table).select('id').eq('id', booking_id).ilike('confirmation_code', codeUp).maybeSingle()
+  const { data: b } = await supabase.from(table).select('id').eq('id', booking_id).or(sessionOk ? 'id.not.is.null' : `confirmation_code.ilike.${codeUp}`).maybeSingle()
   if (!b) return NextResponse.json({ error: 'Verification failed' }, { status: 403 })
 
   const { data: conv } = await supabase.from('conversations').select('id').eq('booking_id', booking_id).maybeSingle()

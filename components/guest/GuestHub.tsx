@@ -291,8 +291,13 @@ type ChatMessage = { role: 'user' | 'assistant'; content: string }
 type GuestSession = { code: string; booking_id: string; source: string; guest_name?: string; property_id?: string }
 
 function Concierge() {
-  // Gate: booking-specific answers require confirmation code + last name.
-  // Reuses /api/guest-support/verify and the same localStorage session as /support.
+  /*  Gate: booking-specific answers require a confirmation code and last name.
+   *
+   *  THE CODE IS NO LONGER KEPT ANYWHERE THE BROWSER CAN READ. It used to live
+   *  in localStorage as plain text and be re-POSTed on every load; verifying now
+   *  returns an httpOnly cookie instead, and resuming asks the server who this
+   *  is rather than telling it again. Nothing this component holds can be read
+   *  back out by a script, because it holds nothing. */
   const [verified, setVerified] = useState<GuestSession | null>(null)
   const [code, setCode] = useState('')
   const [lastName, setLastName] = useState('')
@@ -306,15 +311,21 @@ function Concierge() {
 
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }) }, [messages, busy])
 
-  // Restore an existing guest session (shared with /support). runVerify only
-  // touches state after its fetch resolves, so nothing is set synchronously here.
+  //  Resume from the cookie. No credential is sent, because none is held.
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem('zuhaus_guest')
-      if (!saved) return
-      const { code: c, lastName: ln } = JSON.parse(saved)
-      if (c && ln) void runVerify(c, ln, true)
-    } catch {}
+    void (async () => {
+      try {
+        const res = await fetch('/api/guest/session')
+        const d = await res.json().catch(() => ({}))
+        if (!d.ok) return
+        setVerified({ ...d.booking, code: '' })
+        if (d.history?.length) setMessages(d.history)
+        else {
+          const nm = d.booking.guest_name ? ' ' + d.booking.guest_name.split(' ')[0] : ''
+          setMessages([{ role: 'assistant', content: `Welcome back,${nm}. How can I help with your stay?` }])
+        }
+      } catch {}
+    })()
   }, [])
 
   async function runVerify(c: string, ln: string, silent = false) {
@@ -326,12 +337,13 @@ function Concierge() {
       })
       const d = await res.json().catch(() => ({}))
       if (!d.ok) {
-        if (silent) { try { localStorage.removeItem('zuhaus_guest') } catch {} }
-        else setVerifyErr(d.error || 'No booking found with that code and last name.')
+        if (!silent) setVerifyErr(d.error || 'No booking found with that code and last name.')
         return
       }
+      /*  In React state for this page view only — never localStorage. Sent
+       *  with a chat message so the concierge still works when no cookie could
+       *  be issued; after a reload the cookie proves it instead. */
       setVerified({ ...d.booking, code: c })
-      try { localStorage.setItem('zuhaus_guest', JSON.stringify({ code: c, lastName: ln })) } catch {}
       if (d.history?.length) setMessages(d.history)
       else {
         const nm = d.booking.guest_name ? ' ' + d.booking.guest_name.split(' ')[0] : ''

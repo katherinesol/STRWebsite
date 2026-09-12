@@ -24,23 +24,23 @@ export default function GuestSupport() {
   // restore saved session on load
   useEffect(() => {
     try {
-      const saved = localStorage.getItem('zuhaus_guest')
-      if (saved) {
-        const { code: c, lastName: ln } = JSON.parse(saved)
-        if (c && ln) { setCode(c); setLastName(ln); setTimeout(() => reVerify(c, ln), 50) }
-      }
+      void reVerify()
     } catch {}
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
-  async function reVerify(c: string, ln: string) {
+
+  /*  Resume from the httpOnly cookie rather than from a stored credential.
+   *  The confirmation code used to sit in localStorage in plain text and be
+   *  re-POSTed on every load; now the browser sends a cookie its own JavaScript
+   *  cannot read, and the server says who this is. */
+  async function reVerify() {
     try {
-      const res = await fetch('/api/guest-support/verify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code: c, lastName: ln }) })
-      const d = await res.json()
-      if (d.ok) {
-        setVerified({ ...d.booking, code: c })
-        if (d.history?.length) setMessages(d.history)
-        else { const nm = d.booking.guest_name ? ' ' + d.booking.guest_name.split(' ')[0] : ''; setMessages([{ role: 'assistant', content: `Welcome back,${nm}. How can I help you?` }]) }
-      } else { try { localStorage.removeItem('zuhaus_guest') } catch {} }
+      const res = await fetch('/api/guest/session')
+      const d = await res.json().catch(() => ({}))
+      if (!d.ok) return
+      setVerified({ ...d.booking, code: '' })
+      if (d.history?.length) setMessages(d.history)
+      else { const nm = d.booking.guest_name ? ' ' + d.booking.guest_name.split(' ')[0] : ''; setMessages([{ role: 'assistant', content: `Welcome back,${nm}. How can I help you?` }]) }
     } catch {}
   }
 
@@ -50,9 +50,12 @@ export default function GuestSupport() {
       const res = await fetch('/api/guest-support/verify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code, lastName }) })
       const d = await res.json()
       if (d.error) { setVerifyErr(d.error); return }
-      const session = { ...d.booking, code }
-      setVerified(session)
-      try { localStorage.setItem('zuhaus_guest', JSON.stringify({ code, lastName })) } catch {}
+      /*  The code stays in React state for this page view only — never in
+       *  localStorage, never on disk, gone on reload. It is still sent with a
+       *  chat message so the concierge works even when no cookie could be
+       *  issued; after a reload the cookie takes over and the code is simply
+       *  absent. */
+      setVerified({ ...d.booking, code })
       if (d.history && d.history.length) {
         setMessages(d.history)
       } else {
@@ -155,7 +158,10 @@ export default function GuestSupport() {
     } finally { setBusy(false) }
   }
 
-  function signOut() { try { localStorage.removeItem('zuhaus_guest') } catch {}; setVerified(null); setMessages([]); setCode(''); setLastName('') }
+  function signOut() {
+    void fetch('/api/guest/session', { method: 'DELETE' }).catch(() => {})
+    setVerified(null); setMessages([]); setCode(''); setLastName('')
+  }
   const wrap: React.CSSProperties = { minHeight: '100vh', background: '#F5F2EC', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '24px', fontFamily: 'var(--sans, system-ui)' }
 
   if (!verified) {

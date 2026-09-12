@@ -1,25 +1,31 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { createAdminClient } from '@/lib/supabase/server'
+import { sessionMatches } from '@/lib/guest/prove'
 
 const PROP_NAMES: Record<string, string> = { 'royal-york-east': 'Royal York East', 'royal-york-west': 'Royal York West', 'nickel-beach': 'Nickel Beach Retreat' }
 
 // Guest sends a photo. Store it, let the concierge look at it, help if it's an info question, escalate if it's a problem.
 export async function POST(request: NextRequest) {
   const { code, booking_id, source, imageBase64, mediaType, caption } = await request.json()
-  if (!code || !booking_id || !imageBase64) return NextResponse.json({ error: 'Missing photo' }, { status: 400 })
+
+  /*  A valid session for THIS booking counts as proof, because a guest who
+   *  resumed no longer has the code in the page. With no session the code is
+   *  required exactly as before. */
+  const sessionOk = await sessionMatches(booking_id)
+  if ((!code && !sessionOk) || !booking_id || !imageBase64) return NextResponse.json({ error: 'Missing photo' }, { status: 400 })
   const supabase = createAdminClient()
-  const codeUp = String(code).trim().toUpperCase()
+  const codeUp = String(code || '').trim().toUpperCase()
 
   // re-verify + get booking context
   let booking: any = null
   if (source === 'direct') {
-    const { data } = await supabase.from('bookings').select('property_id, confirmation_code, lock_code, guest:guests(name)').eq('id', booking_id).ilike('confirmation_code', codeUp).maybeSingle()
+    const { data } = await supabase.from('bookings').select('property_id, confirmation_code, lock_code, guest:guests(name)').eq('id', booking_id).or(sessionOk ? 'id.not.is.null' : `confirmation_code.ilike.${codeUp}`).maybeSingle()
     if (data) booking = { property_id: data.property_id, guest_name: (data.guest as any)?.name, door_code: data.lock_code }
   } else {
     const { data } = await supabase.from('calendar_blocks').select('property_id, confirmation_code, door_code, guest_name')
       // a cancelled guest has no support access
-      .neq('status', 'cancelled').eq('id', booking_id).ilike('confirmation_code', codeUp).maybeSingle()
+      .neq('status', 'cancelled').eq('id', booking_id).or(sessionOk ? 'id.not.is.null' : `confirmation_code.ilike.${codeUp}`).maybeSingle()
     if (data) booking = { property_id: data.property_id, guest_name: data.guest_name, door_code: data.door_code }
   }
   if (!booking) return NextResponse.json({ error: 'Verification failed' }, { status: 403 })

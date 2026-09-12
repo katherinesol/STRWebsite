@@ -78,6 +78,19 @@ name.
 
 ---
 
+## The portal's ?email= verification is weaker than the guest gate
+
+`/api/portal/booking/[bookingId]` authorises on `?email=` in the query string.
+An email address is not a secret — it is on every message a guest has ever sent
+— and that endpoint returns the door code. Anyone who knows a guest's address
+and booking id can read their stay.
+
+The hub gate now has the right shape: confirmation code plus surname, exchanged
+for a signed httpOnly cookie bound to one booking. **The portal should move onto
+it after step 5**, once the hub covers what the portal does. Not bundled with
+the session work — it is a behaviour change for direct-booking guests and
+deserves its own commit and its own verification.
+
 ## NEXT pricing piece — the weekend rate and the seasonal bands
 
 The four base targets save: `target_net_nightly`, `target_net_cleaning`,

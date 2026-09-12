@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { surnameOf } from '@/lib/keyholder/guest-match'
+import { COOKIE, issue, expiryFor, cookieOptions } from '@/lib/guest/session'
 
 // Verify a guest by confirmation code + last name. Checks both direct bookings and platform bookings.
 export async function POST(request: NextRequest) {
@@ -105,5 +106,22 @@ export async function POST(request: NextRequest) {
     }
   } catch {}
 
-  return NextResponse.json({ ok: true, booking: match, history })
+  /*  THE CODE IS EXCHANGED FOR A SESSION HERE, AND THEN LET GO.
+   *
+   *  Until now the client kept the confirmation code and surname in
+   *  localStorage and re-POSTed them on every page load. That is the whole
+   *  credential — the same one that releases the door code — sitting in a store
+   *  any script on the page can read, for as long as the browser keeps it.
+   *
+   *  Now a successful verification hands back an httpOnly cookie carrying the
+   *  BOOKING, signed. The browser will not give it to JavaScript, it cannot be
+   *  turned back into the code, and it dies with the stay. If
+   *  GUEST_SESSION_SECRET is missing nothing is issued and the guest simply
+   *  types the code again — the mechanism fails closed rather than falling back
+   *  to a key that is published in the repository. */
+  const res = NextResponse.json({ ok: true, booking: match, history })
+  const exp = expiryFor(match.check_out)
+  const token = issue({ bid: match.booking_id, kind: match.source, pid: match.property_id, exp })
+  if (token) res.cookies.set(COOKIE, token, cookieOptions(exp))
+  return res
 }
