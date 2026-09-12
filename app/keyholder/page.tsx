@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { format } from 'date-fns'
 import { createAdminClient } from '@/lib/supabase/server'
 import { getAuth } from '@/lib/auth'
+import WaterOrder from '@/components/keyholder/WaterOrder'
 import { unpaid, outstanding, PAYMENT_COLUMNS } from '@/lib/keyholder/payment'
 import { readEnvironment } from '@/lib/keyholder/today-env'
 import { torontoParts, torontoPlus } from '@/lib/keyholder/today-date'
@@ -286,6 +287,12 @@ export default async function Today() {
               {cistern?.percent == null ? 'Reading unavailable'
                 : cistern.percent <= 30 ? 'At or below reorder level' : 'Above reorder level'}
             </span>
+            {/*  Ordering lives beside the number it responds to. It was on the
+                 legacy dashboard only, so Today could report 11% and offer
+                 nothing to do about it — which is how the 11 September delivery
+                 went unrecorded. Nickel Beach alone has a cistern; Royal York is
+                 on municipal water, so there is nothing here to order. */}
+            <WaterOrder canEdit={auth.ok && (auth.role === 'owner' || auth.role === 'co-owner')} />
           </div>
           <div style={{ ...cardStyle, padding: '20px 22px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
             <span style={microLabel}>Window airing · Royal York</span>
