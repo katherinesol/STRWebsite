@@ -76,12 +76,23 @@ being true — and a **narrow per-property `Photos ↗` link** replaces it, poin
 at exactly one page and saying what is behind it. The legacy DASHBOARD is no
 longer a destination from anywhere in the new shell.
 
-### NEXT — the Photos tab
+### The Photos tab landed — the editor is COMPLETE
 
-Wrap the existing `PhotoManager` in keyholder chrome, then sever the last photos
-link and redirect `/admin/properties/[id]/photos`. **This is what closes the
-editor COMPLETELY and gets fully off the legacy property pages.** Its own piece;
-the narrow Photos link is the honest bridge until it is built.
+`PhotoManager` moved onto the keyholder palette and now serves
+`/keyholder/property/[id]/photos`. It was restyled in place rather than forked:
+once the legacy page redirected, it had exactly one caller, and a second copy
+would be two things to fix the day an upload bug appears. Every line of
+behaviour is unchanged — same four routes, same optimistic updates, same drag
+handling.
+
+**All four `/admin/properties*` pages now redirect.** The narrow `Photos ↗`
+bridge is gone with them; the tab it was waiting for exists. Nothing about a
+property is edited on the legacy admin any more, and **no page in the new shell
+links out to a legacy page at all.**
+
+Photo counts as this landed: Royal York West 8, **Nickel Beach 1**, Royal York
+East 0. The flagship at $880 a night having a single photo is now a thing
+Katherine can fix without opening the old admin.
 
 ## The 28 legacy-only pages
 

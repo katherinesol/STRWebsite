@@ -409,12 +409,6 @@ export default function BookingDetail({ kind, b, locks, guest, conversation, mes
         </div>
       </div>
 
-      <span style={{ fontSize: '12px', color: L.inkFaint }}>
-        Read only for now — editing, the checklist, grants and the gift card arrive next.{' '}
-        <Link href={isDirect ? `/admin/bookings/${b.id}` : `/admin/bookings/block/${b.id}`} style={{ color: L.link, fontWeight: 600 }}>
-          Open the old page
-        </Link>
-      </span>
     </div>
   )
 }

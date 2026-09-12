@@ -10,12 +10,9 @@ export const dynamic = 'force-dynamic'
  *  /admin/properties/[id] and its pricing page now redirect here instead; the
  *  traffic runs the other way.
  *
- *  THE PHOTOS LINK IS THE EXCEPTION, AND IT IS NARROW ON PURPOSE. The Photos tab
- *  is not built, so /admin/properties/[id]/photos is still the only place photo
- *  management exists. A broad "everything else is on the legacy admin" link
- *  would be untrue now that everything else is here; redirecting the photos page
- *  would 404 a real capability. So the link points at ONE page, says exactly
- *  what is behind it, and disappears when the tab lands. */
+ *  The Photos bridge is gone — the tab it was waiting for exists, so the last
+ *  link out of the new shell went with it. Four tabs, no exceptions, and the
+ *  legacy property pages all redirect here. */
 export default async function PropertyIndex() {
   const properties = await loadAllProperties()
 
@@ -38,25 +35,20 @@ export default async function PropertyIndex() {
               </span>
             </div>
             <div style={{ display: 'flex', gap: '14px', alignItems: 'center' }}>
-              {[['Content', ''], ['Places', '/places'], ['Pricing', '/pricing']].map(([label, sub]) => (
+              {[['Content', ''], ['Places', '/places'], ['Photos', '/photos'], ['Pricing', '/pricing']].map(([label, sub]) => (
                 <Link key={label} href={`/keyholder/property/${p.id}${sub}`}
                   style={{ fontSize: '13.5px', fontWeight: 600, color: L.link, textDecoration: 'none' }}>
                   {label}
                 </Link>
               ))}
-              <a href={`/admin/properties/${p.id}/photos`}
-                title="Photos are still managed on the old page — the tab for them is not built yet"
-                style={{ fontSize: '13.5px', color: L.inkMuted, textDecoration: 'none', borderLeft: `1px solid ${L.lineFaint}`, paddingLeft: '14px' }}>
-                Photos ↗
-              </a>
             </div>
           </div>
         ))}
       </div>
 
       <p style={{ fontSize: '13.5px', color: L.inkMuted, lineHeight: 1.6 }}>
-        Content, places and pricing are all here. <strong style={{ color: L.inkBody }}>Photos ↗</strong> still
-        opens the old page — it is the one part that has not moved yet.
+        Content, places, photos and pricing are all here. Nothing about a property is edited on the
+        old admin any more.
       </p>
     </div>
   )

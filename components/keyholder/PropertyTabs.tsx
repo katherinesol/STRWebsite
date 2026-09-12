@@ -3,10 +3,11 @@ import { L, F } from '@/lib/design-tokens'
 
 /*  One header for the three tabs, so a property is one thing with three views
  *  rather than three pages that happen to share an id. */
-export default function PropertyTabs({ id, name, active }: { id: string; name: string; active: 'content' | 'places' | 'pricing' }) {
+export default function PropertyTabs({ id, name, active }: { id: string; name: string; active: 'content' | 'places' | 'photos' | 'pricing' }) {
   const tabs = [
     { key: 'content', label: 'Content', href: `/keyholder/property/${id}` },
     { key: 'places', label: 'Places', href: `/keyholder/property/${id}/places` },
+    { key: 'photos', label: 'Photos', href: `/keyholder/property/${id}/photos` },
     { key: 'pricing', label: 'Pricing', href: `/keyholder/property/${id}/pricing` },
   ] as const
 
