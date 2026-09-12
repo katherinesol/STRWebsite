@@ -55,6 +55,34 @@ rather than "the destination does not exist").
    20-capability check done for booking/stay. **Coverage in those areas is
    UNKNOWN, not complete.** Retire nothing there until its check clears.
 
+## The property editor landed — 11 September 2026
+
+`/keyholder/property` is a real page now, not a signpost. Content and Places were
+built (`fdb1a3c`), Pricing was already there, and **three more legacy pages
+redirect**:
+
+`properties` → `/keyholder/property` · `properties/[id]` →
+`/keyholder/property/[id]` · `properties/[id]/pricing` →
+`/keyholder/property/[id]/pricing`
+
+**`properties/[id]/photos` IS DELIBERATELY NOT REDIRECTED.** The Photos tab has
+not been built, so that page is still the only place photo management exists.
+Redirecting it would 404 a real capability rather than migrate one — the same
+error as the original audit, which read a route that existed as a migration that
+had happened.
+
+So the broad "everything else is on the legacy admin" link is gone — it stopped
+being true — and a **narrow per-property `Photos ↗` link** replaces it, pointing
+at exactly one page and saying what is behind it. The legacy DASHBOARD is no
+longer a destination from anywhere in the new shell.
+
+### NEXT — the Photos tab
+
+Wrap the existing `PhotoManager` in keyholder chrome, then sever the last photos
+link and redirect `/admin/properties/[id]/photos`. **This is what closes the
+editor COMPLETELY and gets fully off the legacy property pages.** Its own piece;
+the narrow Photos link is the honest bridge until it is built.
+
 ## The 28 legacy-only pages
 
 Backed by a real table — losing these loses the capability:
