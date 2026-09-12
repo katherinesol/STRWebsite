@@ -78,6 +78,28 @@ name.
 
 ---
 
+## Two platform figures for Katherine to check — NOT modelled
+
+Found while seeding `platform_rates` from what was actually charged. Both are
+recorded as-is and deliberately left unmodelled: a rate table should describe
+what a platform charges, not encode what a keystroke got wrong.
+
+**VRBO, stay 7 Aug 2026 — commission reads 7.39%.** Every other VRBO booking is
+exactly 5.00%. The figure is `215.07` on a base of `2,911.50` — and `215.07` is
+also the exact commission on the 3 Aug booking, whose base was `4,301.50`. The
+same number on two different bases is what a copied figure looks like, not a
+rate change. At 5% the 7 Aug commission should be `145.58`, a difference of
+`69.49`.
+
+**VRBO, stay 10 Oct 2026 — processing reads 2.12% of base.** Every other VRBO
+booking sits near 3.56%, which is what 3% of the tax-inclusive total works out
+to. `52.54` on a base of `2,480.00`; at the usual rate it would be about `88`.
+
+Neither is encoded in `platform_rates`. If Katherine confirms they are
+data-entry errors, they are corrections to two booking rows — no schema change
+follows. If either turns out to be a real VRBO variation, THEN the rate table
+gains a row and this note explains why.
+
 ## Plaid — the live-feed version of statement matching
 
 **Design only. Not built. Katherine decides now vs. later.**

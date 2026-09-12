@@ -1,7 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { L, F, microLabel, cardStyle } from '@/lib/design-tokens'
-import { quote, netOf, taxRateFor, type FeeKind, type Platform } from '@/lib/gross-up'
+import { quote, netOf, taxRateFor, type FeeKind, type Platform, type PlatformRate } from '@/lib/gross-up'
 
 /*  THE POINT OF THIS SCREEN: decide by looking, not by guessing.
  *
@@ -16,23 +16,24 @@ import { quote, netOf, taxRateFor, type FeeKind, type Platform } from '@/lib/gro
 const PLATFORM_LABEL: Record<Platform, string> = { houfy: 'Houfy', vrbo: 'VRBO', airbnb: 'Airbnb' }
 const money = (v: number) => v.toLocaleString('en-CA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
-function FeeRow({ propertyId, kind, label, sub, initialTarget, today }: {
+function FeeRow({ propertyId, kind, label, sub, initialTarget, today, rates }: {
   propertyId: string
   kind: FeeKind
   label: string
   sub?: string
   initialTarget: number
   today: Partial<Record<Platform, number>>
+  rates: PlatformRate[]
 }) {
   const [target, setTarget] = useState(String(initialTarget))
   const n = Number(target)
   const valid = Number.isFinite(n) && n >= 0
-  const quotes = valid ? quote(n, propertyId, kind) : []
+  const quotes = valid ? quote(n, propertyId, kind, rates) : []
   const taxPct = (taxRateFor(propertyId, kind) * 100).toFixed(2)
 
   const nets = (Object.keys(today) as Platform[])
     .filter(p => today[p] != null)
-    .map(p => netOf(today[p]!, p, propertyId, kind))
+    .map(p => netOf(today[p]!, p, propertyId, kind, rates))
   const spread = nets.length > 1 ? Math.max(...nets) - Math.min(...nets) : 0
 
   return (
@@ -64,7 +65,7 @@ function FeeRow({ propertyId, kind, label, sub, initialTarget, today }: {
 
         {quotes.map(q => {
           const now = today[q.platform]
-          const nowNet = now != null ? netOf(now, q.platform, propertyId, kind) : null
+          const nowNet = now != null ? netOf(now, q.platform, propertyId, kind, rates) : null
           const delta = now != null ? (q.listPrice - now) / now : null
           return (
             <div key={q.platform} style={{ display: 'contents' }}>
@@ -123,10 +124,11 @@ function FeeRow({ propertyId, kind, label, sub, initialTarget, today }: {
  *  read as accommodation, which would attract MAT — and she has answered it:
  *  accommodation is the stay itself, and a surcharge is a fee on top of it. HST
  *  only, no MAT. Settled; don't reopen it. */
-function ExtraGuestRow({ propertyId, maxGuests, initialRate }: {
+function ExtraGuestRow({ propertyId, maxGuests, initialRate, rates }: {
   propertyId: string
   maxGuests: number
   initialRate: number
+  rates: PlatformRate[]
 }) {
   const [rate, setRate] = useState(String(initialRate))
   const [over, setOver] = useState('2')
@@ -135,7 +137,7 @@ function ExtraGuestRow({ propertyId, maxGuests, initialRate }: {
   const r = Number(rate), o = Number(over), n = Number(nights)
   const valid = [r, o, n].every(v => Number.isFinite(v) && v >= 0)
   const targetNet = valid ? r * o * n : 0
-  const quotes = valid && targetNet > 0 ? quote(targetNet, propertyId, 'extra_guest') : []
+  const quotes = valid && targetNet > 0 ? quote(targetNet, propertyId, 'extra_guest', rates) : []
 
   const numBox = (v: string, set: (s: string) => void, w = '64px') => (
     <span style={{ display: 'inline-flex', alignItems: 'center', border: `1px solid ${L.line}`, borderRadius: '7px', padding: '4px 9px', background: L.card }}>
@@ -196,7 +198,7 @@ function ExtraGuestRow({ propertyId, maxGuests, initialRate }: {
   )
 }
 
-export default function PricingCalculator({ propertyId, propertyName, base, weekend, overrides, todayCleaning, maxGuests }: {
+export default function PricingCalculator({ propertyId, propertyName, base, weekend, overrides, todayCleaning, maxGuests, rates }: {
   propertyId: string
   propertyName: string
   base: number
@@ -204,6 +206,10 @@ export default function PricingCalculator({ propertyId, propertyName, base, week
   overrides: { start_date: string; end_date: string; rate: number; label?: string | null }[]
   todayCleaning: Partial<Record<Platform, number>>
   maxGuests: number
+  /*  Loaded from platform_rates by the page, never the constant. The write path
+   *  reads the same rows through the same loader, so the price Katherine decides
+   *  against and the price that goes live cannot come from different numbers. */
+  rates: PlatformRate[]
 }) {
   return (
     <div style={{ paddingTop: '24px', display: 'flex', flexDirection: 'column', gap: '6px', maxWidth: '980px' }}>
@@ -216,29 +222,29 @@ export default function PricingCalculator({ propertyId, propertyName, base, week
 
       <FeeRow propertyId={propertyId} kind="nightly" label="Nightly — base rate"
         sub="Low season, and the fallback for any date without an override"
-        initialTarget={base} today={{ airbnb: base, vrbo: base, houfy: base }} />
+        initialTarget={base} today={{ airbnb: base, vrbo: base, houfy: base }} rates={rates} />
 
       {weekend != null && (
         <FeeRow propertyId={propertyId} kind="nightly" label="Nightly — weekend"
-          initialTarget={weekend} today={{ airbnb: weekend, vrbo: weekend, houfy: weekend }} />
+          initialTarget={weekend} today={{ airbnb: weekend, vrbo: weekend, houfy: weekend }} rates={rates} />
       )}
 
       {overrides.map(o => (
         <FeeRow key={`${o.start_date}-${o.end_date}`} propertyId={propertyId} kind="nightly"
           label={`Nightly — ${o.label || 'override'}`}
           sub={`${o.start_date} to ${o.end_date}`}
-          initialTarget={Number(o.rate)} today={{ airbnb: Number(o.rate), vrbo: Number(o.rate), houfy: Number(o.rate) }} />
+          initialTarget={Number(o.rate)} today={{ airbnb: Number(o.rate), vrbo: Number(o.rate), houfy: Number(o.rate) }} rates={rates} />
       ))}
 
       <FeeRow propertyId={propertyId} kind="cleaning" label="Cleaning"
         sub="Charged once per stay. MAT does not apply, so only HST rides on it."
-        initialTarget={todayCleaning.houfy ?? 0} today={todayCleaning} />
+        initialTarget={todayCleaning.houfy ?? 0} today={todayCleaning} rates={rates} />
 
       <FeeRow propertyId={propertyId} kind="pet" label="Pet"
         sub="Flat, once per stay, every platform"
-        initialTarget={199} today={{ airbnb: 199 }} />
+        initialTarget={199} today={{ airbnb: 199 }} rates={rates} />
 
-      <ExtraGuestRow propertyId={propertyId} maxGuests={maxGuests} initialRate={75} />
+      <ExtraGuestRow propertyId={propertyId} maxGuests={maxGuests} initialRate={75} rates={rates} />
 
       <div style={{ ...cardStyle, padding: '18px 22px', fontSize: '13px', color: L.inkBody, lineHeight: 1.6 }}>
         <strong style={{ color: L.ink }}>Nothing is saved from this screen.</strong> It is here so the

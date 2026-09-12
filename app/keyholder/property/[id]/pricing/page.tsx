@@ -6,6 +6,7 @@ import { loadProperty } from '@/lib/properties-db'
 import { L, F } from '@/lib/design-tokens'
 import PricingCalculator from '@/components/keyholder/PricingCalculator'
 import PropertyTabs from '@/components/keyholder/PropertyTabs'
+import { loadPlatformRates } from '@/lib/platform-rates'
 
 export const dynamic = 'force-dynamic'
 
@@ -25,6 +26,7 @@ export default async function PricingTab({ params }: { params: Promise<{ id: str
   const property = await loadProperty(id)
   if (!property) notFound()
 
+  const rates = await loadPlatformRates()
   const supabase = createAdminClient()
   const [{ data: pricing }, { data: overrides }, { data: recent }] = await Promise.all([
     supabase.from('property_pricing').select('*').eq('property_id', id).maybeSingle(),
@@ -53,6 +55,7 @@ export default async function PricingTab({ params }: { params: Promise<{ id: str
         overrides={(overrides || []) as any}
         todayCleaning={todayCleaning as any}
         maxGuests={property.guests || 0}
+        rates={rates}
       />
     </div>
   )
