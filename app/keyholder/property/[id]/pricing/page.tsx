@@ -21,6 +21,7 @@ export const dynamic = 'force-dynamic'
 export default async function PricingTab({ params }: { params: Promise<{ id: string }> }) {
   if (!await hasRole('owner', 'co-owner')) redirect('/keyholder')
   if (!await hasPermission('money', 'view')) redirect('/keyholder')
+  const canEdit = await hasPermission('money', 'edit')
 
   const { id } = await params
   const property = await loadProperty(id)
@@ -56,6 +57,13 @@ export default async function PricingTab({ params }: { params: Promise<{ id: str
         todayCleaning={todayCleaning as any}
         maxGuests={property.guests || 0}
         rates={rates}
+        canEdit={canEdit}
+        saved={{
+          nightly: pricing?.target_net_nightly != null ? Number(pricing.target_net_nightly) : null,
+          cleaning: pricing?.target_net_cleaning != null ? Number(pricing.target_net_cleaning) : null,
+          pet: pricing?.target_net_pet != null ? Number(pricing.target_net_pet) : null,
+          extraGuest: pricing?.target_net_extra_guest_rate != null ? Number(pricing.target_net_extra_guest_rate) : null,
+        }}
       />
     </div>
   )

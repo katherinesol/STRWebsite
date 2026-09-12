@@ -78,6 +78,28 @@ name.
 
 ---
 
+## NEXT pricing piece — the weekend rate and the seasonal bands
+
+The four base targets save: `target_net_nightly`, `target_net_cleaning`,
+`target_net_pet`, `target_net_extra_guest_rate`. **The weekend rate and the
+seasonal bands do not**, and the screen says so rather than accepting a number
+and dropping it.
+
+What it needs:
+
+- **`target_net_weekend` on `property_pricing`.** The weekend rate is a column
+  beside `base_rate`, not an override row, so it has nowhere to land today.
+- **Writes for `pricing_overrides.target_net`.** The column was added with the
+  migration and nothing writes it yet. Each band already has its own row and
+  date range, so this is a per-row save keyed on the override id — the existing
+  `rate` column stays a LIST price and must not be reinterpreted.
+- **The same loader on both.** Bands price through `loadPlatformRates()` and
+  `quote()` like everything else, so a seasonal night grosses up per platform
+  exactly as the base rate does.
+
+Shipped honestly labelled instead of half-written: a band that silently fails to
+save is worse than a band that says it is for looking at.
+
 ## Two platform figures for Katherine to check — NOT modelled
 
 Found while seeding `platform_rates` from what was actually charged. Both are

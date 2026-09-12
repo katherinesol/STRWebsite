@@ -16,8 +16,15 @@ export async function PATCH(
       property is being edited and the WHERE clause pins it, but a spread body
       could also SET it - reassigning one property's settings onto another in a
       single request, with the URL still reading correctly. */
+  /*  nightly_rate and cleaning_fee ARE GONE FROM THIS LIST ON PURPOSE. Pricing
+      moved to property_pricing.target_net_*, where what is stored is what
+      Katherine KEEPS and the guest price is computed per platform on read. These
+      two columns are the last of the three-way min_stay/cleaning split still
+      writable anywhere, and a second writable copy is how the copies came to
+      disagree. Refused loudly rather than dropped, so a form still sending them
+      fails instead of appearing to save. */
   const ALLOWED = [
-    'nightly_rate', 'cleaning_fee', 'earliest_checkin', 'latest_checkout',
+    'earliest_checkin', 'latest_checkout',
     'min_stay', 'max_advance_days', 'early_checkin_fee_per_hour',
     'late_checkout_fee_per_hour', 'parking_spots', 'bag_drop_available',
     'instacart_available', 'security_deposit_amount',
