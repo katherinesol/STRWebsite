@@ -157,10 +157,7 @@ async function connect() {
   let challenge: string | null = null
   api.on('tfa request', () => {
     challenge = 'TWO-FACTOR'
-    log('\n  ⚠  EUFY IS ASKING FOR A TWO-FACTOR CODE.')
-    log('     It has emailed a 6-digit code to the account. This probe cannot')
-    log('     type it for you. Log in to the Eufy app once on this machine, or')
-    log('     disable 2FA for the account, then run again.')
+    log('\n  ⚠  EUFY IS ASKING FOR A TWO-FACTOR CODE — see the instructions below.')
   })
   api.on('captcha request', (id: string) => {
     challenge = 'CAPTCHA'
@@ -173,24 +170,77 @@ async function connect() {
   api.on('station added', (st: any) => step(`station added: ${st.getName?.()} (${st.getModel?.()})`))
   api.on('device added', (d: any) => step(`device added: ${d.getName?.()} (${d.getModel?.()})`))
 
+  /*  TWO-FACTOR, AND HOW THIS STOPS BEING A PROBLEM FOREVER.
+   *
+   *  eufy-security-client takes the emailed code as connect({ verifyCode }).
+   *  That alone would mean re-reading an email on every run, because the code
+   *  expires in minutes — so the moment a 2FA login succeeds, this calls
+   *  addTrustDevice() with the same code, which marks THIS MACHINE trusted on
+   *  the Eufy account. Every later run logs in with no code at all.
+   *
+   *  So: one awkward run, then never again. The tokens live in persistentDir
+   *  alongside it, which is ~/eufy-probe and not the repository. */
+  const verifyCode = (process.env.EUFY_2FA_CODE || '').trim()
+  const captchaCode = (process.env.EUFY_CAPTCHA_CODE || '').trim()
+  let captchaId: string | null = null
+  api.on('captcha request', (id: string) => { captchaId = id })
+
+  const opts: any = { force: false }
+  if (verifyCode) {
+    if (!/^\d{4,8}$/.test(verifyCode)) stop(`EUFY_2FA_CODE is "${verifyCode.replace(/./g, '*')}" — expected the 4-8 digit code from the email.`)
+    opts.verifyCode = verifyCode
+    opts.force = true
+    step(`using the ${verifyCode.length}-digit verification code from EUFY_2FA_CODE`)
+  }
+  if (captchaCode && process.env.EUFY_CAPTCHA_ID) {
+    opts.captcha = { captchaCode, captchaId: process.env.EUFY_CAPTCHA_ID }
+    opts.force = true
+    step('using the captcha answer from EUFY_CAPTCHA_CODE')
+  }
+
   step('connecting — this can take 10-30 seconds')
   const t0 = Date.now()
   try {
-    await withTimeout(api.connect(), 45_000, 'connect()')
+    await withTimeout(api.connect(opts), 45_000, 'connect()')
   } catch (e: any) {
     stop(`login failed after ${((Date.now() - t0) / 1000).toFixed(1)}s: ${e.message}`
       + (challenge ? `\n    A ${challenge} challenge was raised — see above.` : ''))
   }
   step(`connect() returned after ${((Date.now() - t0) / 1000).toFixed(1)}s`)
 
-  if (challenge) {
-    stop(`Eufy raised a ${challenge} challenge. Nothing can be read until it is cleared — see above.`)
+  /*  A challenge raised on THIS run, with no answer supplied, is the end of the
+   *  road for this run — but it is a short road now. */
+  if (challenge && !verifyCode && !captchaCode) {
+    if (challenge === 'TWO-FACTOR') {
+      log('\n  ─────────────────────────────────────────────────────────────')
+      log('  Eufy has just emailed a 6-digit code to the account.')
+      log('  It expires in a few minutes, so do this next, promptly:')
+      log('')
+      log('      EUFY_2FA_CODE=123456 npx tsx tools/eufy/capability-probe.ts')
+      log('')
+      log('  (with the real code, and the same EUFY_USERNAME / EUFY_PASSWORD')
+      log('   already exported in that shell)')
+      log('')
+      log('  You only have to do this ONCE. On success this machine is')
+      log('  registered as a trusted device and later runs need no code.')
+      log('  ─────────────────────────────────────────────────────────────')
+    }
+    if (challenge === 'CAPTCHA' && captchaId) {
+      log(`\n  Re-run with:  EUFY_CAPTCHA_ID=${captchaId} EUFY_CAPTCHA_CODE=<what the image says> ...`)
+    }
+    stop(`Eufy raised a ${challenge} challenge and no answer was supplied.`)
   }
-  if (typeof api.isConnected === 'function') {
-    step('isConnected(): ' + api.isConnected())
-    if (!api.isConnected()) {
-      log('  ⚠  the library reports NOT connected even though connect() returned.')
-      log('     This is the silent failure the first run hit.')
+
+  /*  Make it the last time. */
+  if (verifyCode && api.isConnected?.()) {
+    step('registering this machine as a trusted device')
+    try {
+      const http = api.getApi?.()
+      const ok = await withTimeout(http.addTrustDevice(verifyCode), 20_000, 'addTrustDevice()')
+      log(ok ? '  ✓ trusted — future runs will not ask for a code' : '  ⚠  Eufy declined to trust this machine; the next run may ask again')
+    } catch (e: any) {
+      log('  ⚠  could not register trust: ' + e.message)
+      log('     Not fatal — this run continues, but the next may ask for a code again.')
     }
   }
 
