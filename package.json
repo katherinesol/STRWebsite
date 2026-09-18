@@ -18,6 +18,7 @@
     "@supabase/supabase-js": "^2.107.0",
     "@types/mapbox-gl": "^3.4.1",
     "date-fns": "^4.4.0",
+    "eufy-security-client": "^4.2.0",
     "fuse.js": "^7.4.1",
     "ical.js": "^2.2.1",
     "mapbox-gl": "^3.24.0",

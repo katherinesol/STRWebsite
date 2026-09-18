@@ -48,6 +48,12 @@ const AUDIT = join(OUT, 'audit.log')
 const TEST_CODE_CANDIDATES = ['909142', '909143', '909144']
 let TEST_CODE = ''
 const TEST_NAME = 'ZZ-PROBE-DELETE-ME'
+/*  Eufy identifies a keypad user by a short id as well as a name. A fixed,
+ *  obviously-synthetic value keeps the probe's user distinct from every real
+ *  one on the lock. */
+const SHORT_USER_ID = '9999'
+/*  Loaded in Q2. Writes are impossible without it. */
+let STATION: any = null
 
 /*  Every code found in Q3. Nothing in this set is ever an argument to a write.
  *  It is written to disk before the first write so that a crashed run leaves
@@ -62,7 +68,18 @@ const log = (s: string) => {
 const head = (s: string) => log('\n════ ' + s + ' ════')
 
 class Stop extends Error {}
-const stop = (why: string): never => { throw new Stop(why) }
+
+/** Every step announces itself, so a silent exit is impossible to mistake. */
+const step = (s: string) => log('  · ' + s)
+
+/** Nothing in this script is allowed to hang forever with no explanation. */
+function withTimeout<T>(p: Promise<T>, ms: number, what: string): Promise<T> {
+  return Promise.race([
+    p,
+    new Promise<T>((_, rej) => setTimeout(() => rej(new Error(`${what} did not finish within ${ms / 1000}s`)), ms)),
+  ])
+}
+function stop(why: string): never { throw new Stop(why) }
 
 /*  ──────────────────────────────────────────────────────────────────────────
  *  THE GUARD. Nothing writes or deletes without going through this.
@@ -109,18 +126,80 @@ function creds(): { username: string; password: string; country: string } {
  *  rather than crashing on an import.
  *  ────────────────────────────────────────────────────────────────────────── */
 async function connect() {
+  /*  WHY THIS IS SO CHATTY.
+   *
+   *  The first run printed the Q1 header and returned to the prompt with
+   *  nothing after it — a black box. The cause is almost certainly below:
+   *  eufy-security-client reports a two-factor or captcha challenge as an EVENT,
+   *  not as a rejected promise. With nobody listening, connect() resolves
+   *  having logged in to nothing, no devices ever arrive, and the script walks
+   *  off the end in silence. Every step now announces itself, every failure
+   *  mode has a listener, and nothing waits forever. */
+  step('loading eufy-security-client')
   let mod: any
   try {
     mod = await import('eufy-security-client')
-  } catch {
-    stop('eufy-security-client is not installed. Run:  npm i eufy-security-client')
+  } catch (e: any) {
+    stop('eufy-security-client is not installed. Run:  npm i eufy-security-client\n    ' + e.message)
   }
+
   const { username, password, country } = creds()
+  step(`credentials found for ${username.replace(/^(.).*(@.*)$/, '$1***$2')} (country ${country})`)
+
+  step('initialising')
   const api = await mod.EufySecurity.initialize({
     username, password, country, language: 'en',
     persistentDir: OUT, eventDurationSeconds: 10, p2pConnectionSetup: 2, pollingIntervalMinutes: 10,
   })
-  await api.connect()
+
+  /*  THE LISTENERS THAT WERE MISSING. Each of these is a way the login can end
+   *  without an exception, and each printed nothing before. */
+  let challenge: string | null = null
+  api.on('tfa request', () => {
+    challenge = 'TWO-FACTOR'
+    log('\n  ⚠  EUFY IS ASKING FOR A TWO-FACTOR CODE.')
+    log('     It has emailed a 6-digit code to the account. This probe cannot')
+    log('     type it for you. Log in to the Eufy app once on this machine, or')
+    log('     disable 2FA for the account, then run again.')
+  })
+  api.on('captcha request', (id: string) => {
+    challenge = 'CAPTCHA'
+    log('\n  ⚠  EUFY IS ASKING FOR A CAPTCHA (id ' + id + ').')
+    log('     This is what Eufy does to unfamiliar machines. Log in to the Eufy')
+    log('     app from this machine\'s network, then run again.')
+  })
+  api.on('connection error', (e: Error) => log('  ⚠  connection error: ' + e.message))
+  api.on('close', () => log('  · connection closed'))
+  api.on('station added', (st: any) => step(`station added: ${st.getName?.()} (${st.getModel?.()})`))
+  api.on('device added', (d: any) => step(`device added: ${d.getName?.()} (${d.getModel?.()})`))
+
+  step('connecting — this can take 10-30 seconds')
+  const t0 = Date.now()
+  try {
+    await withTimeout(api.connect(), 45_000, 'connect()')
+  } catch (e: any) {
+    stop(`login failed after ${((Date.now() - t0) / 1000).toFixed(1)}s: ${e.message}`
+      + (challenge ? `\n    A ${challenge} challenge was raised — see above.` : ''))
+  }
+  step(`connect() returned after ${((Date.now() - t0) / 1000).toFixed(1)}s`)
+
+  if (challenge) {
+    stop(`Eufy raised a ${challenge} challenge. Nothing can be read until it is cleared — see above.`)
+  }
+  if (typeof api.isConnected === 'function') {
+    step('isConnected(): ' + api.isConnected())
+    if (!api.isConnected()) {
+      log('  ⚠  the library reports NOT connected even though connect() returned.')
+      log('     This is the silent failure the first run hit.')
+    }
+  }
+
+  /*  Devices arrive from the cloud after login. Asking immediately can return
+   *  an empty list that means "not yet", not "none". */
+  step('refreshing cloud data')
+  try { await withTimeout(api.refreshCloudData(), 30_000, 'refreshCloudData()') }
+  catch (e: any) { log('  ⚠  refreshCloudData failed: ' + e.message + ' — continuing, the device list may be stale') }
+
   return { api, mod }
 }
 
@@ -145,36 +224,95 @@ async function readCodes(device: any): Promise<any[] | null> {
  *  ══════════════════════════════════════════════════════════════════════════ */
 async function q1_q3(api: any) {
   head('Q1 · WHAT LOCK IS THIS')
-  const devices = Object.values(await api.getDevices())
-  const locks = devices.filter((d: any) => typeof d.isLock === 'function' ? d.isLock() : /lock/i.test(String(d.getDeviceType?.() ?? '')))
-  log(`  devices on the account: ${devices.length}   locks: ${locks.length}`)
-  for (const d of devices as any[]) {
-    log(`    ${String(d.getName?.() ?? '?').padEnd(28)} model ${String(d.getModel?.() ?? '?').padEnd(10)} serial ${mask(String(d.getSerial?.() ?? ''))}  ${typeof d.isLock === 'function' && d.isLock() ? '← LOCK' : ''}`)
+  step('asking for the device list')
+  let devices: any[] = []
+  try {
+    const got = await withTimeout(api.getDevices(), 30_000, 'getDevices()')
+    devices = Array.isArray(got) ? got : Object.values(got ?? {})
+  } catch (e: any) {
+    /*  DISTINCT FROM ZERO DEVICES, and Katherine needs the difference: this is
+     *  "the call failed", not "the account is empty". */
+    stop('the device list call FAILED: ' + e.message
+      + '\n    That is different from finding no devices — the request itself did not complete.')
   }
-  if (!locks.length) stop('No lock found on this account.')
+  step(`getDevices() returned ${devices.length} device(s)`)
+
+  if (devices.length === 0) {
+    /*  Authenticated, asked, told nothing. Also a real answer. */
+    let stations: any[] = []
+    try { stations = await withTimeout(api.getStations(), 20_000, 'getStations()') } catch {}
+    log('\n  ⚠  AUTHENTICATED, BUT THE ACCOUNT REPORTS ZERO DEVICES.')
+    log(`     stations visible: ${stations.length}`)
+    log('     This is not an error — the call worked and came back empty. Usually one of:')
+    log('       · the locks are on a DIFFERENT Eufy account than these credentials')
+    log('       · the account region is wrong (currently ' + (process.env.EUFY_COUNTRY || 'CA') + ' — set EUFY_COUNTRY)')
+    log('       · the lock is paired to a HomeBase/station this account cannot see')
+    stop('No devices on this account.')
+  }
+
+  for (const d of devices) {
+    let isLock = false
+    try { isLock = typeof d.isLock === 'function' ? d.isLock() : false } catch {}
+    log(`    ${String(d.getName?.() ?? '?').padEnd(28)} model ${String(d.getModel?.() ?? '?').padEnd(10)} `
+      + `type ${String(d.getDeviceType?.() ?? '?').padEnd(5)} serial ${mask(String(d.getSerial?.() ?? ''))}`
+      + (isLock ? '  ← LOCK' : ''))
+  }
+
+  const locks = devices.filter((d: any) => { try { return typeof d.isLock === 'function' && d.isLock() } catch { return false } })
+  log(`\n  of those, ${locks.length} report themselves as locks`)
+  if (!locks.length) {
+    log('\n  ⚠  DEVICES EXIST BUT NONE IS A LOCK, by the library\'s own reckoning.')
+    log('     If the C32 is in the list above, the library does not recognise its')
+    log('     device type as a lock — which by itself means it cannot manage its codes.')
+    stop('No lock among the devices on this account.')
+  }
 
   const lock: any = locks.length === 1 ? locks[0]
     : locks.find((d: any) => /unit ?3|c32/i.test(String(d.getName?.() ?? ''))) ?? locks[0]
-  log(`\n  probing: ${lock.getName?.()}  (${lock.getModel?.()})`)
-  log(`  battery: ${lock.getPropertyValue?.('battery') ?? 'unknown'}%   ← a low battery predicts a failed write`)
+  log(`\n  probing: ${lock.getName?.()}  (${lock.getModel?.()})  station ${mask(String(lock.getStationSerial?.() ?? ''))}`)
+  let battery: any = 'unknown'
+  try { battery = lock.getPropertyValue?.('battery') ?? 'unknown' } catch {}
+  log(`  battery: ${battery}%   ← a low battery predicts a failed write`)
 
-  head('Q2 · WHAT THE LIBRARY THINKS IT CAN DO')
+  head('Q2 · CAN IT MANAGE PASSCODES AT ALL')
+  /*  THE THREE COMMANDS THAT DECIDE IT. eufy-security-client names passcode
+   *  operations deviceAddUser / deviceDeleteUser / deviceUpdateUserPasscode,
+   *  and they are executed on the STATION, not the device. If the lock does not
+   *  report them, Eufy cannot hold guest codes on this model and the project
+   *  stops here. */
+  const WANT = ['deviceAddUser', 'deviceDeleteUser', 'deviceUpdateUserPasscode']
   let commands: string[] = []
   try {
     commands = (lock.getCommands?.() ?? []).map((c: any) => String(c))
-    log('  commands: ' + (commands.length ? commands.join(', ') : '(none reported)'))
-  } catch (e: any) { log('  commands unavailable: ' + e.message) }
+  } catch (e: any) { log('  ⚠  getCommands() failed: ' + e.message) }
+  log(`  the lock reports ${commands.length} command(s)`)
+  if (commands.length) log('    ' + commands.join(', '))
 
-  const passcodeCommands = commands.filter(c => /passcode|pin|user|code/i.test(c))
-  log('\n  passcode-related commands: ' + (passcodeCommands.length ? passcodeCommands.join(', ') : 'NONE'))
-  if (!passcodeCommands.length) {
-    log('\n  ⚠  THIS IS A REAL AND LIKELY ANSWER FOR THE C32.')
-    log('     eufy-security-client documents lock/unlock for locks; passcode')
-    log('     management is not in its documented surface, and the C32 is not on')
-    log('     its published device list (the C33 and C220 are). If nothing above')
-    log('     manages passcodes, the answer to "can we program this lock" is NO,')
-    log('     and no amount of adapter design changes that.')
+  const have = WANT.filter(w => commands.includes(w))
+  log('')
+  for (const w of WANT) log(`    ${have.includes(w) ? '✓' : '✗'}  ${w}`)
+
+  //  the station is where the write actually happens, so check it too
+  let station: any = null
+  try {
+    const stations = await withTimeout(api.getStations(), 20_000, 'getStations()')
+    station = (Array.isArray(stations) ? stations : Object.values(stations ?? {}))
+      .find((s: any) => s.getSerial?.() === lock.getStationSerial?.())
+  } catch (e: any) { log('  ⚠  could not load the station: ' + e.message) }
+  STATION = station
+  const stationFns = ['addUser', 'deleteUser', 'updateUserPasscode'].filter(f => typeof station?.[f] === 'function')
+  log(`\n  station methods available: ${stationFns.length ? stationFns.join(', ') : 'NONE — the station object could not be loaded'}`)
+
+  if (!have.length) {
+    log('\n  ⚠  THE C32 REPORTS NO PASSCODE COMMANDS.')
+    log('     This is a real and expected possible answer. eufy-security-client')
+    log('     documents lock/unlock for locks; the C32 is not on its published')
+    log('     device list. If nothing above manages passcodes, Eufy cannot hold')
+    log('     guest codes on this model, and no adapter design changes that.')
+    log('     STOP HERE — the question is answered.')
+    stop('The C32 does not support passcode management.')
   }
+  log(`\n  ✓ passcode management IS supported (${have.length}/3 commands). Continuing to Q3.`)
 
   head('Q3 · THE CODES ALREADY ON THE LOCK — READ AND PROTECT')
   const codes = await readCodes(lock)
@@ -224,11 +362,19 @@ const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
 /** The one place a passcode write happens. Guarded, logged, and re-read. */
 async function addCode(lock: any, code: string, name: string, schedule?: { start: Date; end: Date }) {
   assertSafeTarget(code, schedule ? 'Q5/Q6 add-with-schedule' : 'Q4 add')
-  const args: any = { password: code, name, ...(schedule ? { startDay: schedule.start, endDay: schedule.end } : {}) }
+  /*  THE WRITE HAPPENS ON THE STATION, NOT THE DEVICE, and the first draft of
+   *  this probe had it wrong: it looked for lock.addUserPasscode, which does not
+   *  exist. eufy-security-client's real signature is
+   *    station.addUser(device, username, shortUserId, passcode, schedule?)
+   *  with Schedule carrying startDateTime / endDateTime — so a time-bound code
+   *  is at least EXPRESSIBLE in the API. Whether the C32 enforces one is Q6.
+   *
+   *  It returns void. The result arrives as an event, which is precisely why
+   *  every call here is followed by a readback rather than trusted. */
+  if (!STATION) stop('the station for this lock could not be loaded — nothing can be written')
   log(`      writing ${mask(code)} "${name}"${schedule ? ` window ${schedule.start.toISOString()} → ${schedule.end.toISOString()}` : ' (no schedule)'}`)
-  const fn = lock.addUserPasscode ?? lock.addUser ?? lock.setPasscode
-  if (typeof fn !== 'function') stop('no add-passcode method on this device — the C32 may simply not support it')
-  return await fn.call(lock, args)
+  const sched = schedule ? { startDateTime: schedule.start, endDateTime: schedule.end } : undefined
+  return await STATION.addUser(lock, name, SHORT_USER_ID, code, sched)
 }
 
 /** The one place a passcode delete happens. Guarded twice over. */
@@ -241,10 +387,13 @@ async function deleteCode(lock: any, code: string) {
     if (onDisk.includes(code)) stop(`Q7 delete: ${mask(code)} appears in ${PROTECTED_FILE}. REFUSED.`)
     log(`      cross-checked against ${onDisk.length} protected code(s) on disk — not among them`)
   }
-  const fn = lock.deleteUserPasscode ?? lock.deleteUser ?? lock.removePasscode
-  if (typeof fn !== 'function') stop('no delete-passcode method on this device')
-  log(`      deleting ${mask(code)}`)
-  return await fn.call(lock, { password: code, name: TEST_NAME })
+  if (!STATION) stop('the station for this lock could not be loaded — nothing can be deleted')
+  log(`      deleting the user named "${TEST_NAME}" (code ${mask(code)})`)
+  /*  deleteUser takes the USERNAME, not the code — which is a second, structural
+   *  reason the tenant is safe here: this probe only ever names its own
+   *  unmistakable user, ZZ-PROBE-DELETE-ME. The code guard above still runs
+   *  first, because two reasons are better than one. */
+  return await STATION.deleteUser(lock, TEST_NAME, SHORT_USER_ID)
 }
 
 /** After every write: does the lock agree? The adapter's word is never the verdict. */
