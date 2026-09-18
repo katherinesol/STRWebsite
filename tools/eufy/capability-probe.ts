@@ -55,6 +55,11 @@ const TEST_NAME = 'ZZ-PROBE-DELETE-ME'
 const SHORT_USER_ID = '9999'
 /*  Loaded in Q2. Writes are impossible without it. */
 let STATION: any = null
+let API: any = null
+/*  Device types this library has no entry for, and the model each one is.
+ *  Filled in at connect time; read again in Q2 so the report can say which
+ *  commands were lent rather than discovered. */
+const UNMAPPED_TYPES: Record<number, string> = {}
 
 /*  Every code found in Q3. Nothing in this set is ever an argument to a write.
  *  It is written to disk before the first write so that a crashed run leaves
@@ -235,8 +240,8 @@ async function connect() {
    *  per-backend login errors stay in a silent stub and all anyone ever sees is
    *  "Login failed on both backends". */
   const { createRequire } = await import('module')
-  const req = createRequire(import.meta.url)
-  const logging = req(req.resolve('eufy-security-client').replace(/index\.js$/, 'logging.js'))
+  const req0 = createRequire(import.meta.url)
+  const logging = req0(req0.resolve('eufy-security-client').replace(/index\.js$/, 'logging.js'))
 
   logging.InternalLogger.logger = {
     trace: () => {}, debug: VERBOSE ? libLog('debug') : () => {},
@@ -245,6 +250,44 @@ async function connect() {
   logging.setLoggingLevel('main', VERBOSE ? logging.LogLevel.Debug : logging.LogLevel.Info)
   logging.setLoggingLevel('http', VERBOSE ? logging.LogLevel.Debug : logging.LogLevel.Info)
   step('library logging enabled (passwords redacted)' + (VERBOSE ? ' — verbose' : ' — add --verbose for more'))
+
+  /*  ═══ TEACHING THE LIBRARY ABOUT TYPE 211 ═══
+   *
+   *  Unit 3's lock reports device type 211 (T85L1). eufy-security-client 4.2.0
+   *  — which IS the latest published version — has no entry for it, and the
+   *  consequence is a pure lookup miss, not a verdict about the hardware:
+   *
+   *      getCommands() { const c = DeviceCommands[this.getDeviceType()]
+   *                      if (c === undefined) return [] }
+   *      hasCommand(n) { return this.getCommands().includes(n) }
+   *
+   *  An unmapped type gets an empty command list, so hasCommand() is false for
+   *  everything, so station.addUser() throws NotSupportedError before a single
+   *  byte reaches the lock. THE LIBRARY REFUSING IS NOT THE LOCK REFUSING.
+   *
+   *  Type 201 is LOCK_85L0 — the Smart Lock C33, model T85L0 — and it carries
+   *  all five passcode commands including deviceUpdateUserSchedule. T85L1 is one
+   *  character from T85L0 and is almost certainly its successor, so 201's
+   *  command set is the most defensible thing to lend it.
+   *
+   *  This is a HYPOTHESIS THE HARDWARE GETS TO ANSWER. With the map filled in,
+   *  the library will actually send the command and the lock decides. Without
+   *  it, nothing is ever asked. Read-only work is unaffected either way; the
+   *  write phases carry the same guard they always did. */
+  const types = req0(req0.resolve('eufy-security-client').replace(/index\.js$/, 'http/types.js'))
+  const BORROW_FROM = 201
+  Object.assign(UNMAPPED_TYPES, { 211: 'T85L1' })
+  const UNMAPPED = UNMAPPED_TYPES
+  for (const [t, label] of Object.entries(UNMAPPED)) {
+    const n = Number(t)
+    if (types.DeviceCommands[n] === undefined && types.DeviceCommands[BORROW_FROM]) {
+      types.DeviceCommands[n] = types.DeviceCommands[BORROW_FROM]
+      types.DeviceType[n] = `LOCK_${label}`
+      log(`  · type ${n} (${label}) is unknown to this library — lending it the command set of`)
+      log(`    type ${BORROW_FROM} (${types.DeviceType[BORROW_FROM]}), which has ${types.DeviceCommands[BORROW_FROM].length} commands.`)
+      log('    The lock, not the library, now gets to say whether they work.')
+    }
+  }
 
   step('initialising')
   const api = await mod.EufySecurity.initialize({
@@ -392,7 +435,35 @@ async function connect() {
 /*  Reading the codes is the hinge of the whole probe. If this cannot be done,
  *  the tenant's code cannot be identified, and if it cannot be identified it
  *  cannot be protected — so the probe stops here rather than writing blind. */
-async function readCodes(device: any): Promise<any[] | null> {
+async function readCodes(device: any, api?: any): Promise<any[] | null> {
+  /*  THE RIGHT ENDPOINT, FOUND LATE.
+   *
+   *  The first version sifted device properties for anything whose key looked
+   *  like a passcode. That returns nothing for an unmapped device type, because
+   *  the property table is keyed by type too — so "could not read the codes"
+   *  was another lookup miss wearing the costume of a hardware limit.
+   *
+   *  HTTPApi.getUsers(deviceSN, stationSN) is the actual endpoint. It returns
+   *  each user with a password_list, and each password carries expiration_time,
+   *  is_permanent and schedule — which means the tenant's own existing code can
+   *  answer "does this lock understand expiring codes at all" without writing
+   *  anything to anything. */
+  if (api) {
+    try {
+      const http = api.getApi?.()
+      const users = await withTimeout(
+        http.getUsers(device.getSerial(), device.getStationSerial()), 25_000, 'getUsers()')
+      if (Array.isArray(users)) {
+        step(`getUsers() returned ${users.length} user(s)`)
+        return users.map((u: any) => ({ source: 'getUsers', key: u.user_name ?? u.short_user_id, value: u }))
+      }
+      step('getUsers() returned nothing')
+    } catch (e: any) {
+      log('  ⚠  getUsers() failed: ' + e.message)
+    }
+  }
+
+  //  fallback: the property sweep, for devices the type table does know
   for (const fn of ['getPropertyValue', 'getProperties']) {
     try {
       const props = typeof device[fn] === 'function' ? await device[fn]() : null
@@ -444,13 +515,29 @@ async function q1_q3(api: any) {
       + (isLock ? '  ← LOCK' : ''))
   }
 
-  const locks = devices.filter((d: any) => { try { return typeof d.isLock === 'function' && d.isLock() } catch { return false } })
-  log(`\n  of those, ${locks.length} report themselves as locks`)
+  let locks = devices.filter((d: any) => { try { return typeof d.isLock === 'function' && d.isLock() } catch { return false } })
+  log(`\n  of those, ${locks.length} are classified as locks by the library`)
+
+  /*  THE CLASSIFICATION IS NOT THE GATE, AND STOPPING HERE WAS WRONG.
+   *
+   *  station.addUser() checks device.hasCommand(DeviceAddUser). It never asks
+   *  isLock(). So a device the library declines to call a lock can still be
+   *  perfectly capable of holding codes — the two questions are decided by two
+   *  different tables, and only one of them matters.
+   *
+   *  Anything whose model looks like a lock is therefore considered, and the
+   *  command check in Q2 is what decides. */
   if (!locks.length) {
-    log('\n  ⚠  DEVICES EXIST BUT NONE IS A LOCK, by the library\'s own reckoning.')
-    log('     If the C32 is in the list above, the library does not recognise its')
-    log('     device type as a lock — which by itself means it cannot manage its codes.')
-    stop('No lock among the devices on this account.')
+    const byModel = devices.filter((d: any) => /^T85|lock/i.test(String(d.getModel?.() ?? '') + ' ' + String(d.getName?.() ?? '')))
+    if (byModel.length) {
+      log('\n  ⚠  THE LIBRARY CLASSIFIES NONE OF THESE AS A LOCK — and that is not the question.')
+      log('     station.addUser() checks hasCommand(deviceAddUser); it never asks isLock().')
+      log('     These look like locks by model, so Q2 will ask them directly:')
+      for (const d of byModel) log(`       ${d.getName?.()}  ${d.getModel?.()}  type ${d.getDeviceType?.()}`)
+      locks = byModel
+    } else {
+      stop('No device on this account looks like a lock, by classification or by model.')
+    }
   }
 
   const lock: any = locks.length === 1 ? locks[0]
@@ -489,19 +576,27 @@ async function q1_q3(api: any) {
   const stationFns = ['addUser', 'deleteUser', 'updateUserPasscode'].filter(f => typeof station?.[f] === 'function')
   log(`\n  station methods available: ${stationFns.length ? stationFns.join(', ') : 'NONE — the station object could not be loaded'}`)
 
+  const dt = Number(lock.getDeviceType?.() ?? -1)
+  const borrowed = Object.keys(UNMAPPED_TYPES).includes(String(dt))
+  if (borrowed) {
+    log(`\n  NOTE: type ${dt} is not in this library's device table. The commands above`)
+    log(`  are the ones lent from type 201 (Smart Lock C33, T85L0) — the nearest`)
+    log('  known relative. They are a HYPOTHESIS until a write is attempted.')
+  }
+
   if (!have.length) {
-    log('\n  ⚠  THE C32 REPORTS NO PASSCODE COMMANDS.')
-    log('     This is a real and expected possible answer. eufy-security-client')
-    log('     documents lock/unlock for locks; the C32 is not on its published')
-    log('     device list. If nothing above manages passcodes, Eufy cannot hold')
-    log('     guest codes on this model, and no adapter design changes that.')
-    log('     STOP HERE — the question is answered.')
-    stop('The C32 does not support passcode management.')
+    log('\n  ⚠  NO PASSCODE COMMANDS ARE AVAILABLE FOR THIS DEVICE.')
+    log(`     device type ${dt}, model ${lock.getModel?.()}`)
+    log('     This is the library\'s device table saying it has no entry, which is')
+    log('     NOT the same as the lock being incapable — but without an entry the')
+    log('     library will refuse to send anything, so nothing can be tested.')
+    log('     The fix would be adding this type to the lent-types list above.')
+    stop(`No passcode commands available for device type ${dt}.`)
   }
   log(`\n  ✓ passcode management IS supported (${have.length}/3 commands). Continuing to Q3.`)
 
   head('Q3 · THE CODES ALREADY ON THE LOCK — READ AND PROTECT')
-  const codes = await readCodes(lock)
+  const codes = await readCodes(lock, API)
   if (!codes) {
     log('  could not read any passcode property from this lock.')
     log('\n  ⚠  STOPPING. The tenant lives behind this lock. If their code cannot be')
@@ -510,7 +605,21 @@ async function q1_q3(api: any) {
     log('     outcome here — not a careful write.')
     stop('Q3 could not read the lock\'s codes.')
   }
-  for (const c of codes) log(`    ${c.key} = ${typeof c.value === 'object' ? JSON.stringify(c.value) : mask(String(c.value))}`)
+  for (const c of codes) {
+    const u = c.value
+    if (u && Array.isArray(u.password_list)) {
+      log(`    user "${u.user_name}" (short id ${u.short_user_id}) — ${u.password_list.length} code(s)`)
+      for (const pw of u.password_list) {
+        const perm = Number(pw.is_permanent) === 1
+        const exp = pw.expiration_time ? new Date(Number(pw.expiration_time) * 1000).toISOString() : null
+        log(`        ${mask(String(pw.password ?? ''))}  ${perm ? 'PERMANENT' : 'expiring'}`
+          + (exp ? `  expires ${exp}` : '')
+          + (pw.schedule ? `  schedule ${JSON.stringify(pw.schedule)}` : '  no schedule'))
+      }
+    } else {
+      log(`    ${c.key} = ${typeof u === 'object' ? JSON.stringify(u) : mask(String(u))}`)
+    }
+  }
 
   const values = codes.flatMap(c => {
     const v = c.value
@@ -585,7 +694,7 @@ async function deleteCode(lock: any, code: string) {
 /** After every write: does the lock agree? The adapter's word is never the verdict. */
 async function readback(lock: any, code: string, expect: 'present' | 'absent') {
   await sleep(4000)
-  const codes = await readCodes(lock)
+  const codes = await readCodes(lock, API)
   const blob = JSON.stringify(codes ?? [])
   const there = blob.includes(code) || blob.includes(TEST_NAME)
   const ok = expect === 'present' ? there : !there
@@ -609,7 +718,7 @@ async function q4_q8(lock: any) {
   try {
     await addCode(lock, TEST_CODE, TEST_NAME, { start, end })
     results.q5_accepted = await readback(lock, TEST_CODE, 'present')
-    const codes = await readCodes(lock)
+    const codes = await readCodes(lock, API)
     const blob = JSON.stringify(codes ?? [])
     results.q5_schedule_visible = /startDay|endDay|schedule|validFrom|expir/i.test(blob)
     log(`      the lock reports a schedule on it: ${results.q5_schedule_visible ? 'yes' : 'NO — it accepted the window and did not store it'}`)
@@ -664,6 +773,7 @@ async function main() {
   log('A long-term tenant lives behind this lock. Their code is never a target.')
 
   const { api } = await connect()
+  API = api
   try {
     const lock = await q1_q3(api)
     if (!WRITE) {
@@ -682,7 +792,17 @@ async function main() {
   }
 }
 
-main().catch(e => {
+/*  THE PROCESS MUST BE MADE TO EXIT.
+ *
+ *  eufy-security-client keeps push and P2P sockets open, so a run that ENDS
+ *  NORMALLY leaves handles alive and node never returns the prompt. Every
+ *  earlier run appeared to exit only because it ended at a stop(), which calls
+ *  process.exit. A successful run — the one we actually want — would hang
+ *  forever, which is precisely the "header and then nothing" shape this probe
+ *  has already been bitten by once. */
+main()
+  .then(() => { log('\n  Done.'); process.exit(0) })
+  .catch(e => {
   log('\n  ' + (e instanceof Stop ? 'STOPPED: ' : 'ERROR: ') + e.message)
   log('  Nothing further was attempted.')
   process.exit(1)
