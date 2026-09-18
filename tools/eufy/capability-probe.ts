@@ -34,6 +34,7 @@ import { writeFileSync, readFileSync, existsSync, mkdirSync } from 'fs'
 import { join } from 'path'
 
 const WRITE = process.argv.includes('--write')
+const VERBOSE = process.argv.includes('--verbose')
 const OUT = join(process.env.HOME || '.', 'eufy-probe')
 const PROTECTED_FILE = join(OUT, 'protected-codes.json')
 const AUDIT = join(OUT, 'audit.log')
@@ -106,19 +107,38 @@ const mask = (c: string) => !c ? '(empty)' : c.length <= 2 ? '**' : c[0] + '*'.r
 
 /*  Credentials from the Keychain, exactly as the Schlage tools take them.
  *  The password is read into memory here and never written, printed or sent. */
-function creds(): { username: string; password: string; country: string } {
+function creds(): { username: string; password: string; country: string; sources: Record<string, string> } {
   const kc = (args: string[]) => {
     try { return execFileSync('security', args, { encoding: 'utf8' }).trim() } catch { return '' }
   }
-  const username = kc(['find-generic-password', '-s', 'eufy', '-w', '-a', 'account']) || process.env.EUFY_USERNAME || ''
-  const password = kc(['find-generic-password', '-s', 'eufy', '-w']) || process.env.EUFY_PASSWORD || ''
+
+  /*  THE USERNAME IS THE ACCOUNT ATTRIBUTE OF THE KEYCHAIN ITEM, not an item
+   *  stored under the literal name "account".
+   *
+   *  The first version looked it up with -a account, which finds nothing unless
+   *  somebody happened to store it that way — so the username silently fell
+   *  through to the environment while the PASSWORD came from the Keychain. Two
+   *  halves of two different credentials, paired up and sent to Eufy, which
+   *  rejects them exactly the way it rejects a wrong password. That is a real
+   *  candidate for "login failed on both backends" with everything else ruled
+   *  out, and it is invisible unless the sources are printed. */
+  const meta = kc(['find-generic-password', '-s', 'eufy'])
+  const kcUser = /"acct"<blob>="([^"]*)"/.exec(meta)?.[1] ?? ''
+  const kcPass = kc(['find-generic-password', '-s', 'eufy', '-w'])
+
+  const username = kcUser || process.env.EUFY_USERNAME || ''
+  const password = kcPass || process.env.EUFY_PASSWORD || ''
+  const sources = {
+    username: kcUser ? 'Keychain' : (process.env.EUFY_USERNAME ? 'EUFY_USERNAME' : 'nowhere'),
+    password: kcPass ? 'Keychain' : (process.env.EUFY_PASSWORD ? 'EUFY_PASSWORD' : 'nowhere'),
+  }
+
   if (!username || !password) {
     stop('No Eufy credentials. Add them to the Keychain:\n'
-      + '      security add-generic-password -s eufy -a account -w        # the email\n'
-      + '      security add-generic-password -s eufy -w                   # the password\n'
+      + '      security add-generic-password -s eufy -a <your-eufy-email> -w\n'
       + '    …or export EUFY_USERNAME / EUFY_PASSWORD in this shell only.')
   }
-  return { username, password, country: process.env.EUFY_COUNTRY || 'CA' }
+  return { username, password, country: process.env.EUFY_COUNTRY || 'CA', sources }
 }
 
 /*  ──────────────────────────────────────────────────────────────────────────
@@ -143,8 +163,88 @@ async function connect() {
     stop('eufy-security-client is not installed. Run:  npm i eufy-security-client\n    ' + e.message)
   }
 
-  const { username, password, country } = creds()
-  step(`credentials found for ${username.replace(/^(.).*(@.*)$/, '$1***$2')} (country ${country})`)
+  const { username, password, country, sources } = creds()
+  step(`username from ${sources.username}: ${username.replace(/^(.).*@(.).*(\.[^.]+)$/, '$1***@$2***$3')}`)
+  step(`password from ${sources.password}`)
+  step(`country ${country}`)
+
+  /*  MIXED SOURCES ARE THE THING TO SHOUT ABOUT. A username from one place and
+   *  a password from another is two halves of two credentials, and Eufy rejects
+   *  that with the same message it uses for a wrong password. */
+  if (sources.username !== sources.password) {
+    log('')
+    log('  ⚠  THE USERNAME AND PASSWORD COME FROM DIFFERENT PLACES.')
+    log(`     username ← ${sources.username}`)
+    log(`     password ← ${sources.password}`)
+    log('     If these are not the same account, every login will fail and the')
+    log('     error will look exactly like a wrong password. Put BOTH in the')
+    log('     Keychain, or export BOTH — not one of each:')
+    log('       security add-generic-password -s eufy -a <your-eufy-email> -w')
+    log('')
+  }
+
+  /*  CREDENTIAL HYGIENE, checked locally before a single request goes out.
+   *
+   *  A password exported from a shell picks up damage silently: a trailing
+   *  space from a copy-paste, the quotes kept as literal characters, a `!` that
+   *  zsh expanded, a `$` the shell substituted into nothing. Every one of those
+   *  reaches Eufy as a wrong password and comes back as a plain auth rejection,
+   *  which looks identical to "wrong password" and is not. The same class of
+   *  problem already cost an afternoon on the database URL. */
+  const complaints: string[] = []
+  if (password !== password.trim()) complaints.push('it has leading or trailing whitespace')
+  if (/^["'].*["']$/.test(password)) complaints.push('it is wrapped in quote characters — the quotes are part of the value')
+  if (password.includes('\n') || password.includes('\r')) complaints.push('it contains a newline')
+  if (password.length < 6) complaints.push(`it is only ${password.length} characters`)
+  if (username !== username.trim()) complaints.push('the username has leading or trailing whitespace')
+  if (!username.includes('@')) complaints.push('the username does not look like an email address')
+  log(`  · password: ${password.length} characters` +
+      `, ${/[^\x20-\x7e]/.test(password) ? 'contains NON-ASCII' : 'all printable ASCII'}` +
+      `, ${/[!$`\\"']/.test(password) ? 'contains shell-significant characters (! $ ` \\ " \')' : 'no shell-significant characters'}`)
+  if (complaints.length) {
+    log('\n  ⚠  THE CREDENTIALS LOOK DAMAGED BEFORE THEY EVER REACH EUFY:')
+    for (const c of complaints) log('       · ' + c)
+    log('     If the password contains ! $ ` \\ " or \', export it in SINGLE quotes,')
+    log('     or better, put it in the Keychain where no shell touches it:')
+    log('       security add-generic-password -s eufy -w')
+  }
+
+  /*  THE ERRORS ALREADY EXIST — NOBODY WAS LISTENING.
+   *
+   *  "Login failed on both backends" is the summary the library emits after the
+   *  fact. The per-backend detail is logged the moment it happens, as
+   *  rootMainLogger.error("v6 login error", { error }) — to InternalLogger,
+   *  which defaults to a silent stub. Setting a logger is the whole difference
+   *  between "both failed" and "v6 returned 401 invalid credentials, legacy
+   *  timed out".
+   *
+   *  REDACTED, because the http category logs request bodies and the login
+   *  request body contains the password. */
+  const redact = (v: unknown): string => {
+    let t = typeof v === 'string' ? v : (() => { try { return JSON.stringify(v) } catch { return String(v) } })()
+    if (password) t = t.split(password).join('<password>')
+    if (username) t = t.split(username).join('<username>')
+    return t
+  }
+  const libLog = (level: string) => (m: unknown, ...a: unknown[]) =>
+    log(`      [eufy:${level}] ${redact(m)}${a.length ? ' ' + a.map(redact).join(' ') : ''}`)
+  /*  InternalLogger and setLoggingLevel are NOT re-exported from the package
+   *  index — only LogLevel and dummyLogger are — and the package's "exports"
+   *  map blocks a subpath import. So the module is loaded by resolved file
+   *  path, which is ugly and is the only thing that works. Without it the
+   *  per-backend login errors stay in a silent stub and all anyone ever sees is
+   *  "Login failed on both backends". */
+  const { createRequire } = await import('module')
+  const req = createRequire(import.meta.url)
+  const logging = req(req.resolve('eufy-security-client').replace(/index\.js$/, 'logging.js'))
+
+  logging.InternalLogger.logger = {
+    trace: () => {}, debug: VERBOSE ? libLog('debug') : () => {},
+    info: libLog('info'), warn: libLog('warn'), error: libLog('error'), fatal: libLog('fatal'),
+  }
+  logging.setLoggingLevel('main', VERBOSE ? logging.LogLevel.Debug : logging.LogLevel.Info)
+  logging.setLoggingLevel('http', VERBOSE ? logging.LogLevel.Debug : logging.LogLevel.Info)
+  step('library logging enabled (passwords redacted)' + (VERBOSE ? ' — verbose' : ' — add --verbose for more'))
 
   step('initialising')
   const api = await mod.EufySecurity.initialize({
@@ -165,7 +265,8 @@ async function connect() {
     log('     This is what Eufy does to unfamiliar machines. Log in to the Eufy')
     log('     app from this machine\'s network, then run again.')
   })
-  api.on('connection error', (e: Error) => log('  ⚠  connection error: ' + e.message))
+  const connErrors: string[] = []
+  api.on('connection error', (e: Error) => { connErrors.push(e.message); log('  ⚠  connection error: ' + e.message) })
   api.on('close', () => log('  · connection closed'))
   api.on('station added', (st: any) => step(`station added: ${st.getName?.()} (${st.getModel?.()})`))
   api.on('device added', (d: any) => step(`device added: ${d.getName?.()} (${d.getModel?.()})`))
@@ -198,13 +299,48 @@ async function connect() {
     step('using the captcha answer from EUFY_CAPTCHA_CODE')
   }
 
-  step('connecting — this can take 10-30 seconds')
+  /*  THREE ATTEMPTS, BECAUSE EUFY'S BACKENDS ARE GENUINELY FLAKY.
+   *
+   *  The library logs in to two backends — a v6 "mega" one first, the legacy one
+   *  after — and declares failure only when NEITHER succeeded. Either can time
+   *  out or return a transient 5xx on its own, and the documented experience of
+   *  this API is that it is hit and miss. A single attempt cannot tell a bad
+   *  password from a bad afternoon; three, spaced out, can.
+   *
+   *  A challenge is NOT retried. If Eufy wants a code, asking again just burns
+   *  attempts against an account that can lock out. */
+  step('connecting — this can take 10-30 seconds per attempt')
   const t0 = Date.now()
-  try {
-    await withTimeout(api.connect(opts), 45_000, 'connect()')
-  } catch (e: any) {
-    stop(`login failed after ${((Date.now() - t0) / 1000).toFixed(1)}s: ${e.message}`
-      + (challenge ? `\n    A ${challenge} challenge was raised — see above.` : ''))
+  let lastErr: Error | null = null
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    connErrors.length = 0
+    try {
+      await withTimeout(api.connect(opts), 45_000, 'connect()')
+      if (api.isConnected?.() || !connErrors.length) { lastErr = null; break }
+      lastErr = new Error(connErrors.join(' | '))
+    } catch (e: any) {
+      lastErr = e
+    }
+    if (challenge) { step('a challenge was raised — not retrying'); break }
+    if (attempt < 3 && lastErr) {
+      const wait = attempt * 5
+      log(`  ⚠  attempt ${attempt} of 3 failed: ${lastErr.message}`)
+      log(`     waiting ${wait}s and trying again — Eufy's backends fail transiently`)
+      await sleep(wait * 1000)
+    }
+  }
+  if (lastErr && !challenge) {
+    log('\n  ⚠  ALL THREE ATTEMPTS FAILED.')
+    log('     last error: ' + lastErr.message)
+    log('')
+    log('     The per-backend detail is in the [eufy:error] lines above. The two')
+    log('     backends have SEPARATE 2FA: trusting this machine on one does not')
+    log('     trust it on the other, and the library only reports success when')
+    log('     neither has succeeded. If one of them asked for a code, answer that')
+    log('     one — the probe routes EUFY_2FA_CODE to whichever asked last.')
+    log('')
+    log('     Re-run with --verbose for the full HTTP exchange (redacted).')
+    stop('login failed after 3 attempts: ' + lastErr.message)
   }
   step(`connect() returned after ${((Date.now() - t0) / 1000).toFixed(1)}s`)
 
@@ -218,8 +354,8 @@ async function connect() {
       log('')
       log('      EUFY_2FA_CODE=123456 npx tsx tools/eufy/capability-probe.ts')
       log('')
-      log('  (with the real code, and the same EUFY_USERNAME / EUFY_PASSWORD')
-      log('   already exported in that shell)')
+      log('  (with the real code from the email — the username and password')
+      log('   come from wherever they came from on this run, unchanged)')
       log('')
       log('  You only have to do this ONCE. On success this machine is')
       log('  registered as a trusted device and later runs need no code.')
