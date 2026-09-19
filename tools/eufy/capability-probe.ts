@@ -703,6 +703,13 @@ async function deleteCode(lock: any, code: string) {
     log(`      cross-checked against ${onDisk.length} protected code(s) on disk — not among them`)
   }
   if (!STATION) stop('the station for this lock could not be loaded — nothing can be deleted')
+  /*  Q2 and the delete disagreed once — Q2 reported deviceDeleteUser present
+   *  and station.deleteUser threw NotSupportedError, which is the same check.
+   *  Print what the device says at the moment of the call rather than trusting
+   *  the reading taken two phases earlier. */
+  log(`      device type at call time: ${lock.getDeviceType?.()}`)
+  log(`      getCommands(): ${(lock.getCommands?.() ?? []).join(', ') || '(empty)'}`)
+  log(`      hasCommand(deviceDeleteUser): ${lock.hasCommand?.('deviceDeleteUser')}`)
   log(`      deleting the user named "${TEST_NAME}" (code ${mask(code)})`)
   /*  deleteUser takes the USERNAME, not the code — which is a second, structural
    *  reason the tenant is safe here: this probe only ever names its own

@@ -1,3 +1,112 @@
+# Eufy T85L1 — capability VERDICT
+
+**Answered 19 September 2026, against the real lock on Unit 3. Not from
+documentation.**
+
+## The verdict
+
+**The T85L1 (device type 211) cannot hold programmatically managed codes with
+eufy-security-client 4.2.0 — which is the latest published version.** It is a
+permanent-code lock, managed by hand in the Eufy app. It is not, and cannot
+today be, a code-programming adapter.
+
+## Why, precisely — because four earlier answers were each wrong in an
+interesting way
+
+Every failure on the way here looked like the final answer and was not. Writing
+them down because the pattern is the lesson: an integration fails in layers, and
+each layer imitates a verdict.
+
+| looked like | actually was |
+|---|---|
+| "login failed on both backends" | the username came from the environment and the password from the Keychain — two halves of two credentials |
+| "2FA blocks us" | the library accepts `connect({verifyCode})`, and `addTrustDevice()` makes it a one-time cost |
+| "0 locks on the account" | `isLock()` consults a type table with no entry for 211. It is also **not the gate** — `station.addUser` checks `hasCommand`, never `isLock` |
+| "no passcode commands" | `getCommands()` returns `[]` for an unmapped type. Lending type 201's table (Smart Lock C33, T85L0 — one character away) produced all five |
+
+Each of those was a lookup miss wearing the costume of a hardware limit. The
+fifth is not.
+
+## The floor
+
+`station.deleteUser()` — and `addUser`, and `updateUserPasscode` — have **two**
+gates that raise the identical error message.
+
+```
+1.  if (!device.hasCommand(CommandName.DeviceDeleteUser))
+        throw NotSupportedError("This functionality is not implemented or supported by this device")
+
+2.  if      (device.isLockWifi() || device.isLockWifiNoFinger())  { …T8520 payload… }
+    else if (device.isLockWifiR10() || device.isLockWifiR20())    { …V12 payload… }
+    else if (device.isLockWifiVideo())                            { … }
+    else if (device.isLockWifiT8506())                            { … }
+    else
+        throw NotSupportedError("This functionality is not implemented or supported by this device")
+```
+
+The second gate picks a **model-specific encrypted P2P payload encoding**. Its
+predicates cover device types **51, 54, 58, 180 and 184**. Type 211 matches none
+of them.
+
+Measured at the moment of the call, on the live lock:
+
+```
+device type at call time: 211
+getCommands(): deviceLockCalibration, deviceAddUser, deviceDeleteUser,
+               deviceUpdateUserPasscode, deviceUpdateUserSchedule, deviceUpdateUsername
+hasCommand(deviceDeleteUser): true
+FAILED: This functionality is not implemented or supported by this device
+```
+
+**`hasCommand` is true and it throws anyway.** Lending the command table got past
+the first gate directly into the second. The commands exist as names with nothing
+behind them.
+
+**Recognising the type and exposing the command names is not the same as being
+able to talk to the lock.** That distinction is the whole finding.
+
+## Consequences
+
+- **Q4-Q6 are moot.** There is nothing to schedule if nothing can be written, so
+  the keypad enforcement test has no subject. The lock was never written to.
+- **The `lock_system` adapter design still holds** — Schlage works and the queue
+  is sound. Eufy simply cannot be a code-programming adapter on this hardware.
+- **Revisit if a future eufy-security-client implements the 211 payload.** The
+  probe is committed and will answer in minutes. Not today.
+
+## DO NOT patch isLockWifi() to include 211 on the tenant's lock
+
+It is the only remaining lever and it must not be pulled here. Adding 211 to that
+predicate does not implement the payload — it sends the **T8520 encoding to a
+device the library was never written for**. The failure modes run from silently
+ignored to a lock in a bad state, and **somebody lives behind this one**.
+
+If that experiment is ever wanted, it belongs on a T85L1 with **nobody behind
+it**. And it is an experiment, not a probe: a probe asks a question, this would
+take a chance.
+
+## For the buying decision
+
+Kaye is choosing on cost and features. The feature that decides everything here
+is whether a code can be programmed and made to expire, and **that is now a
+measurement rather than a guess** — the same probe, pointed at a candidate model,
+answers it in one afternoon on hardware borrowed or bought-and-returnable.
+
+What to check before buying any Eufy lock intended to hold guest codes:
+
+1. Its device type appears in `DeviceCommands` — else no commands at all.
+2. Its device type satisfies one of `isLockWifi` / `isLockWifiNoFinger` /
+   `isLockWifiR10` / `isLockWifiR20` / `isLockWifiVideo` / `isLockWifiT8506` —
+   **this is the one that caught the T85L1**, and it is invisible until a write
+   is attempted.
+3. A scheduled code, once written, is **enforced** at the keypad — accepted and
+   stored are not the same as enforced, which is what the Schlage timezone bug
+   cost four hours a code to learn.
+
+Nothing on Eufy's marketing answers any of the three.
+
+---
+
 # Eufy locks — capability check and adapter design
 
 **Design only. Nothing is built. The capability is NOT confirmed.**
