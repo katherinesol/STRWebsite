@@ -29,12 +29,16 @@
  */
 
 import { execFileSync } from 'child_process'
-import { assertSafeTarget as guardTarget, chooseTestCode, Refused, type GuardState } from './guard'
+import { assertSafeUser, assertSafeShortId, assertWellFormedCode, Refused, PROBE_USER, PROBE_SHORT_ID, type GuardState } from './guard'
 import { writeFileSync, readFileSync, existsSync, mkdirSync } from 'fs'
 import { join } from 'path'
 
 const WRITE = process.argv.includes('--write')
 const VERBOSE = process.argv.includes('--verbose')
+/*  Q7 is its own invocation. Deleting the probe user while Katherine is still
+ *  at the keypad would destroy Q6's third step — the one that proves the window
+ *  CLOSES — so cleanup never rides along with the write pass. */
+const CLEANUP = process.argv.includes('--cleanup')
 const OUT = join(process.env.HOME || '.', 'eufy-probe')
 const PROTECTED_FILE = join(OUT, 'protected-codes.json')
 const AUDIT = join(OUT, 'audit.log')
@@ -48,11 +52,11 @@ const AUDIT = join(OUT, 'audit.log')
  *  it created. */
 const TEST_CODE_CANDIDATES = ['909142', '909143', '909144']
 let TEST_CODE = ''
-const TEST_NAME = 'ZZ-PROBE-DELETE-ME'
+const TEST_NAME = PROBE_USER
 /*  Eufy identifies a keypad user by a short id as well as a name. A fixed,
  *  obviously-synthetic value keeps the probe's user distinct from every real
  *  one on the lock. */
-const SHORT_USER_ID = '9999'
+const SHORT_USER_ID = PROBE_SHORT_ID
 /*  Loaded in Q2. Writes are impossible without it. */
 let STATION: any = null
 let API: any = null
@@ -94,16 +98,20 @@ function stop(why: string): never { throw new Stop(why) }
  *  overlap on purpose: the tenant's code has to get past all three to be
  *  touched, and any one of them being right is enough to save it.
  *  ────────────────────────────────────────────────────────────────────────── */
+function guardState(): GuardState {
+  return { protectedIdentities: PROTECTED, readSucceeded: PROTECTED_DETAIL.length > 0 }
+}
+
+/*  Called immediately before every write and every delete. It names the USER,
+ *  because that is what the API acts on: deleteUser(device, username, shortId).
+ *  The tenant's user is never named anywhere in this file, so no input can steer
+ *  a call towards it. */
 function assertSafeTarget(code: string, what: string) {
-  const state: GuardState = {
-    testCode: TEST_CODE,
-    protectedCodes: PROTECTED,
-    readSucceeded: PROTECTED_DETAIL.length > 0,
-    protectedOnDisk: existsSync(PROTECTED_FILE)
-      ? (JSON.parse(readFileSync(PROTECTED_FILE, 'utf8')).protected || []) : undefined,
-  }
-  guardTarget(state, code, what)
-  log(`      guard ok — target is the test code ${mask(String(code))}, not one of the ${PROTECTED.size} protected`)
+  const st = guardState()
+  assertSafeUser(st, TEST_NAME, what)
+  assertSafeShortId(st, SHORT_USER_ID, what)
+  assertWellFormedCode(code, what)
+  log(`      guard ok — user "${TEST_NAME}" / id ${SHORT_USER_ID}; ${PROTECTED.size} identity(s) on this lock are untouchable`)
 }
 
 /*  Codes are masked in everything printed. The audit file is on Katherine's
@@ -621,25 +629,37 @@ async function q1_q3(api: any) {
     }
   }
 
-  const values = codes.flatMap(c => {
-    const v = c.value
-    if (typeof v === 'string' || typeof v === 'number') return [String(v)]
-    if (Array.isArray(v)) return v.map((x: any) => String(x?.passcode ?? x?.code ?? x))
-    if (v && typeof v === 'object') return Object.values(v).map((x: any) => String(x?.passcode ?? x?.code ?? x))
-    return []
-  }).filter(x => /^\d{4,8}$/.test(x))
-
-  PROTECTED = new Set(values)
+  /*  IDENTITIES, NOT CODES — and the difference is the bug this replaces.
+   *
+   *  Eufy returns password:'' for every entry, so the previous version's code
+   *  extraction matched short_user_id instead and reported "2 codes protected"
+   *  while holding two user ids. What CAN be read is who the users are, and
+   *  that is exactly what the delete call names, so it is the right thing to
+   *  hold. Both the username and the short id go in; either one matching is
+   *  enough to refuse. */
+  const identities = codes.flatMap(c => {
+    const u = c.value
+    return [u?.user_name, u?.short_user_id].filter(Boolean).map((x: any) => String(x))
+  })
+  PROTECTED = new Set(identities)
   PROTECTED_DETAIL = codes
   mkdirSync(OUT, { recursive: true })
   writeFileSync(PROTECTED_FILE, JSON.stringify({ at: new Date().toISOString(), lock: lock.getName?.(), codes, protected: Array.from(PROTECTED) }, null, 2))
-  log(`\n  ${PROTECTED.size} code(s) recorded as PROTECTED and written to ${PROTECTED_FILE}`)
-  log('  every one of these is now refused as a write or delete target, permanently.')
-  log('\n  ⚠  KATHERINE: read the file above and confirm the tenant\'s code is in it')
-  log('     BEFORE running with --write. If it is not listed, do not proceed.')
+  log(`\n  ${PROTECTED.size} identity(s) recorded as UNTOUCHABLE: ${Array.from(PROTECTED).join(', ')}`)
+  log(`  written to ${PROTECTED_FILE}`)
+  log('')
+  log('  NOTE ON WHAT IS AND IS NOT PROTECTED HERE.')
+  log('  Eufy returns no plaintext for any code, so the tenant\'s CODE cannot be')
+  log('  read and therefore cannot be compared against. Protection is by USER:')
+  log(`  the probe only ever names "${TEST_NAME}", and deleteUser takes a username,`)
+  log('  so the tenant\'s user is never named by any code path with any input.')
+  log('  That is structural rather than a comparison, which is the stronger of')
+  log('  the two — a comparison can be fed a wrong value; a name that appears')
+  log('  nowhere in the program cannot be passed to anything.')
 
-  TEST_CODE = chooseTestCode(TEST_CODE_CANDIDATES, PROTECTED)
-  log(`\n  test code chosen: ${mask(TEST_CODE)}  — confirmed ABSENT from the lock`)
+  if (PROTECTED.has(TEST_NAME)) stop(`A user called ${TEST_NAME} already exists on this lock. Refusing to touch it — it is not this probe's.`)
+  TEST_CODE = TEST_CODE_CANDIDATES[0]
+  log(`\n  test passcode: ${mask(TEST_CODE)}   test user: ${TEST_NAME} / ${SHORT_USER_ID}`)
   return lock
 }
 
@@ -702,83 +722,164 @@ async function readback(lock: any, code: string, expect: 'present' | 'absent') {
   return ok
 }
 
+/** Who is on the lock right now, by identity. Used to prove the tenant survived. */
+async function identitiesOn(lock: any): Promise<string[]> {
+  const codes = await readCodes(lock, API)
+  return (codes ?? []).flatMap((c: any) => [c.value?.user_name, c.value?.short_user_id].filter(Boolean).map(String))
+}
+
 async function q4_q8(lock: any) {
   const results: Record<string, any> = {}
+  const t = (d: Date) => d.toLocaleTimeString('en-CA', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Toronto' })
 
-  head('Q4 · CAN A CODE BE ADDED')
+  /*  MINUTE-SCALE WINDOWS, because the tenant is out for hours, not days. The
+   *  whole enforcement test has to fit inside their absence and finish with the
+   *  lock exactly as they left it. */
+  const OPENS_IN = 5, CLOSES_IN = 10
+  const start = new Date(Date.now() + OPENS_IN * 60_000)
+  const end = new Date(Date.now() + CLOSES_IN * 60_000)
+
+  head('Q4 · CAN A CODE BE ADDED AT ALL')
+  log('  Adding the probe user with an immediately-active code.')
   try {
     await addCode(lock, TEST_CODE, TEST_NAME)
-    results.q4 = await readback(lock, TEST_CODE, 'present')
-  } catch (e: any) { results.q4 = false; log('      FAILED: ' + e.message) }
-  if (results.q4) { try { await deleteCode(lock, TEST_CODE); await readback(lock, TEST_CODE, 'absent') } catch {} }
+    results.q4_accepted = true
+    results.q4_present = await readback(lock, TEST_CODE, 'present')
+  } catch (e: any) { results.q4_accepted = false; log('      FAILED: ' + e.message) }
 
-  head('Q5 · CAN A CODE BE ADDED WITH A SCHEDULE')
-  const start = new Date(Date.now() + 60 * 60 * 1000)          // an hour from now
-  const end = new Date(Date.now() + 2 * 60 * 60 * 1000)        // two hours from now
+  if (!results.q4_accepted) {
+    log('\n  ⚠  The lock refused an unscheduled code. Nothing further will work.')
+    log('     This is the answer: the T85L1 reports the commands but does not accept them.')
+    return results
+  }
+
+  head('Q5 · CAN THAT CODE CARRY A SCHEDULE')
+  log(`  Re-writing it to open at ${t(start)} and close at ${t(end)}.`)
   try {
     await addCode(lock, TEST_CODE, TEST_NAME, { start, end })
-    results.q5_accepted = await readback(lock, TEST_CODE, 'present')
+    results.q5_accepted = true
     const codes = await readCodes(lock, API)
-    const blob = JSON.stringify(codes ?? [])
-    results.q5_schedule_visible = /startDay|endDay|schedule|validFrom|expir/i.test(blob)
-    log(`      the lock reports a schedule on it: ${results.q5_schedule_visible ? 'yes' : 'NO — it accepted the window and did not store it'}`)
+    const mine = (codes ?? []).find((c: any) => c.value?.user_name === TEST_NAME)
+    const pw = mine?.value?.password_list?.[0]
+    log(`      the lock reports: is_permanent=${pw?.is_permanent} expiration_time=${pw?.expiration_time}`)
+    log(`      schedule: ${pw?.schedule ? String(pw.schedule).replace(/\s+/g, ' ') : '(none)'}`)
+    results.q5_schedule_stored = !!pw?.schedule && !/\"endDate\" ?: ?-1/.test(String(pw.schedule))
+    log(`      a BOUNDED window was stored: ${results.q5_schedule_stored ? 'yes' : 'NO — it kept an unbounded schedule'}`)
   } catch (e: any) { results.q5_accepted = false; log('      FAILED: ' + e.message) }
 
-  head('Q6 · DOES THE SCHEDULE ACTUALLY BITE')
-  log('  The code written in Q5 is NOT YET ACTIVE — its window opens in an hour.')
-  log('  This is the question no document answers and the one that decides the')
-  log('  architecture. The Schlage locks accepted a window, reported it back')
-  log('  correctly, and opened four hours early; only a guest at a door found it.')
+  head('Q6 · DOES THE SCHEDULE ACTUALLY BITE  ← THE MAKE-OR-BREAK')
   log('')
-  log('  ⏸  MANUAL, AND IT HAS TO BE. Katherine, at the lock:')
+  log('  Accepted and stored is not enforced. The Schlage locks accepted a window,')
+  log('  reported it back correctly, and opened four hours early — every write')
+  log('  succeeded, every report said so, and a guest at a door found it.')
+  log('  Only the keypad can answer this.')
   log('')
-  log(`     1. NOW — type ${TEST_CODE} on the keypad. It must NOT open.`)
-  log('        If it opens, the schedule is decorative: accepted, reported, not')
-  log('        enforced. That is the worst outcome and it must be recorded.')
-  log(`     2. AFTER ${start.toLocaleTimeString()} — type it again. It SHOULD open.`)
-  log(`     3. AFTER ${end.toLocaleTimeString()} — type it again. It must NOT open.`)
+  log('  ⏸  AT THE LOCK, three times. Write down each answer.')
   log('')
-  log('     Record all three in tools/eufy/RESULTS.md. Two "does not open" and')
-  log('     one "opens", in that order, is the only passing result.')
+  log(`     NOW (before ${t(start)})`)
+  log(`       · type ${TEST_CODE}          → must NOT open`)
+  log('       · type the TENANT\'S code    → MUST open')
   log('')
-  log('     The tenant\'s own code is untouched throughout — try it too, at each')
-  log('     step, and confirm it still works. If it ever does not, stop and call.')
+  log(`     AT ${t(start)} — ${t(end)}  (inside the window)`)
+  log(`       · type ${TEST_CODE}          → SHOULD open`)
+  log('       · type the TENANT\'S code    → MUST open')
+  log('')
+  log(`     AFTER ${t(end)}`)
+  log(`       · type ${TEST_CODE}          → must NOT open`)
+  log('       · type the TENANT\'S code    → MUST open')
+  log('')
+  log('     PASS = does not open, opens, does not open — in that order.')
+  log('     If it opens at step 1, the schedule is decorative and the two-intent')
+  log('     program/revoke design is the only safe one.')
+  log('')
+  log('     ⚠  IF THE TENANT\'S CODE EVER FAILS TO OPEN: stop, do not run Q7,')
+  log('        and say so immediately. They are coming back to this lock.')
+  log('')
+  log('  Record the three answers in tools/eufy/RESULTS.md.')
+  results.q6 = 'MANUAL — record at the keypad'
 
-  head('Q7 · CAN THE TEST CODE BE DELETED')
+  head('NOW GO TO THE LOCK')
+  log('  Q4 and Q5 are done. Q6 is yours, at the keypad, using the times above.')
+  log('')
+  log('  WHEN THE KEYPAD TEST IS FINISHED — and only if the tenant\'s code opened')
+  log('  at every single step — run the cleanup:')
+  log('')
+  log('      npx tsx tools/eufy/capability-probe.ts --cleanup')
+  log('')
+  log('  That removes the probe user and proves the tenant\'s is still there.')
+  log('  It MUST be run before the tenant returns.')
+  return results
+}
+
+async function q7(lock: any) {
+  const results: Record<string, any> = {}
+  head('Q7 · CLEANUP — MANDATORY BEFORE THE TENANT RETURNS')
+  log('  Removing the probe user. The lock must end exactly as it started.')
+  const before = await identitiesOn(lock)
+  log(`      on the lock now: ${before.join(', ')}`)
   try {
     await deleteCode(lock, TEST_CODE)
-    results.q7 = await readback(lock, TEST_CODE, 'absent')
-  } catch (e: any) { results.q7 = false; log('      FAILED: ' + e.message) }
-  log(`\n  NOTE: if Q6 is still mid-flight, re-add the test code by hand before step 2.`)
-  log(`  Leaving a stray test code on a tenant's lock is not acceptable — Q7 runs last for that reason.`)
+    await sleep(4000)
+    const after = await identitiesOn(lock)
+    log(`      on the lock after: ${after.join(', ')}`)
+
+    results.q7_probe_gone = !after.includes(TEST_NAME)
+    /*  The point of the whole exercise: the tenant is still there. */
+    const tenants = Array.from(PROTECTED)
+    const survived = tenants.filter(x => after.includes(x))
+    results.q7_tenant_intact = survived.length === tenants.length
+    log('')
+    log(`      probe user removed:      ${results.q7_probe_gone ? 'YES ✓' : 'NO ✗ — REMOVE IT BY HAND IN THE EUFY APP'}`)
+    log(`      tenant identities intact: ${results.q7_tenant_intact ? 'YES ✓ (' + survived.join(', ') + ')' : 'NO ✗ — ' + tenants.filter(x => !after.includes(x)).join(', ') + ' MISSING'}`)
+    if (!results.q7_tenant_intact) {
+      log('')
+      log('  ⚠⚠  A TENANT IDENTITY IS MISSING FROM THE LOCK. Re-add it in the Eufy')
+      log('      app NOW, before they return, and tell Katherine immediately.')
+    }
+  } catch (e: any) {
+    results.q7_probe_gone = false
+    log('      FAILED: ' + e.message)
+    log(`\n  ⚠  DELETE THE USER "${TEST_NAME}" BY HAND IN THE EUFY APP before the tenant returns.`)
+  }
 
   head('Q8 · HOW SLOW, HOW FLAKY')
   const times: number[] = []; let failures = 0
   for (let i = 0; i < 10; i++) {
     const t0 = Date.now()
-    try { await readCodes(lock); times.push(Date.now() - t0) } catch { failures++ }
+    try { await readCodes(lock, API); times.push(Date.now() - t0) } catch { failures++ }
     await sleep(1500)
   }
   times.sort((a, b) => a - b)
   results.q8 = { n: times.length, failures, medianMs: times[Math.floor(times.length / 2)] ?? null, maxMs: times[times.length - 1] ?? null }
   log(`  ${times.length} reads, ${failures} failures, median ${results.q8.medianMs}ms, slowest ${results.q8.maxMs}ms`)
-  log('  the retry policy for the Eufy adapter gets set from these numbers, not from Schlage\'s.')
 
   return results
 }
 
 async function main() {
   log('Eufy C32 capability probe — Unit 3')
-  log(WRITE ? 'MODE: --write  (Q1-Q8)' : 'MODE: read-only  (Q1-Q3). Add --write for Q4-Q8.')
+  log(CLEANUP ? 'MODE: --cleanup  (Q1-Q3, then Q7 — removes the probe user)'
+    : WRITE ? 'MODE: --write  (Q1-Q6 — adds the probe user, then you go to the keypad)'
+    : 'MODE: read-only  (Q1-Q3). Nothing is written.')
   log('A long-term tenant lives behind this lock. Their code is never a target.')
 
   const { api } = await connect()
   API = api
   try {
     const lock = await q1_q3(api)
+    if (CLEANUP) {
+      /*  Cleanup still runs Q1-Q3 first: it has to enumerate the lock before it
+       *  may touch anything, and it needs the after-picture to prove the tenant
+       *  survived. */
+      const r = await q7(lock)
+      head('SUMMARY')
+      log(JSON.stringify(r, null, 2))
+      return
+    }
     if (!WRITE) {
       log('\n  Read-only run complete. Nothing was written.')
-      log('  Confirm the tenant\'s code is in the protected file, then re-run with --write.')
+      log('  Next:  npx tsx tools/eufy/capability-probe.ts --write     (Q4-Q6)')
+      log('  Then:  npx tsx tools/eufy/capability-probe.ts --cleanup   (Q7, after the keypad test)')
       return
     }
     /*  The gate. Writes are impossible unless Q3 read the lock and produced a
