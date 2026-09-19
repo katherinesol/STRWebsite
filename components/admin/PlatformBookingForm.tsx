@@ -373,7 +373,10 @@ export default function PlatformBookingForm({ block }: { block: any }) {
           <div style={{ padding: '8px 0', borderTop: '0.5px solid #2A2A28' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
               <div style={{ fontSize: '12px', color: '#9A9A92' }}>Tax</div>
-              <a href="/admin/income" style={{ fontSize: '11px', color: 'var(--amber)', textDecoration: 'none' }}>Edit in Income →</a>
+              {/*  Pointed straight at the new shell. /admin/income still works —
+                   it redirects here — but a link that needs a hop is a link that
+                   will rot the day the redirect is removed. */}
+              <a href="/keyholder/money/income" style={{ fontSize: '11px', color: 'var(--amber)', textDecoration: 'none' }}>Edit in Income →</a>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: '12px', color: '#AEAEA6' }}>
               <span>HST / GST you remit</span><span>{block.hst != null ? '$' + Number(block.hst).toFixed(2) : '—'}</span>

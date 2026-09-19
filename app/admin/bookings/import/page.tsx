@@ -1,17 +1,16 @@
-import Link from 'next/link'
-import BookingImportForm from '@/components/admin/BookingImportForm'
+import { redirect } from 'next/navigation'
 
-export default function ImportBookingsPage() {
-  return (
-    <div>
-      <div style={{ marginBottom: '24px' }}>
-        <Link href="/admin/bookings" style={{ fontSize: '11px', color: '#9A9A92', textDecoration: 'none' }}>← Bookings</Link>
-        <h1 style={{ fontFamily: 'var(--serif)', fontSize: '28px', fontWeight: 300, color: '#F5F2EC', marginTop: '8px' }}>Import bookings.</h1>
-        <div style={{ fontSize: '13px', color: '#9A9A92', marginTop: '4px' }}>
-          Add historical bookings for complete revenue tracking. Each booking will be saved as completed.
-        </div>
-      </div>
-      <BookingImportForm />
-    </div>
-  )
+/*  Retired, and redirected rather than left standing.
+ *
+ *  This is NOT the usual "redirected because there is an equivalent" case. The
+ *  import capability is already gone: /api/admin/bookings/import answers 410 on
+ *  both verbs, so the form this page rendered could be filled in, submitted, and
+ *  fail — a page that looks like it works and does not. That is worse than a
+ *  redirect, because it costs somebody their time and their typing before it
+ *  tells them.
+ *
+ *  Historical bookings are now entered through the stays list, which is where
+ *  this sends people. */
+export default function LegacyRedirect() {
+  redirect('/keyholder/stays')
 }

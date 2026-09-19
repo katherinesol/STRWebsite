@@ -667,10 +667,22 @@ being built as standalone `in` rows on `payments`, not as a property problem.
 
 ## Smaller logged items
 
-- `create_booking_full` owes two fixes: no `confirmation_code` (so a direct
-  booking made through it has **no guest access at all**) and no
-  `first_name`/`last_name`. **v2 is the installed version** — editing the
-  unsuffixed file changes nothing.
+- ~~`create_booking_full` owes two fixes~~ — **BOTH ARE ALREADY INSTALLED.**
+  Checked against `pg_proc.prosrc` on 2026-09-19, not against the file: the live
+  function generates `HAUS-` + 8 characters with a uniqueness loop, and populates
+  `first_name`/`last_name`. This entry described the problem v2 fixed and was
+  never struck through, which is how a fixed defect stayed on the list for weeks
+  and nearly got "fixed" a second time. **Verify behaviourally** is the standing
+  rule precisely for this.
+  - Two direct bookings predate the fix and still carry a null
+    `confirmation_code`: **RS-1005 Mikaela Manley** and **RS-1006 Alain Roy**.
+    Both stays are in the past and both already had their door codes, so nobody
+    is locked out — but neither guest can verify on `/support` or the hub, so
+    their conversation history is unreachable. Backfilling is Kaye's call; the
+    SQL is hers to run, because no recorded row is ever auto-corrected.
+  - Six of 48 guests have no `last_name`. The surname gate falls back to the last
+    token of the full name, so verification still works; it is untidy, not
+    broken.
 - **Installed SQL may not match the committed `.sql`.** Verify behaviourally.
 - **Email stats** — needs investigation before scoping. Likely two products
   (transactional delivery/bounce vs marketing open/click). Forward-looking only.
