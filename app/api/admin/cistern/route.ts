@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { getCisternLevel } from '@/lib/cistern'
-import { isAuthed } from '@/lib/auth'
+import { isAuthed, hasRole, hasPermission } from '@/lib/auth'
 
 
 export async function GET() {
@@ -25,8 +25,23 @@ export async function GET() {
 }
 
 // save calibration
+/*  CALIBRATION IS A WRITE, AND IT WAS GATED LIKE A READ.
+ *
+ *  `isAuthed()` alone — any signed-in account, a cleaner included, could rewrite
+ *  the full and empty points of the tank. That is not a cosmetic setting: every
+ *  percentage on the Today board and every "water used" figure on a stay is
+ *  computed through these three numbers, and the reorder alarm fires off the
+ *  low threshold. Moving them silently moves every reading derived from them.
+ *
+ *  It belongs to `property`, not `locks`. A cistern is a physical attribute of a
+ *  house — the same category the property editor writes under — and it is not a
+ *  door. The GET stays as it was: the level is operational information the whole
+ *  team can act on, and reading it changes nothing. */
 export async function PATCH(request: NextRequest) {
-  if (!await isAuthed()) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!await hasRole('owner', 'co-owner')) return NextResponse.json({ error: 'Not allowed' }, { status: 403 })
+  if (!await hasPermission('property', 'edit')) {
+    return NextResponse.json({ error: 'Not allowed to change cistern calibration' }, { status: 403 })
+  }
   const body = await request.json()
   const supabase = createAdminClient()
   const { error } = await supabase.from('cistern_calibration').upsert({
