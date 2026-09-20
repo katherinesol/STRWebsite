@@ -116,6 +116,7 @@ must treat "0 routes used" as *unmeasured*, not as *clean*.
 |---|---|
 | `/admin/parking` | every route it calls is already reachable from `/keyholder` — grep-certain |
 | `/admin/property-management` | a hub of links to three children; no capability of its own |
+| `/admin/mat` | **redirected 20 Sep** — `/keyholder/money/tax` is a strict superset, see below |
 
 ### KATHERINE'S DECISION — the table is empty, so nothing would be missed
 
@@ -150,16 +151,45 @@ the P&L. It is damage REPORTS that are unused, which is a different thing.
    guest creation — everything else arrives by booking or platform sync),
    `property-management/supplies` (3 rows) and `/trips` (1 row).
 
-### UNKNOWN — settle by DIFF, not by grep
+### SETTLED — `/admin/mat` redirects
 
-**`/admin/mat` vs `/keyholder/money/tax`.** Both are quarter-based and about 125
-lines. Whether one covers the other cannot be answered by reading imports: run
-both against the same property and quarter and compare the output. Until that is
-done this page is *unknown*, not blocked and not safe.
+**The reason is superset, not agreement.** The two reports DO produce the same
+figures today, and that is the weaker argument: nothing in the current data
+exercises the places they differ. Every Nickel Beach booking has `apply_tax`
+true, none runs to thirty nights, none is direct. The divergence is latent, not
+absent — it would appear on the first thirty-night stay, the first direct
+booking, or any Toronto property.
+
+What makes it safe is that `mat-return` does everything `mat-report` did, and
+does three things correctly that `mat-report` did wrongly:
+
+| | `/admin/mat` (`mat-report`) | `/keyholder/money/tax` (`mat-return`) |
+|---|---|---|
+| MAT rate | `const RATE = 0.04` — Port Colborne's, hardcoded | `matRate(property, date)` — carries Toronto 8.5% → 6% |
+| `apply_tax` | never selected; a reimbursement would be billed MAT | `resolveApplyTax(...)` |
+| exemption | `total > 29`, hardcoded | `matExempt(property, nights)` |
+| property | hardcoded `'nickel-beach'` | parameterised |
+| platform | `IN (airbnb, vrbo, houfy)` | no filter |
+
+The hardcoded rate is why the old page was pinned to one property: it could not
+produce a correct Toronto figure. The nineteen Royal York West bookings were
+invisible to it.
+
+**One UI difference, and it is not a capability loss:** the new tab has a
+property selector, so Nickel Beach is chosen rather than assumed.
+
+**THE CAVEAT, RECORDED HONESTLY.** This was settled by a STATIC diff — the two
+computations read side by side, plus a data check for where they would diverge.
+It was NOT a runtime JSON diff: both endpoints need an authenticated session, and
+replicating a hundred lines of apportionment logic in a harness risks a copy
+error producing a false result. The static case is strong because it is a
+superset by construction rather than by comparison. If Katherine wants certainty,
+the one-time runtime check is to sign in and open both pages on the same quarter
+before the old one stops answering.
 
 ### Where that leaves the count
 
-2 retire now, 6 waiting on a decision, 8 waiting on a build, 1 unknown.
+3 retire now, 6 waiting on a decision, 8 waiting on a build, 0 unknown.
 
 ## The 28 legacy-only pages
 
