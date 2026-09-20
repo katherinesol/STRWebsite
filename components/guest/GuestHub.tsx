@@ -38,7 +38,19 @@ export default function GuestHub({ propertyId, propertyName, data, houfyUrl, con
   /*  Present ONLY for a guest whose signed session names this property. When it
    *  is absent the page has no booking to hide, because the server never loaded
    *  one — see the comment in app/hub/[property]/page.tsx. */
-  stay?: { guestName: string | null; checkIn: string; checkOut: string }
+  stay?: {
+    guestName: string | null
+    checkIn: string
+    checkOut: string
+    bookingId: string
+    /*  The STATE always travels; the street only when the state permits it.
+     *  addressLine being optional is the security property — when the guest is
+     *  not entitled to it, the field does not exist rather than holding ''. */
+    address: 'auto' | 'approved' | 'requested' | 'withheld' | 'hidden'
+    addressMessage: string | null
+    canRequestAddress: boolean
+    addressLine?: string
+  }
 }) {
   const [view, setView] = useState<'home' | 'guide' | 'recs' | 'arrival'>('home')
   const firstName = stay?.guestName ? String(stay.guestName).split(' ')[0] : null
@@ -131,7 +143,7 @@ export default function GuestHub({ propertyId, propertyName, data, houfyUrl, con
         )}
         {view === 'arrival' && (
           <SubPage title="Arrival &amp; Getting In" onBack={() => setView('home')}>
-            <Arrival data={data} />
+            <Arrival data={data} stay={stay} />
           </SubPage>
         )}
 
@@ -205,7 +217,56 @@ function Badge({ label, mins, strong }: { label: string; mins: number; strong?: 
  *
  *  IT DELIBERATELY DOES NOT SHOW A DOOR CODE. The hub is reachable by anyone who
  *  knows the URL; codes reach a guest through their own booking. */
-function Arrival({ data }: { data?: HubData }) {
+/*  WHERE THE ADDRESS APPEARS, when it appears at all.
+ *
+ *  `stay.addressLine` is present only when lib/address-visibility said so — at
+ *  or inside 24 hours before check-in, or after the host approved an early
+ *  request. Otherwise the field is not on the object, so this renders the
+ *  message the shared copy function chose and there is nothing else to render.
+ *
+ *  The copy never says denied. "Not yet" and "no" look identical to a guest on
+ *  purpose: a host declining an early request has not refused them their house,
+ *  they have said wait, and at the 24-hour mark it appears regardless. */
+function AddressBlock({ stay }: { stay: NonNullable<Parameters<typeof GuestHub>[0]['stay']> }) {
+  const [asked, setAsked] = useState(stay.address === 'requested')
+  const [busy, setBusy] = useState(false)
+
+  async function request() {
+    setBusy(true)
+    try {
+      await fetch('/api/guest/address-request', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ booking_id: stay.bookingId }),
+      })
+      setAsked(true)
+    } catch {}
+    setBusy(false)
+  }
+
+  return (
+    <div style={{ padding: '20px 22px', background: C.card, border: `1px solid ${C.line}`, display: 'flex', flexDirection: 'column', gap: '8px' }}>
+      <div style={{ fontFamily: MONO, fontSize: '10px', letterSpacing: '0.24em', textTransform: 'uppercase', color: C.mute }}>The address</div>
+      {stay.addressLine ? (
+        <div style={{ fontSize: '19px', fontWeight: 400, color: C.ink, lineHeight: 1.45 }}>{stay.addressLine}</div>
+      ) : (
+        <>
+          <div style={{ fontSize: '15px', fontWeight: 300, color: C.body, lineHeight: 1.55 }}>
+            {asked && stay.address !== 'withheld' ? 'Requested — we’ll confirm shortly.' : stay.addressMessage}
+          </div>
+          {stay.canRequestAddress && !asked && (
+            <button onClick={request} disabled={busy} style={{
+              marginTop: '4px', alignSelf: 'flex-start', padding: '10px 18px',
+              background: C.ink, color: '#FBF8F3', border: 'none', cursor: 'pointer',
+              fontFamily: 'inherit', fontSize: '14px', fontWeight: 400,
+            }}>{busy ? 'Asking…' : 'Ask for it now'}</button>
+          )}
+        </>
+      )}
+    </div>
+  )
+}
+
+function Arrival({ data, stay }: { data?: HubData; stay?: Parameters<typeof GuestHub>[0]['stay'] }) {
   const rows: [string, string][] = [
     ['Check-in', data?.checkIn || '4:00 PM'],
     ['Check-out', data?.checkOut || '11:00 AM'],
@@ -214,6 +275,10 @@ function Arrival({ data }: { data?: HubData }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '22px' }}>
+      {/*  Only a verified guest has a `stay`, and only one the rule permits has
+           an addressLine inside it. An unverified visitor renders nothing here
+           because there is nothing in the props to render. */}
+      {stay && <AddressBlock stay={stay} />}
       <div style={{ display: 'flex', flexDirection: 'column' }}>
         {rows.map(([k, v], i) => (
           <div key={k} style={{
@@ -315,6 +380,24 @@ function Concierge() {
   const endRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }) }, [messages, busy])
+
+  /*  ?booking= PREFILLS THE BOX AND NOTHING MORE.
+   *
+   *  A confirmation code in a URL travels in referrer headers, browser history,
+   *  server logs and shared screenshots. So an emailed link can save the typing
+   *  and cannot be the credential: the surname is still typed, the pair is still
+   *  POSTed, and the code is stripped from the address bar the moment it has
+   *  been read so it does not sit in history. */
+  useEffect(() => {
+    try {
+      const u = new URL(window.location.href)
+      const b = u.searchParams.get('booking')
+      if (!b) return
+      setCode(b.trim().toUpperCase())
+      u.searchParams.delete('booking')
+      window.history.replaceState({}, '', u.pathname + (u.search || '') + u.hash)
+    } catch {}
+  }, [])
 
   //  Resume from the cookie. No credential is sent, because none is held.
   useEffect(() => {

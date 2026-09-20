@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
+import { sessionMatches } from '@/lib/guest/prove'
 
 /*  A booked guest asking for the exact address before the 24-hour auto-reveal.
  *
@@ -40,13 +41,35 @@ async function verify(bookingId: string, code: string) {
   return null
 }
 
+/*  Which table the booking lives in, for a caller whose session already proved
+ *  it. No code comparison, because the cookie's signature already did the work
+ *  the code would have done. */
+async function bookingKind(id: string): Promise<{ kind: 'direct' | 'platform' } | null> {
+  const supabase = createAdminClient()
+  const { data: d } = await supabase.from('bookings').select('id').eq('id', id).maybeSingle()
+  if (d) return { kind: 'direct' }
+  const { data: p } = await supabase.from('calendar_blocks').select('id').eq('id', id).maybeSingle()
+  return p ? { kind: 'platform' } : null
+}
+
 export async function POST(request: NextRequest) {
   const { booking_id, code } = await request.json().catch(() => ({}))
-  if (!booking_id || !code) {
+
+  /*  A SESSION FOR THIS BOOKING IS PROOF, and it has to be: a guest on the hub
+   *  verified once and the code is deliberately not kept anywhere the page can
+   *  read it, so there is no code to re-send. The cookie is bound to one booking
+   *  id — a session for another stay returns false here — so it proves exactly
+   *  what the code proved and nothing more.
+   *
+   *  The code still works, for the portal and for anyone who has just typed it. */
+  const bySession = await sessionMatches(booking_id ? String(booking_id) : null)
+  if (!booking_id || (!code && !bySession)) {
     return NextResponse.json({ error: 'booking_id and code required' }, { status: 400 })
   }
 
-  const v = await verify(String(booking_id), String(code))
+  const v = bySession
+    ? await bookingKind(String(booking_id))
+    : await verify(String(booking_id), String(code))
   //  Deliberately the same message either way: a different one for "no such
   //  booking" would let someone probe which ids exist.
   if (!v) return NextResponse.json({ error: 'Could not verify that booking' }, { status: 403 })

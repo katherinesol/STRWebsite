@@ -21,6 +21,9 @@
 import { cookies } from 'next/headers'
 import { COOKIE, read } from '@/lib/guest/session'
 import { loadSessionBooking, type GuestBooking } from '@/lib/guest/booking'
+import { createAdminClient } from '@/lib/supabase/server'
+import { addressState, showsAddress, guestAddressCopy, type AddressState } from '@/lib/address-visibility'
+import { loadProperty } from '@/lib/properties-db'
 
 export type HubContext =
   | { verified: true; booking: GuestBooking }
@@ -57,4 +60,64 @@ export async function resolveHubContext(propertyId: string, raw: string | undefi
   if (booking.property_id !== propertyId) return { verified: false, reason: 'wrong-property' }
 
   return { verified: true, booking }
+}
+
+
+/*  What a verified guest is allowed to know about the address.
+ *
+ *  EVERY RULE COMES FROM lib/address-visibility, UNCHANGED. The 24-hour gate,
+ *  the Toronto wall-clock arithmetic that survives a DST boundary, the
+ *  request/approve states and the copy that never says "denied" — all of it is
+ *  the portal's, already live for direct bookings. This adds no logic; it
+ *  supplies the same function with the booking the cookie resolved, so the
+ *  identical rule now covers the 43 platform guests it could never reach.
+ *
+ *  THE ADDRESS IS FETCHED ONLY IF IT WILL BE SHOWN. showsAddress() is consulted
+ *  BEFORE the property is loaded, so on a "not yet" the street never enters this
+ *  process, let alone the response. Loading it and declining to render it would
+ *  put it in the payload — which is precisely the bug that put a full address on
+ *  a public listing earlier this year. */
+export type HubAddress = {
+  state: AddressState
+  /** Present ONLY when the state permits it. Absent otherwise — never blank. */
+  address?: string
+  /** What to say instead. Null when the address itself is shown. */
+  message: string | null
+  canRequest: boolean
+}
+
+export async function hubAddress(booking: GuestBooking, now = new Date()): Promise<HubAddress> {
+  const supabase = createAdminClient()
+
+  const { data: request } = await supabase
+    .from('address_requests')
+    .select('status, decided_at')
+    .eq('booking_id', booking.booking_id)
+    .eq('booking_kind', booking.source)
+    .maybeSingle()
+
+  /*  check-in TIME comes from the property; the DATE from the booking. */
+  const property = await loadProperty(booking.property_id)
+  const state = addressState({
+    checkInDate: booking.check_in,
+    checkInTime: property?.checkIn ?? null,
+    request: request ? { status: request.status as any } : null,
+    now,
+  })
+
+  if (!showsAddress(state)) {
+    return {
+      state,
+      message: guestAddressCopy(state),
+      //  asking again changes nothing while one is outstanding or settled
+      canRequest: state === 'hidden' || state === 'withheld',
+    }
+  }
+
+  const address = property?.address
+  if (!address) {
+    //  nothing on file. Say so plainly rather than rendering an empty line.
+    return { state, message: 'Your host has not added the address yet — message them and they will send it.', canRequest: false }
+  }
+  return { state, address, message: null, canRequest: false }
 }

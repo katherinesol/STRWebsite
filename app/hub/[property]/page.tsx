@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation'
 import { siteConfig } from '@/lib/site-config'
 import { loadProperty } from '@/lib/properties-db'
-import { hubContext } from '@/lib/guest/hub-context'
+import { hubContext, hubAddress } from '@/lib/guest/hub-context'
 import GuestHub from '@/components/guest/GuestHub'
 
 export const dynamic = 'force-dynamic'
@@ -39,10 +39,28 @@ export default async function HubPage({ params }: { params: Promise<{ property: 
    *  displayed it on. The only reliable way to keep a thing out of the bytes is
    *  to never put it in. */
   const ctx = await hubContext(property)
+
+  /*  The address is resolved through the SAME functions the portal has used
+   *  since the feature shipped — the 24-hour gate, the Toronto wall-clock
+   *  arithmetic, the request states, the copy that never says "denied". What is
+   *  new is only who it reaches: the portal serves 4 direct bookings, this
+   *  serves every verified guest on any platform.
+   *
+   *  hubAddress returns the street ONLY when the rule permits it, and does not
+   *  load the property at all when it does not. So the spread below cannot put
+   *  an address into the payload that the guest is not entitled to — there is no
+   *  address in scope to put there. */
+  const addr = ctx.verified ? await hubAddress(ctx.booking) : undefined
   const stay = ctx.verified ? {
     guestName: ctx.booking.guest_name,
     checkIn: ctx.booking.check_in,
     checkOut: ctx.booking.check_out,
+    bookingId: ctx.booking.booking_id,
+    address: addr!.state,
+    addressMessage: addr!.message,
+    canRequestAddress: addr!.canRequest,
+    //  present only when hubAddress returned one
+    ...(addr!.address ? { addressLine: addr!.address } : {}),
   } : undefined
 
   return (
