@@ -72,6 +72,38 @@ and is not is worse than no gate, because it stops anyone asking for the real on
   Nickel Beach and Royal York West, the two now sending guests to Houfy, have
   none, so their House Guide card opens to nothing. The existing PDF is 18.6 MB,
   which is heavy for a phone on hotel wifi.
+
+  **THE ESCALATIONS SAY THIS IS NOT JUST CONTENT — analysed 2026-09-20.** All six
+  auto-escalations the concierge has ever raised were examined, and **four of the
+  six were answerable from material we either have or should have**:
+
+  | asked | where the answer lives |
+  |---|---|
+  | how do i open windows | house guide |
+  | how do i work the shower | house guide |
+  | how long was my stay? | the booking |
+  | what is the address of the stay | the address feature, built since |
+
+  Only two were genuinely unknown facts with no answer anywhere: **where the
+  hot-tub key is**, and **whether the green canoe may be used**.
+
+  So escalations are largely a **house-guide-content gap, not an
+  assistant-capability gap** — the assistant was not stuck, it had nothing to
+  read. That moves the guides from "nice content" to **"reduces escalation
+  load"**, and once the escalation alerts actually send (see the email audit in
+  BACKLOG.md), from "reduces escalation load" to "reduces how often Kaye is
+  pinged at all".
+
+  **When the guides are written, add those two explicitly.** The hot-tub key and
+  the canoe are real questions real guests asked, and there is still no answer to
+  either anywhere in the system.
+
+  **The concrete cost of the two gaps colliding:** on 16 August, DURING her stay,
+  Amanda Stanek asked the concierge *"what is the address of the stay"*. The
+  address feature did not exist yet, so the assistant could not answer — and the
+  escalation alert meant to fetch a human failed silently, because outbound email
+  has never worked. Two gaps, one guest, no help. Both are fixed going forward;
+  it is recorded here because it is what the gaps cost when they line up.
 - **Photos.** Nickel Beach has **one** photo at $880/night. Royal York West has 8.
   Royal York East has none.
 - **`SUPPORT_EMAIL` / `SUPPORT_PHONE` are blank**, so the hub's "Reach us" section
