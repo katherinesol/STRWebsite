@@ -91,6 +91,66 @@ it after step 5**, once the hub covers what the portal does. Not bundled with
 the session work — it is a behaviour change for direct-booking guests and
 deserves its own commit and its own verification.
 
+## EMAIL — audited 2026-09-20, clean today, three things owed when the domain lands
+
+**Nothing was lost.** Resend's own record of sends is empty — `data: []`, on a
+live key — so no guest was ever emailed and nothing bounced. The from-address is
+`onboarding@resend.dev`, Resend's shared test address, which delivers only to the
+account owner; and the account has **no verified domain** (`/domains` returns an
+empty list). So the app's sender is blocked, just one layer over from Supabase's.
+
+### 1. ONE DOMAIN UNBLOCKS BOTH PATHS — the launch prerequisite
+
+Verify a domain in Resend and the app's guest email works: access code, portal
+setup, and the two senders that are written but have no caller yet (booking
+confirmation, payment reminder). Point **Supabase SMTP at the same Resend
+domain** and magic-link login works too. One purchase, both halves.
+
+Nothing guest-facing that involves email can launch before this.
+
+### 2. SIX HOST ALERTS FAILED SILENTLY, and the swallow is the bug
+
+`sendEscalationAlert(...).catch(() => {})` in the chat route. It is the ONLY
+automatic, guest-triggered send in the system and the quietest-failing thing in
+it: the guest-visible half worked — "Auto-escalated" went into the conversation —
+and the host-notification half vanished, six times, with nothing recorded.
+
+**When email is live: stop swallowing it.** A send that cannot be made should be
+logged and surfaced, not discarded. The whole point of that path is that a human
+finds out.
+
+The six, for follow-up — a guest asked something the assistant could not handle
+and nobody was pinged:
+
+| when | guest | property | asked |
+|---|---|---|---|
+| 22 Jul | Jensen Yang | Royal York West | how do i open windows |
+| 23 Jul | Jensen Yang | Royal York West | how do i work the shower |
+| 16 Aug | Amanda Stanek | Nickel Beach | what time? |
+| 16 Aug | Amanda Stanek | Nickel Beach | how long was my stay? also where is hottub key |
+| 16 Aug | Amanda Stanek | Nickel Beach | what is the address of the stay |
+| 11 Sep | Molhem Taskie | Nickel Beach | Can I use the green canoe? |
+
+All six stays have ended, so none is urgent — but Amanda Stanek asked for the
+address **during** her stay and got no human. That one is worth a note.
+
+### 3. NO RECORD OF ANY SEND EXISTS
+
+No `email_log`, `sent_emails`, `emails` or `notifications` table — confirmed
+against `information_schema`, zero matching tables — and `system_log` has **0**
+email entries in 392 rows. The two admin send routes do:
+
+```ts
+await sendAccessCode(booking, guest, code.code)
+return NextResponse.json({ ok: true })
+```
+
+The result is never inspected, so a soft failure returns success.
+
+**When email is live: give sends a record, and stop returning ok on an
+unconfirmed send.** Once real guests are involved, "did that reach them?" gets
+asked, and today it is unanswerable.
+
 ## NEXT pricing piece — the weekend rate and the seasonal bands
 
 The four base targets save: `target_net_nightly`, `target_net_cleaning`,
