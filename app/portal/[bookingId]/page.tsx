@@ -50,7 +50,12 @@ export default function GuestPortal() {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session) { router.push('/portal/login'); return }
 
-      const res = await fetch(`/api/portal/booking/${bookingId}?email=${encodeURIComponent(session.user.email!)}`)
+      /*  The token goes with the request now. The browser has always held a
+       *  real Supabase session; until this it was proving that to itself and
+       *  sending the server an email address to take on trust. */
+      const res = await fetch(`/api/portal/booking/${bookingId}?email=${encodeURIComponent(session.user.email!)}`, {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      })
       if (!res.ok) { router.push('/portal'); return }
       const data = await res.json()
 

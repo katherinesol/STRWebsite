@@ -2,35 +2,41 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { loadProperty } from '@/lib/properties-db'
 import { addressState, showsAddress, guestAddressCopy } from '@/lib/address-visibility'
+import { portalAuth } from '@/lib/guest/portal-auth'
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ bookingId: string }> }
 ) {
   const { bookingId } = await params
-  const { searchParams } = new URL(request.url)
-  const email = searchParams.get('email')
-  if (!email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  /*  AUTHENTICATE FIRST, AND FROM SOMETHING THE CALLER CANNOT SIMPLY ASSERT.
+   *
+   *  The email used to arrive in the query string and be believed. It is now a
+   *  lookup key that a verified Supabase session has to agree with — or a hub
+   *  booking cookie issued for this exact booking, which needs no email at all. */
+  const auth = await portalAuth(request, bookingId)
+  if (!auth.ok) return NextResponse.json({}, { status: 401 })
 
   const supabase = createAdminClient()
-
-  // verify guest owns this booking
-  const { data: guest } = await supabase
-    .from('guests')
-    .select('id')
-    .eq('email', email)
-    .maybeSingle()
-
-  if (!guest) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   const { data: booking } = await supabase
     .from('bookings')
     .select('*')
     .eq('id', bookingId)
-    .eq('guest_id', guest.id)
-    .single()
+    .maybeSingle()
 
   if (!booking) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  /*  A verified email proves who the caller is; it does not prove this booking
+   *  is theirs. The hub cookie proves the booking directly, so it skips this. */
+  if (auth.by === 'supabase') {
+    const { data: guest } = await supabase
+      .from('guests').select('id, email').eq('id', booking.guest_id).maybeSingle()
+    if (!guest || String(guest.email || '').toLowerCase() !== auth.email) {
+      return NextResponse.json({}, { status: 401 })
+    }
+  }
 
   // get guides
   const { data: guides } = await supabase
@@ -39,6 +45,12 @@ export async function GET(
     .eq('property_id', booking.property_id)
     .order('display_order')
 
+  /*  THE DOOR CODE IS READ ONLY NOW, AFTER THE CALLER IS KNOWN.
+   *
+   *  It used to be loaded on the strength of a date — within 48 hours of
+   *  check-in, fetch it — which meant an unauthenticated caller who asked at the
+   *  right moment received it. The 48-hour rule still decides WHEN a guest may
+   *  see it; who is asking is decided above, first. */
   // get access code if within 48hrs
   const checkIn = new Date(booking.check_in)
   const now = new Date()

@@ -16,7 +16,9 @@ export default function PortalHome() {
       setUser(session.user)
 
       // fetch bookings for this email
-      const res = await fetch(`/api/portal/bookings?email=${encodeURIComponent(session.user.email!)}`)
+      const res = await fetch(`/api/portal/bookings?email=${encodeURIComponent(session.user.email!)}`, {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      })
       const data = await res.json()
       setBookings(data.bookings || [])
       setLoading(false)
