@@ -2,6 +2,40 @@
 import { useState } from 'react'
 import { supabase } from '@/lib/supabase/client'
 
+/*  WHAT A GUEST IS TOLD WHEN THE LINK CANNOT BE SENT.
+ *
+ *  This screen rendered `err.message || 'Something went wrong'`, which put
+ *  whatever the auth service said in front of a guest — and when the send failed
+ *  the message was unparseable, so somebody trying to reach their own booking
+ *  was shown "{}" and left to guess. An error a guest cannot act on is worse
+ *  than no error: it reads as a broken site rather than a temporary one.
+ *
+ *  Nothing from the error object is ever rendered. The cause is matched and a
+ *  sentence chosen; anything unrecognised falls through to the same honest
+ *  default, and the detail goes to the console for whoever is debugging.
+ *
+ *  THE CURRENT FAILURE IS NOT THE GUEST'S FAULT AND NOT A CODE FAULT. Supabase
+ *  returns 500 "Error sending confirmation email" because outbound mail is not
+ *  configured on the project yet — it waits on the domain. Until then this
+ *  screen says so in a way a guest can act on, which is the most it can do. */
+function signInMessage(err: any): string {
+  const code = String(err?.code ?? err?.error_code ?? '')
+  const raw = String(err?.message ?? '')
+  const status = Number(err?.status ?? 0)
+
+  //  the detail is for us, not for the guest
+  try { console.error('[portal-login] sign-in failed:', code || status || raw) } catch {}
+
+  if (/invalid|malformed/i.test(raw) && /email/i.test(raw)) {
+    return 'That does not look like a complete email address. Please check it and try again.'
+  }
+  if (status === 429 || /rate|too many/i.test(raw + code)) {
+    return 'Too many attempts just now. Please wait a few minutes and try again.'
+  }
+  //  otp_disabled, 500 mailer failures, anything else
+  return "We couldn't send the sign-in link right now. Please try again shortly, or contact your host directly."
+}
+
 export default function PortalLogin() {
   const [email, setEmail] = useState('')
   const [sent, setSent] = useState(false)
@@ -22,7 +56,7 @@ export default function PortalLogin() {
       if (error) throw error
       setSent(true)
     } catch (err: any) {
-      setError(err.message || 'Something went wrong')
+      setError(signInMessage(err))
     } finally {
       setLoading(false)
     }
