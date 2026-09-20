@@ -29,14 +29,19 @@ const C = {
 const MONO = "'IBM Plex Mono', monospace"
 const SANS = 'Jost, Helvetica, sans-serif'
 
-export default function GuestHub({ propertyId, propertyName, data, houfyUrl, contact }: {
+export default function GuestHub({ propertyId, propertyName, data, houfyUrl, contact, stay }: {
   propertyId: string
   propertyName: string
   data?: HubData
   houfyUrl?: string
   contact?: { email?: string; phone?: string }
+  /*  Present ONLY for a guest whose signed session names this property. When it
+   *  is absent the page has no booking to hide, because the server never loaded
+   *  one — see the comment in app/hub/[property]/page.tsx. */
+  stay?: { guestName: string | null; checkIn: string; checkOut: string }
 }) {
   const [view, setView] = useState<'home' | 'guide' | 'recs' | 'arrival'>('home')
+  const firstName = stay?.guestName ? String(stay.guestName).split(' ')[0] : null
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', justifyContent: 'center', background: C.page, fontFamily: SANS, color: C.ink, WebkitFontSmoothing: 'antialiased' }}>

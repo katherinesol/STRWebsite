@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation'
 import { siteConfig } from '@/lib/site-config'
 import { loadProperty } from '@/lib/properties-db'
+import { hubContext } from '@/lib/guest/hub-context'
 import GuestHub from '@/components/guest/GuestHub'
 
 export const dynamic = 'force-dynamic'
@@ -24,6 +25,26 @@ export default async function HubPage({ params }: { params: Promise<{ property: 
   const prop = await loadProperty(property)
   if (!prop) notFound()
 
+  /*  BOOKING CONTEXT, OR NOTHING AT ALL.
+   *
+   *  hubContext compares the cookie's SIGNED property id against this route
+   *  before it runs a single query, so a valid session for another property is
+   *  indistinguishable from no session here — and costs no database read either.
+   *
+   *  When it comes back unverified, `stay` is undefined and every booking-shaped
+   *  field below is simply absent from the props. Not blanked, not hidden behind
+   *  a flag the client checks: absent. Next serialises every field of an object
+   *  passed to a client component whether or not anything renders it, which is
+   *  exactly how an address once travelled to a public page no component
+   *  displayed it on. The only reliable way to keep a thing out of the bytes is
+   *  to never put it in. */
+  const ctx = await hubContext(property)
+  const stay = ctx.verified ? {
+    guestName: ctx.booking.guest_name,
+    checkIn: ctx.booking.check_in,
+    checkOut: ctx.booking.check_out,
+  } : undefined
+
   return (
     <GuestHub
       propertyId={property}
@@ -42,6 +63,7 @@ export default async function HubPage({ params }: { params: Promise<{ property: 
         pois: prop.pois || [],
         parkingSpots: prop.parkingSpots ?? 0,
       }}
+      {...(stay ? { stay } : {})}
     />
   )
 }
