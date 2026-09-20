@@ -94,6 +94,73 @@ Photo counts as this landed: Royal York West 8, **Nickel Beach 1**, Royal York
 East 0. The flagship at $880 a night having a single photo is now a thing
 Katherine can fix without opening the old admin.
 
+## CAPABILITY COVERAGE — audited 20 September 2026, all four areas
+
+The other half of the coverage checks. Security was audited the same day and is
+recorded in BACKLOG.md; this is "what would be stranded if the page went away".
+
+**Method: per CAPABILITY, not per page.** A page is mapped to the API routes it
+and its component tree call, and a route no `/keyholder` page calls is
+legacy-only. That is grep-certain — the route is either referenced from the new
+shell or it is not.
+
+**The method has a blind spot, and it matters if this is re-run.** A page with no
+API calls at all — server-rendered, reading Supabase directly — comes back with
+zero legacy-only routes, which reads identically to "fully covered". `damage` and
+`property-management` are both that shape and were hand-inspected. Any future run
+must treat "0 routes used" as *unmeasured*, not as *clean*.
+
+### RETIRE NOW — safe, zero loss
+
+| page | evidence |
+|---|---|
+| `/admin/parking` | every route it calls is already reachable from `/keyholder` — grep-certain |
+| `/admin/property-management` | a hub of links to three children; no capability of its own |
+
+### KATHERINE'S DECISION — the table is empty, so nothing would be missed
+
+Each of these guards a capability that exists and **has never been used**. The
+question is not technical. It is whether she intends to start using it.
+
+| page | table | rows |
+|---|---|---|
+| `damage`, `damage/new` | `damage_reports` | **0** |
+| `newsletter` | `newsletter_subscribers` | **0** |
+| `contacts` | `contacts` | **0** |
+| `reviews` | `reviews` | **0** |
+| `access` | `access_codes` | **0** |
+
+Note damage MONEY is already migrated — `damage_recovery` is an income kind on
+the P&L. It is damage REPORTS that are unused, which is a different thing.
+
+### BUILD FIRST — genuine blockers, in order
+
+1. **`/admin/locks` — the largest remaining build.** The only home for
+   `set-code`, which writes a door code, and `locks/sweep`, the morning check.
+   Six `property_locks`, thirty `lock_actions` — live, load-bearing machinery.
+   `/keyholder/access` shows door ACTIVITY and the system log; it does not
+   OPERATE locks. Needs a lock-operation surface before this page can go.
+2. **`/admin/security`** — 2FA and passkey registration for the team's own
+   accounts. Not a guest feature and not migrated; retiring it means nobody can
+   register a passkey.
+3. **`/admin/toronto-mat`** — the only surface that RECORDS a filing, and
+   `mat_filings` has one row, so it is a real record rather than a theoretical
+   one. Also carries Toronto's rate-by-date rule, 8.5% to 31 July 2026 then 6%.
+4. Smaller: `/admin/staff-access` (1 row), `/admin/guests/new` (the only manual
+   guest creation — everything else arrives by booking or platform sync),
+   `property-management/supplies` (3 rows) and `/trips` (1 row).
+
+### UNKNOWN — settle by DIFF, not by grep
+
+**`/admin/mat` vs `/keyholder/money/tax`.** Both are quarter-based and about 125
+lines. Whether one covers the other cannot be answered by reading imports: run
+both against the same property and quarter and compare the output. Until that is
+done this page is *unknown*, not blocked and not safe.
+
+### Where that leaves the count
+
+2 retire now, 6 waiting on a decision, 8 waiting on a build, 1 unknown.
+
 ## The 28 legacy-only pages
 
 Backed by a real table — losing these loses the capability:
