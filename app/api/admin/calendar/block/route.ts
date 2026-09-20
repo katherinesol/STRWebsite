@@ -2,9 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { logCalendarActivity } from '@/lib/calendar-activity'
 import { getAuth, hasRole, canAddBlocks } from '@/lib/auth'
+import { requireArea } from '@/lib/require-area'
 
 export async function POST(request: NextRequest) {
-  if (!await hasRole('owner', 'co-owner')) return NextResponse.json({ error: 'Not allowed' }, { status: 403 })
+  const no = await requireArea('locks', 'edit')
+  if (no) return no
   // this endpoint only ever inserts is_booking:false, so the calendar
   // add-blocks permission is exactly the right gate for the whole handler
   if (!await canAddBlocks()) return NextResponse.json({ error: 'Not allowed to add calendar blocks' }, { status: 403 })

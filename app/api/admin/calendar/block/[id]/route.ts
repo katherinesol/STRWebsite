@@ -5,6 +5,7 @@ import { logCalendarActivity } from '@/lib/calendar-activity'
 import { getAuth, hasRole, hasPermission, canAddBlocks, canDeleteOwnBlocks } from '@/lib/auth'
 import { queueForBooking } from '@/lib/lock-queue'
 import { windowFromBooking } from '@/lib/lock-window'
+import { requireArea } from '@/lib/require-area'
 
 
 export async function PATCH(
@@ -12,7 +13,8 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   // Was isAuthed(), so anyone with a login could PATCH any column on any booking.
-  if (!await hasRole('owner', 'co-owner')) return NextResponse.json({ error: 'Not allowed' }, { status: 403 })
+  const no = await requireArea('locks', 'edit')
+  if (no) return no
   const { id } = await params
   const raw = await request.json()
   const supabase = createAdminClient()
@@ -127,7 +129,8 @@ export async function DELETE(
   // Was any authenticated user. The per-reason rules below only protected OWNER
   // blocks, so a cleaner could delete a cleaning block — or a real booking row,
   // since is_booking rows live in this table too.
-  if (!await hasRole('owner', 'co-owner')) return NextResponse.json({ error: 'Not allowed' }, { status: 403 })
+  const no = await requireArea('locks', 'edit')
+  if (no) return no
   const auth = await getAuth()
   if (!auth.ok) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const { id } = await params

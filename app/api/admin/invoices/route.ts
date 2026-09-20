@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { hasRole, getAuth } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/server'
+import { requireArea } from '@/lib/require-area'
 
 // list invoices with computed totals (owner + co-owner)
 export async function GET() {
-  if (!await hasRole('owner', 'co-owner')) return NextResponse.json({ error: 'Not allowed' }, { status: 403 })
+  const no = await requireArea('money', 'view')
+  if (no) return no
   const supabase = createAdminClient()
   const { data: invoices } = await supabase.from('invoices').select('*').order('created_at', { ascending: false })
   const ids = (invoices || []).map(i => i.id)
@@ -32,7 +34,8 @@ export async function GET() {
 
 // create an invoice (owner + co-owner)
 export async function POST(request: NextRequest) {
-  if (!await hasRole('owner', 'co-owner')) return NextResponse.json({ error: 'Not allowed' }, { status: 403 })
+  const no = await requireArea('money', 'edit')
+  if (no) return no
   const auth = await getAuth()
   const { contractor_name, contractor_contact, property_id, title, notes } = await request.json()
   if (!contractor_name || !title) return NextResponse.json({ error: 'Contractor and title required' }, { status: 400 })

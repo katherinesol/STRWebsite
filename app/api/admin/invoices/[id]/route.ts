@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { hasRole } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/server'
+import { requireArea } from '@/lib/require-area'
 
 // full invoice detail: items, adjustments, payments
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  if (!await hasRole('owner', 'co-owner')) return NextResponse.json({ error: 'Not allowed' }, { status: 403 })
+  const no = await requireArea('money', 'view')
+  if (no) return no
   const { id } = await params
   const supabase = createAdminClient()
   const [{ data: invoice }, { data: items }, { data: adjustments }, { data: payments }] = await Promise.all([
@@ -19,7 +21,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
 // update invoice fields (title, notes, status, contractor)
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  if (!await hasRole('owner', 'co-owner')) return NextResponse.json({ error: 'Not allowed' }, { status: 403 })
+  const no = await requireArea('money', 'edit')
+  if (no) return no
   const { id } = await params
   const body = await request.json()
   /*  HEADER ONLY, AND THAT IS THE POINT.
@@ -63,7 +66,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
  *  a control can name it — "this also deletes 3 payments, 2 line items and 3
  *  expenses" — instead of asking someone to agree to the word "delete". */
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  if (!await hasRole('owner', 'co-owner')) return NextResponse.json({ error: 'Not allowed' }, { status: 403 })
+  const no = await requireArea('money', 'edit')
+  if (no) return no
   const { id } = await params
   const confirmed = request.nextUrl.searchParams.get('confirm') === 'true'
   const supabase = createAdminClient()

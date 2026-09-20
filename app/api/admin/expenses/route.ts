@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { isAuthed, hasRole } from '@/lib/auth'
 import { normaliseCategory } from '@/lib/expense-categories'
+import { requireArea } from '@/lib/require-area'
 
 
 /** Everything the expenses screen needs, in one request.
@@ -15,7 +16,8 @@ import { normaliseCategory } from '@/lib/expense-categories'
  *  private; they last an hour, which is longer than anyone spends on this
  *  screen and shorter than a link worth leaking. */
 export async function GET() {
-  if (!await hasRole('co-owner')) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const no = await requireArea('money', 'view', ['co-owner'])
+  if (no) return no
   const supabase = createAdminClient()
 
   const { data: rows, error } = await supabase.from('expenses')
@@ -52,7 +54,13 @@ export async function GET() {
 const n = (v: unknown) => { const x = Number(v); return Number.isFinite(x) ? Math.round(x * 100) / 100 : 0 }
 
 export async function POST(request: NextRequest) {
-  if (!await isAuthed()) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  /*  A SECOND CISTERN. This creates an expense — a money row that reaches the
+   *  P&L and the tax workings — behind isAuthed() alone, so any signed-in
+   *  account could add one. The first audit read this file as role-gated
+   *  because hasRole appears in it; the POST never called it. Found by checking
+   *  each HANDLER rather than each file, which is the lesson worth keeping. */
+  const no = await requireArea('money', 'edit')
+  if (no) return no
   const body = await request.json()
   const supabase = createAdminClient()
 

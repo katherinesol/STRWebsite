@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { hasRole } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/server'
+import { requireArea } from '@/lib/require-area'
 
 /*  ASSIGN — put an account on a payment that never recorded one.
  *
@@ -29,9 +30,8 @@ import { createAdminClient } from '@/lib/supabase/server'
 const EDITABLE = new Set(['account_id', 'reference'])
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  if (!await hasRole('owner', 'co-owner')) {
-    return NextResponse.json({ error: 'Not allowed' }, { status: 403 })
-  }
+  const no = await requireArea('money', 'edit')
+  if (no) return no
   const { id } = await params
   const raw = await request.json().catch(() => ({}))
 

@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { hasRole } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/server'
+import { requireArea } from '@/lib/require-area'
 
 // list all planned payments across invoices, with invoice context
 export async function GET() {
-  if (!await hasRole('owner', 'co-owner')) return NextResponse.json({ error: 'Not allowed' }, { status: 403 })
+  const no = await requireArea('money', 'view')
+  if (no) return no
   const supabase = createAdminClient()
 
   const { data: payments, error } = await supabase
@@ -42,7 +44,8 @@ export async function GET() {
 
 // mark a planned payment paid (today) — creates the expense like the invoice flow does
 export async function PATCH(request: NextRequest) {
-  if (!await hasRole('owner', 'co-owner')) return NextResponse.json({ error: 'Not allowed' }, { status: 403 })
+  const no = await requireArea('money', 'edit')
+  if (no) return no
   /*  Marking a scheduled payment paid used to take an id and nothing else, so
       it recorded WHEN money moved but never from WHERE. That is how a $2,000
       billpay reached the ledger with no detail on it and the payments migration

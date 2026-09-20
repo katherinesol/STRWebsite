@@ -3,10 +3,11 @@ import Anthropic from '@anthropic-ai/sdk'
 import { createAdminClient } from '@/lib/supabase/server'
 import { hasRole } from '@/lib/auth'
 import { EXPENSE_CATEGORIES } from '@/lib/expense-categories'
+import { requireArea } from '@/lib/require-area'
 
 export async function POST(request: NextRequest) {
-  if (!await hasRole('owner', 'co-owner')) return NextResponse.json({ error: 'Not allowed' }, { status: 403 })
-
+  const no = await requireArea('money', 'edit')
+  if (no) return no
   const formData = await request.formData()
   const file = formData.get('receipt') as File | null
   if (!file) return NextResponse.json({ error: 'No file' }, { status: 400 })

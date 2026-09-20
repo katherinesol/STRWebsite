@@ -2,11 +2,13 @@ import { NextRequest, NextResponse } from 'next/server'
 import { hasRole } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/server'
 import { checkParking, hasSharedParking, LANES } from '@/lib/parking'
+import { requireArea } from '@/lib/require-area'
 
 // GET ?property=&start=&end=&exclude=  → availability check
 // GET ?overview=1&from=&to=            → all assignments in range (for the overview page)
 export async function GET(request: NextRequest) {
-  if (!await hasRole('owner', 'co-owner', 'cleaner')) return NextResponse.json({ error: 'Not allowed' }, { status: 403 })
+  const no = await requireArea('locks', 'view')
+  if (no) return no
   const sp = request.nextUrl.searchParams
   const supabase = createAdminClient()
 
@@ -29,7 +31,8 @@ export async function GET(request: NextRequest) {
 
 // POST reserve: { booking_id, booking_kind, property_id, guest_name, start_date, end_date, car_count }
 export async function POST(request: NextRequest) {
-  if (!await hasRole('owner', 'co-owner')) return NextResponse.json({ error: 'Not allowed' }, { status: 403 })
+  const no = await requireArea('locks', 'edit')
+  if (no) return no
   const b = await request.json()
   if (!hasSharedParking(b.property_id)) return NextResponse.json({ error: 'No shared parking for this property' }, { status: 400 })
   if (!b.booking_id || !b.start_date || !b.end_date) return NextResponse.json({ error: 'booking_id, start_date, end_date required' }, { status: 400 })
@@ -62,7 +65,8 @@ export async function POST(request: NextRequest) {
 
 // DELETE ?booking_id=  → release the lane
 export async function DELETE(request: NextRequest) {
-  if (!await hasRole('owner', 'co-owner')) return NextResponse.json({ error: 'Not allowed' }, { status: 403 })
+  const no = await requireArea('locks', 'edit')
+  if (no) return no
   const bookingId = request.nextUrl.searchParams.get('booking_id')
   if (!bookingId) return NextResponse.json({ error: 'booking_id required' }, { status: 400 })
   const supabase = createAdminClient()

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { hasRole, getAuth } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/server'
+import { requireArea } from '@/lib/require-area'
 
 /*  Non-booking income — money that arrives with no booking and no invoice.
  *
@@ -22,7 +23,8 @@ const KINDS = ['damage_recovery', 'insurance', 'refund_received', 'other'] as co
 const EDITABLE = new Set(['amount', 'paid_at', 'kind', 'property_id', 'account_id', 'reference', 'note', 'method'])
 
 export async function GET() {
-  if (!await hasRole('owner', 'co-owner')) return NextResponse.json({ error: 'Not allowed' }, { status: 403 })
+  const no = await requireArea('money', 'view')
+  if (no) return no
   const supabase = createAdminClient()
   const { data, error } = await supabase.from('payments')
     .select('id, amount, paid_at, kind, property_id, account_id, reference, note, method, created_at')
@@ -36,7 +38,8 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-  if (!await hasRole('owner', 'co-owner')) return NextResponse.json({ error: 'Not allowed' }, { status: 403 })
+  const no = await requireArea('money', 'edit')
+  if (no) return no
   const raw = await request.json().catch(() => ({}))
 
   const rejected = Object.keys(raw || {}).filter(k => !EDITABLE.has(k))
@@ -92,7 +95,8 @@ export async function POST(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
-  if (!await hasRole('owner')) return NextResponse.json({ error: 'Not allowed' }, { status: 403 })
+  const no = await requireArea('money', 'edit', ['owner'])
+  if (no) return no
   const id = request.nextUrl.searchParams.get('id')
   if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
   const supabase = createAdminClient()

@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { hasRole, getAuth } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/server'
+import { requireArea } from '@/lib/require-area'
 
 // batch save: create/update an invoice with all its lines in one call
 export async function POST(request: NextRequest) {
-  if (!await hasRole('owner', 'co-owner')) return NextResponse.json({ error: 'Not allowed' }, { status: 403 })
+  const no = await requireArea('money', 'edit')
+  if (no) return no
   const auth = await getAuth()
   const body = await request.json()
   const { id, contractor_name, company, contractor_contact, property_id, title, notes, hst_amount, tax_mode, category, due_date, items = [], adjustments = [], payments = [] } = body

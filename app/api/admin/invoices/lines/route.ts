@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { hasRole } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/server'
+import { requireArea } from '@/lib/require-area'
 
 // add an item, adjustment, or payment to an invoice
 export async function POST(request: NextRequest) {
-  if (!await hasRole('owner', 'co-owner')) return NextResponse.json({ error: 'Not allowed' }, { status: 403 })
+  const no = await requireArea('money', 'edit')
+  if (no) return no
   const { kind, invoice_id, description, amount, reason, method } = await request.json()
   if (!invoice_id || !kind) return NextResponse.json({ error: 'invoice_id and kind required' }, { status: 400 })
   const supabase = createAdminClient()
@@ -27,7 +29,8 @@ export async function POST(request: NextRequest) {
 
 // mark a payment paid (with editable date) → creates an expense
 export async function PATCH(request: NextRequest) {
-  if (!await hasRole('owner', 'co-owner')) return NextResponse.json({ error: 'Not allowed' }, { status: 403 })
+  const no = await requireArea('money', 'edit')
+  if (no) return no
   const { payment_id, paid_at } = await request.json()
   if (!payment_id) return NextResponse.json({ error: 'payment_id required' }, { status: 400 })
   const supabase = createAdminClient()
@@ -62,7 +65,8 @@ export async function PATCH(request: NextRequest) {
 
 // delete an item/adjustment/payment
 export async function DELETE(request: NextRequest) {
-  if (!await hasRole('owner', 'co-owner')) return NextResponse.json({ error: 'Not allowed' }, { status: 403 })
+  const no = await requireArea('money', 'edit')
+  if (no) return no
   const kind = request.nextUrl.searchParams.get('kind')
   const id = request.nextUrl.searchParams.get('id')
   if (!kind || !id) return NextResponse.json({ error: 'kind and id required' }, { status: 400 })

@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { hasRole, getAuth } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/server'
+import { requireArea } from '@/lib/require-area'
 
 export async function GET(request: NextRequest) {
-  if (!await hasRole('owner')) return NextResponse.json({ error: 'Not allowed' }, { status: 403 })
+  const no = await requireArea('money', 'view', ['owner'])
+  if (no) return no
   const property = request.nextUrl.searchParams.get('property')
   const supabase = createAdminClient()
   let q = supabase.from('mat_filings').select('*').order('year', { ascending: false }).order('quarter', { ascending: false })
@@ -23,7 +25,8 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  if (!await hasRole('owner')) return NextResponse.json({ error: 'Not allowed' }, { status: 403 })
+  const no = await requireArea('money', 'edit', ['owner'])
+  if (no) return no
   const auth = await getAuth()
   const form = await request.formData()
   const property_id = form.get('property_id') as string
