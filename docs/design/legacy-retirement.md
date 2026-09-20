@@ -94,6 +94,91 @@ Photo counts as this landed: Royal York West 8, **Nickel Beach 1**, Royal York
 East 0. The flagship at $880 a night having a single photo is now a thing
 Katherine can fix without opening the old admin.
 
+## THE AUDIT METHOD WAS WRONG — corrected 20 September 2026
+
+The coverage audit measured **routes called**, not **capabilities offered**, and
+that is not the same question. A route can be referenced from the new shell while
+the use of it that mattered stays behind — same endpoint, two different jobs.
+
+This is the security pass's lesson in a new dimension. That one learned *per
+handler, not per file*. This is *per capability, not per route*. The blind spot
+for zero-API pages was already written down here; the adjacent version of it was
+not, and two pages were wrongly cleared because of it.
+
+### Reclassified — neither was safe
+
+**`/admin/parking` → BUILD FIRST.** `ParkingControl` is mounted in the new
+shell's stay page, so the route is reached, and the audit called that covered.
+But the two surfaces do different jobs: the component is a per-stay toggle that
+calls `overview=1` and then keeps only its own row —
+`find(a => a.booking_id === bookingId)` — while `/admin/parking` is a **driveway
+week-view rota** with paging across all bookings. One answers "may this guest
+have a lane"; the other answers "who has a lane on Thursday". No week view exists
+in the new shell. It also returns null for anything that is not Royal York.
+
+**`/admin/property-management` → BLOCKED.** It was called "a hub of links with no
+capability of its own". Its capability IS the navigation: it is the only way in
+to `supplies` (3 rows) and `trips` (1 row). Redirect it and both are reachable by
+typed URL and nothing else. It unblocks the moment those two have a home or are
+retired — and both sit in Katherine's decision pile, so this may cost no build at
+all.
+
+**`/admin/mat` stays retired.** It was settled by comparing the two
+COMPUTATIONS line by line, not by counting routes, so it does not carry this
+flaw.
+
+## RE-AUDIT OF THE ALREADY-REDIRECTED PAGES — three live gaps
+
+Because the flawed method also classified the pages that have already gone, all
+19 were re-checked with the corrected one: each page's PRE-REDIRECT content was
+recovered from git and compared against what its target actually reaches.
+
+Fourteen showed a difference; most are renamed equivalents (`BookingEditForm`
+became `BookingDetail`, and so on) and were dismissed by hand. **Three are real,
+and they shipped.**
+
+### 1. House-guide upload has no home — the sharpest
+
+`components/admin/GuideUpload.tsx` still exists and **no page imports it**. It
+was mounted on `/admin/properties`, which redirects to `/keyholder/property`, and
+the new property editor has Content, Places, Photos and Pricing — **no Guides
+tab**. The API routes are all still live: `/api/admin/guides`,
+`/api/admin/guides/[id]`, `/api/admin/guest-guide`.
+
+This one bites twice. The missing house guides for Nickel Beach and Royal York
+West are already on the content list as something Katherine owes — and she
+currently **cannot upload one through the new shell at all**. The escalation
+analysis in `guest-surface.md` argued those guides would pre-empt most guest
+questions. The tool to add them was redirected away.
+
+### 2. Invoice export
+
+`/api/admin/invoices/export` is called by nothing in `/keyholder`. The route
+still exists; the button does not.
+
+### 3. Property settings
+
+`PropertySettingsForm` is not mounted anywhere in the new shell. Thirteen
+`property_settings` columns have no editor: `max_advance_days`,
+`early_checkin_fee_per_hour`, `late_checkout_fee_per_hour`,
+`referral_reward_referrer`, `referral_reward_referred`, `schlage_devices`,
+`cleaning_duration_mins`, `security_deposit_amount`, and the five pricing/stay
+fields that were deliberately made read-only pending the three-table
+consolidation.
+
+The pricing ones are a KNOWN and deliberate omission. The other eight are not —
+they were simply left behind.
+
+**Two smaller ones, noted not flagged:** `/api/admin/knowledge` is unreachable
+from the redirected concierge page but `/admin/knowledge` still exists as a
+legacy page, so the capability is reachable, just not from where it was.
+`/api/admin/haussy/create-booking` is unreachable from `/keyholder/assistant` —
+worth a look, but the assistant has other booking paths.
+
+**Checked and cleared:** `/api/admin/occupancy` (reached via `MonthGrid`),
+`UpcomingPayments` (mounted on the invoices page), and the nine
+component-rename cases.
+
 ## CAPABILITY COVERAGE — audited 20 September 2026, all four areas
 
 The other half of the coverage checks. Security was audited the same day and is
@@ -114,9 +199,9 @@ must treat "0 routes used" as *unmeasured*, not as *clean*.
 
 | page | evidence |
 |---|---|
-| `/admin/parking` | every route it calls is already reachable from `/keyholder` — grep-certain |
-| `/admin/property-management` | a hub of links to three children; no capability of its own |
-| `/admin/mat` | **redirected 20 Sep** — `/keyholder/money/tax` is a strict superset, see below |
+| ~~`/admin/parking`~~ | **RECLASSIFIED — build first.** The route is reached; the week-view rota is not. See the correction above. |
+| ~~`/admin/property-management`~~ | **RECLASSIFIED — blocked.** It is the only navigation into supplies and trips. |
+| `/admin/mat` | **redirected 20 Sep** — `/keyholder/money/tax` is a strict superset, settled by comparing computations rather than counting routes |
 
 ### KATHERINE'S DECISION — the table is empty, so nothing would be missed
 
@@ -189,7 +274,9 @@ before the old one stops answering.
 
 ### Where that leaves the count
 
-3 retire now, 6 waiting on a decision, 8 waiting on a build, 0 unknown.
+0 retire now — all three resolved: one redirected, two reclassified.
+6 waiting on a decision, 10 waiting on a build, 0 unknown.
+Plus **3 live gaps already shipped** — see the re-audit above.
 
 ## The 28 legacy-only pages
 
