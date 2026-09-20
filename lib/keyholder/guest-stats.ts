@@ -25,10 +25,16 @@ export type GuestStat = {
   firstStay: string | null
   lastStay: string | null
   returning: boolean
+  /*  Trips that have actually HAPPENED — checkout is in the past. `stays`
+   *  includes the booking someone has next week, which is right for "have they
+   *  been before" and wrong for loyalty: nobody has earned a fifth stay on the
+   *  strength of one they have not taken yet. */
+  completed: number
 }
 
-export async function guestStats(): Promise<Record<string, GuestStat>> {
+export async function guestStats(now = new Date()): Promise<Record<string, GuestStat>> {
   const supabase = createAdminClient()
+  const today = now.toISOString().slice(0, 10)
   const [{ data: direct }, { data: plat }] = await Promise.all([
     supabase.from('bookings')
       .select('guest_id, property_id, check_in, check_out, total, status')
@@ -66,10 +72,19 @@ export async function guestStats(): Promise<Record<string, GuestStat>> {
     /* Collapse rows that run into each other at the same property. One row's
        checkout being the next one's check-in is a guest who never left. */
     let trips = 0
+    let completed = 0
     let prev: Row | null = null
     for (const r of list) {
       const continues = prev && prev.property === r.property && prev.to && r.from && r.from <= prev.to
-      if (!continues) trips++
+      if (!continues) {
+        trips++
+        //  the trip counts as taken once its LAST night is behind us
+        if (r.to && r.to < today) completed++
+      } else if (r.to && r.to < today && prev?.to && prev.to >= today) {
+        //  a trip whose earlier row was still upcoming but whose later row has
+        //  now passed — count it once, here
+        completed++
+      }
       prev = r
     }
 
@@ -82,6 +97,7 @@ export async function guestStats(): Promise<Record<string, GuestStat>> {
       firstStay: list[0]?.from ?? null,
       lastStay: list.reduce<string | null>((m, r) => (r.from && (!m || r.from > m) ? r.from : m), null),
       returning: trips > 1,
+      completed,
     }
   }
   return out

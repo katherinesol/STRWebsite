@@ -3,28 +3,47 @@ import { redirect } from 'next/navigation'
 import { hasRole } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/server'
 import { guestStats } from '@/lib/keyholder/guest-stats'
+import { loadMilestones, loadAcks, flagFor } from '@/lib/keyholder/loyalty'
+import GuestSearch from '@/components/keyholder/GuestSearch'
 import { findDuplicateCandidates, nameOnlyLinks, isSyntheticEmail } from '@/lib/keyholder/guest-match'
 import { L, F, microLabel, cardStyle, money } from '@/lib/design-tokens'
 
 export const dynamic = 'force-dynamic'
 
-export default async function People() {
+export default async function People({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
   /* PII — names, addresses, phone numbers, free-text notes. Owner and co-owner
      only, checked here as well as on the endpoints, because a page that renders
      the list is as much an exposure as a route that returns it. */
   if (!await hasRole('owner', 'co-owner')) redirect('/keyholder')
 
   const supabase = createAdminClient()
-  const [{ data: guests }, stats] = await Promise.all([
-    supabase.from('guests').select('id, name, email, phone, id_verified, notes').order('name'),
-    guestStats(),
+  const q = ((await searchParams)?.q || '').trim()
+
+  /*  SEARCHED IN THE DATABASE, NOT IN THE PAGE. Filtering the array after
+   *  loading it would search only what had already been fetched, which is fine
+   *  at 48 guests and silently wrong at 480 — and the failure would look like
+   *  "that guest isn't in the system". Name, email and phone, because Kaye has
+   *  all three and no way of knowing which one she remembers. */
+  let query = supabase.from('guests').select('id, name, email, phone, id_verified, notes, prior_stays').order('name')
+  if (q.length >= 2) {
+    const like = `%${q.replace(/[%_]/g, m => '\\' + m)}%`
+    query = query.or(`name.ilike.${like},email.ilike.${like},phone.ilike.${like}`)
+  }
+
+  const [{ data: guests }, stats, milestones, acks] = await Promise.all([
+    query, guestStats(), loadMilestones(), loadAcks(),
   ])
   const G = guests || []
   const counts = Object.fromEntries(Object.entries(stats).map(([k, v]) => [k, v.stays]))
   const pairs = findDuplicateCandidates(G)
   const fused = nameOnlyLinks(G, counts)
 
-  const withStats = G.map(g => ({ ...g, s: stats[g.id] || { stays: 0, direct: 0, platform: 0, lifetime: 0, firstStay: null, lastStay: null, returning: false } }))
+  const withStats = G.map(g => ({
+    ...g,
+    s: stats[g.id] || { stays: 0, completed: 0, bookings: 0, direct: 0, platform: 0, lifetime: 0, firstStay: null, lastStay: null, returning: false },
+    loyalty: flagFor(g.id, stats[g.id], (g as any).prior_stays ?? 0, milestones, acks[g.id] || []),
+  }))
+  const flagged = withStats.filter(g => g.loyalty.due)
   const returning = withStats.filter(g => g.s.returning).sort((a, b) => b.s.lifetime - a.s.lifetime)
   const once = withStats.filter(g => g.s.stays === 1).sort((a, b) => (b.s.lastStay || '').localeCompare(a.s.lastStay || ''))
   const never = withStats.filter(g => g.s.stays === 0)
@@ -38,12 +57,19 @@ export default async function People() {
       <span style={{ display: 'flex', alignItems: 'center', gap: '9px', minWidth: 0 }}>
         <span style={{ fontSize: '14px', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{g.name || '—'}</span>
         {g.id_verified && <span style={{ ...microLabel, color: L.green }}>ID</span>}
+        {g.loyalty?.due && (
+          <span title={`${g.loyalty.total} stays — ${g.loyalty.due.label}`} style={{
+            ...microLabel, color: L.amber, border: `1px solid ${L.amberLine}`,
+            background: L.amberWash, borderRadius: '999px', padding: '1px 7px', flexShrink: 0,
+          }}>{g.loyalty.total} stays</span>
+        )}
       </span>
       <span style={{ fontSize: '13px', color: isSyntheticEmail(g.email) ? L.amber : L.inkBody, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
         {isSyntheticEmail(g.email) ? 'placeholder address' : (g.email || (g.phone ? g.phone : <span style={{ color: L.inkFaint }}>no contact details</span>))}
       </span>
       <span style={{ fontSize: '13px', color: L.inkMuted }}>
-        {g.s.stays === 0 ? 'never stayed' : `${g.s.stays} stay${g.s.stays === 1 ? '' : 's'}${g.s.platform && g.s.direct ? ' · both' : g.s.platform ? ' · platform' : ' · direct'}`}
+        {g.s.stays === 0 && !g.loyalty?.prior ? 'never stayed'
+          : `${g.s.stays} stay${g.s.stays === 1 ? '' : 's'}${g.loyalty?.prior ? ` + ${g.loyalty.prior} earlier` : ''}${g.s.platform && g.s.direct ? ' · both' : g.s.platform ? ' · platform' : g.s.stays ? ' · direct' : ''}`}
       </span>
       <span style={{ fontSize: '13px', color: L.inkMuted }}>{g.s.lastStay ? g.s.lastStay.slice(0, 7) : '—'}</span>
       <span style={{ textAlign: 'right', fontFamily: F.mono, fontSize: '13px' }}>{g.s.lifetime ? money(g.s.lifetime) : '—'}</span>
@@ -64,7 +90,7 @@ export default async function People() {
   return (
     <div style={{ paddingTop: '40px', display: 'flex', flexDirection: 'column', gap: '30px' }}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-        <span style={microLabel}>People · {G.length} records</span>
+        <span style={microLabel}>People · {q ? `${G.length} matching “${q}”` : `${G.length} records`}</span>
         <span style={{ fontFamily: F.serif, fontSize: '42px', lineHeight: 1.05 }}>Guests</span>
         <span style={{ fontSize: '15px', color: L.inkBody, maxWidth: '620px', lineHeight: 1.5 }}>
           Counted from the bookings across both tables, not read off a flag. Nine records
@@ -73,6 +99,30 @@ export default async function People() {
           property count once — a trip that changes platform half way through is still one visit.
         </span>
       </div>
+
+      <GuestSearch initial={q} />
+
+      {/*  MILESTONES REACHED AND NOT YET HANDLED.
+           A flag, not an action — nothing has been given, and nothing will be
+           unless Kaye gives it. It sits at the top because a returning guest is
+           worth knowing about before you go looking for them. */}
+      {flagged.length > 0 && (
+        <div style={{ ...cardStyle, padding: '18px 22px', background: L.amberWash, border: `1px solid ${L.amberLine}` }}>
+          <div style={{ ...microLabel, marginBottom: '10px' }}>Milestones reached</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {flagged.map(g => (
+              <Link key={g.id} href={`/keyholder/people/${g.id}`} style={{ textDecoration: 'none', color: L.ink, fontSize: '14.5px' }}>
+                <strong>{g.name}</strong> has reached {g.loyalty.total} stays — {g.loyalty.due!.label}
+                {g.loyalty.due!.note ? <span style={{ color: L.inkMuted }}> · {g.loyalty.due!.note}</span> : null}
+              </Link>
+            ))}
+          </div>
+          <div style={{ fontSize: '12.5px', color: L.inkBody, marginTop: '10px', lineHeight: 1.55 }}>
+            Nothing has been sent. Open the guest to record what you decided — a gift, or just that
+            you saw it — and the flag stops.
+          </div>
+        </div>
+      )}
 
       {/* ───── needs a decision ───── */}
       {(pairs.length > 0 || fused.length > 0) && (
