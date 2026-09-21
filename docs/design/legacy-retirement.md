@@ -137,7 +137,20 @@ Fourteen showed a difference; most are renamed equivalents (`BookingEditForm`
 became `BookingDetail`, and so on) and were dismissed by hand. **Three are real,
 and they shipped.**
 
-### 1. House-guide upload has no home — the sharpest
+### 1. House-guide upload had no home — ~~GAP~~ **CLOSED 21 Sep, `ba5034a`**
+
+A fifth editor tab, `/keyholder/property/[id]/guides`, mounts GuideUpload with a
+property. Chrome and a mount, not a rebuild — the upload logic including the
+two-step signed-URL flow is untouched, and `/api/admin/guest-guide` already
+required `property:edit` on both write verbs. The component is no longer
+orphaned; the guard checks that by walking every file for an importer rather
+than trusting the diff.
+
+The bucket still holds one file — `royal-york-east-guide.pdf`, for the property
+not taking bookings. **Nickel Beach and Royal York West remain without a guide**,
+and that is now content rather than capability.
+
+The original finding, kept because the shape of it is the lesson:
 
 `components/admin/GuideUpload.tsx` still exists and **no page imports it**. It
 was mounted on `/admin/properties`, which redirects to `/keyholder/property`, and
@@ -151,23 +164,49 @@ currently **cannot upload one through the new shell at all**. The escalation
 analysis in `guest-surface.md` argued those guides would pre-empt most guest
 questions. The tool to add them was redirected away.
 
-### 2. Invoice export
+### 2. Invoice export — OPEN, small, nobody blocked
 
 `/api/admin/invoices/export` is called by nothing in `/keyholder`. The route
-still exists; the button does not.
+still exists and works; there is no button. It was on the legacy invoices page,
+which redirects to `/keyholder/money/invoices`.
 
-### 3. Property settings
+**Scope:** one export button on the invoices surface, calling the route that is
+already there. No new endpoint, no new permission — the route carries its own
+gate. Half an hour, and it restores a capability rather than adding one.
 
-`PropertySettingsForm` is not mounted anywhere in the new shell. Thirteen
-`property_settings` columns have no editor: `max_advance_days`,
-`early_checkin_fee_per_hour`, `late_checkout_fee_per_hour`,
-`referral_reward_referrer`, `referral_reward_referred`, `schlage_devices`,
-`cleaning_duration_mins`, `security_deposit_amount`, and the five pricing/stay
-fields that were deliberately made read-only pending the three-table
-consolidation.
+### 3. Property settings — OPEN, eight columns, nobody blocked
 
-The pricing ones are a KNOWN and deliberate omission. The other eight are not —
-they were simply left behind.
+`PropertySettingsForm` is mounted nowhere in the new shell. Thirteen
+`property_settings` columns lost their editor, and the thirteen split cleanly:
+
+**FIVE ARE DELIBERATE AND MUST STAY READ-ONLY** — `nightly_rate`,
+`cleaning_fee`, `min_stay`, `earliest_checkin`, `latest_checkout`. Each lives in
+more than one table and the copies already disagree; the Content tab shows them
+with a pointer to Pricing and refuses to write them, on purpose. Reconciling the
+three tables is its own pass and this is not it.
+
+**EIGHT WERE SIMPLY LEFT BEHIND:**
+
+| column | what it governs |
+|---|---|
+| `max_advance_days` | how far ahead a booking may be taken |
+| `early_checkin_fee_per_hour` | what an early arrival costs |
+| `late_checkout_fee_per_hour` | what a late departure costs |
+| `referral_reward_referrer` | what a referring guest gets |
+| `referral_reward_referred` | what the referred guest gets |
+| `schlage_devices` | which locks belong to this property |
+| `cleaning_duration_mins` | how long a turnover takes |
+| `security_deposit_amount` | the deposit held |
+
+**Scope:** a section on the Content tab, or a sixth tab if it reads better
+beside the other settings. It needs adding to `CONTENT_FIELDS` in
+`lib/keyholder/property-edit.ts`, which is already allowlisted and validated, so
+the write path exists — this is a form and eight entries in an array.
+
+**One to treat carefully:** `schlage_devices` is JSON naming physical locks, and
+`property_locks` is the table the queue actually serialises on. A free-text
+editor over it could disagree with the locks the worker knows about. Worth
+reading how the two relate before exposing it, rather than shipping a box.
 
 **Two smaller ones, noted not flagged:** `/api/admin/knowledge` is unreachable
 from the redirected concierge page but `/admin/knowledge` still exists as a
