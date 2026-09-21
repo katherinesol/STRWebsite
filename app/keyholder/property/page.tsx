@@ -35,7 +35,7 @@ export default async function PropertyIndex() {
               </span>
             </div>
             <div style={{ display: 'flex', gap: '14px', alignItems: 'center' }}>
-              {[['Content', ''], ['Places', '/places'], ['Photos', '/photos'], ['Pricing', '/pricing']].map(([label, sub]) => (
+              {[['Content', ''], ['Places', '/places'], ['Photos', '/photos'], ['Guide', '/guides'], ['Pricing', '/pricing']].map(([label, sub]) => (
                 <Link key={label} href={`/keyholder/property/${p.id}${sub}`}
                   style={{ fontSize: '13.5px', fontWeight: 600, color: L.link, textDecoration: 'none' }}>
                   {label}
