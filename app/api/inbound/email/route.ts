@@ -64,7 +64,19 @@ export async function POST(request: NextRequest) {
   if (from) {
     const emailMatch = from.match(/<([^>]+)>/)
     const addr = (emailMatch ? emailMatch[1] : from).toLowerCase().trim()
-    const { data: contact } = await supabase.from('contacts').select('id, name').contains('emails', [addr]).maybeSingle()
+    /*  REPOINTED FROM `contacts` TO `guests`.
+     *
+     *  The contacts table is retired — its capability moved into
+     *  /keyholder/people, where a person carries is_guest and is_contractor
+     *  flags instead of living in a separate table. This lookup is the one thing
+     *  that read `contacts` from outside its own page, and leaving it pointed at
+     *  an abandoned table would have broken sender matching silently: receipts
+     *  would still arrive, just unattributed, and nothing would say why.
+     *
+     *  The old column was `emails text[]` and matched with `contains`. A person
+     *  now has a single `email`, so this is a plain case-insensitive compare. */
+    const { data: contact } = await supabase.from('guests')
+      .select('id, name').ilike('email', addr).maybeSingle()
     if (contact) { contactId = contact.id; contactName = contact.name }
   }
 

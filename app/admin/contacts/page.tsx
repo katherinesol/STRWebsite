@@ -1,19 +1,24 @@
-import { createAdminClient } from '@/lib/supabase/server'
-import ContactsManager from '@/components/admin/ContactsManager'
+import { redirect } from 'next/navigation'
 
-export const dynamic = 'force-dynamic'
-
-export default async function ContactsPage() {
-  const supabase = createAdminClient()
-  const { data: contacts } = await supabase.from('contacts').select('*').order('name')
-  return (
-    <div>
-      <div style={{ marginBottom: '24px' }}>
-        <div style={{ fontSize: '10px', fontWeight: 500, letterSpacing: '.16em', textTransform: 'uppercase', color: '#9A9A92', marginBottom: '6px' }}>Management</div>
-        <h1 style={{ fontFamily: 'var(--serif)', fontSize: '32px', fontWeight: 300, color: '#F5F2EC' }}>Contacts.</h1>
-        <p style={{ fontSize: '12px', color: '#9A9A92', marginTop: '6px' }}>Receipts emailed from these addresses are auto-tagged to the contact.</p>
-      </div>
-      <ContactsManager initialContacts={contacts || []} />
-    </div>
-  )
+/*  Retired — contacts are people, and people live in one place now.
+ *
+ *  /keyholder/people holds guests and contractors in the same table, flagged
+ *  with is_guest and is_contractor, because a cleaner who once stayed is one
+ *  human being and two records of them is the duplicate problem the guest table
+ *  already has, reproduced where no merge tool can reach it.
+ *
+ *  Nothing was migrated: `contacts` held zero rows, which is why this was the
+ *  cheapest possible moment to do it.
+ *
+ *  WHAT THIS ORPHANS, written down as it happens rather than found by a later
+ *  audit — the discipline the house-guide gap earned: ContactsManager.tsx now
+ *  has no page, and /api/admin/contacts has no caller.
+ *
+ *  WHAT IT DOES NOT ORPHAN, because this was checked rather than assumed:
+ *  app/api/inbound/email matched an incoming sender against contacts.emails to
+ *  attribute a receipt. It reads `guests.email` now, in the same commit. Left
+ *  alone it would have kept working and matched nothing — receipts arriving
+ *  unattributed, with nothing to say why. */
+export default function LegacyRedirect() {
+  redirect('/keyholder/people')
 }

@@ -26,6 +26,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     'name', 'first_name', 'last_name', 'email', 'phone', 'notes', 'id_verified',
     'locked_rate_enabled', 'locked_rate_royal_york', 'locked_rate_nickel_beach',
     'prior_stays',
+    //  the contractor half. A person may be a guest, a contractor, or both.
+    'is_guest', 'is_contractor', 'trade', 'properties_served', 'contractor_notes',
   ] as const
 
   const p = pick(await request.json(), ALLOWED)
@@ -33,6 +35,40 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
   const supabase = createAdminClient()
   const cleaned: Record<string, any> = { ...p.fields }
+
+  /*  BOTH FLAGS OFF IS NOT A PERSON. The constraint refuses it too; this
+   *  refuses it with a sentence, because a 23514 in a fetch is not an answer. */
+  if ('is_guest' in cleaned || 'is_contractor' in cleaned) {
+    const { data: cur } = await supabase.from('guests').select('is_guest, is_contractor').eq('id', id).maybeSingle()
+    const g = 'is_guest' in cleaned ? !!cleaned.is_guest : !!cur?.is_guest
+    const c = 'is_contractor' in cleaned ? !!cleaned.is_contractor : !!cur?.is_contractor
+    if (!g && !c) {
+      return NextResponse.json({ error: 'Someone has to be a guest, a contractor, or both.' }, { status: 400 })
+    }
+  }
+
+  /*  VALIDATED AGAINST THE REAL PROPERTIES. An array of free strings is a typo
+   *  that never surfaces — "nickle-beach" would sit there looking plausible and
+   *  match nothing for as long as anybody cared to look. */
+  if ('properties_served' in cleaned) {
+    const v = cleaned.properties_served
+    if (v === null || (Array.isArray(v) && v.length === 0)) {
+      cleaned.properties_served = null
+    } else if (!Array.isArray(v)) {
+      return NextResponse.json({ error: 'Properties served must be a list.' }, { status: 400 })
+    } else {
+      const { data: props } = await supabase.from('properties').select('id')
+      const real = new Set((props || []).map((p: any) => p.id))
+      const unknown = v.filter((x: any) => !real.has(String(x)))
+      if (unknown.length) {
+        return NextResponse.json({
+          error: `Not a property: ${unknown.join(', ')}`,
+          known: Array.from(real),
+        }, { status: 400 })
+      }
+      cleaned.properties_served = v.map(String)
+    }
+  }
 
   if ('prior_stays' in cleaned) {
     const n = Number(cleaned.prior_stays)

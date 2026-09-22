@@ -10,21 +10,29 @@ import { L, F, microLabel, cardStyle, money } from '@/lib/design-tokens'
 
 export const dynamic = 'force-dynamic'
 
-export default async function People({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
+export default async function People({ searchParams }: { searchParams: Promise<{ q?: string; type?: string }> }) {
   /* PII — names, addresses, phone numbers, free-text notes. Owner and co-owner
      only, checked here as well as on the endpoints, because a page that renders
      the list is as much an exposure as a route that returns it. */
   if (!await hasRole('owner', 'co-owner')) redirect('/keyholder')
 
   const supabase = createAdminClient()
-  const q = ((await searchParams)?.q || '').trim()
+  const sp = await searchParams
+  const q = (sp?.q || '').trim()
+  /*  In the URL beside q, so a filtered list is linkable and survives a reload —
+   *  the same reason the search term lives there. */
+  const type = (sp?.type === 'contractors' || sp?.type === 'guests') ? sp.type : 'everyone'
 
   /*  SEARCHED IN THE DATABASE, NOT IN THE PAGE. Filtering the array after
    *  loading it would search only what had already been fetched, which is fine
    *  at 48 guests and silently wrong at 480 — and the failure would look like
    *  "that guest isn't in the system". Name, email and phone, because Kaye has
    *  all three and no way of knowing which one she remembers. */
-  let query = supabase.from('guests').select('id, name, email, phone, id_verified, notes, prior_stays').order('name')
+  let query = supabase.from('guests')
+    .select('id, name, email, phone, id_verified, notes, prior_stays, is_guest, is_contractor, trade, properties_served, contractor_notes')
+    .order('name')
+  if (type === 'contractors') query = query.eq('is_contractor', true)
+  if (type === 'guests') query = query.eq('is_guest', true)
   if (q.length >= 2) {
     const like = `%${q.replace(/[%_]/g, m => '\\' + m)}%`
     query = query.or(`name.ilike.${like},email.ilike.${like},phone.ilike.${like}`)
@@ -43,10 +51,17 @@ export default async function People({ searchParams }: { searchParams: Promise<{
     s: stats[g.id] || { stays: 0, completed: 0, bookings: 0, direct: 0, platform: 0, lifetime: 0, firstStay: null, lastStay: null, returning: false },
     loyalty: flagFor(g.id, stats[g.id], (g as any).prior_stays ?? 0, milestones, acks[g.id] || []),
   }))
-  const flagged = withStats.filter(g => g.loyalty.due)
-  const returning = withStats.filter(g => g.s.returning).sort((a, b) => b.s.lifetime - a.s.lifetime)
-  const once = withStats.filter(g => g.s.stays === 1).sort((a, b) => (b.s.lastStay || '').localeCompare(a.s.lastStay || ''))
-  const never = withStats.filter(g => g.s.stays === 0)
+  const flagged = withStats.filter(g => g.loyalty.due && g.is_guest)
+
+  /*  CONTRACTORS ARE NOT "NO STAY ON RECORD". That group is described as
+   *  "usually a duplicate left behind", which is a true thing to say about a
+   *  guest with no bookings and a wrong thing to say about the plumber. They get
+   *  their own section, and a contractor who has also stayed appears in both. */
+  const contractors = withStats.filter(g => g.is_contractor)
+  const guestsOnly = withStats.filter(g => g.is_guest)
+  const returning = guestsOnly.filter(g => g.s.returning).sort((a, b) => b.s.lifetime - a.s.lifetime)
+  const once = guestsOnly.filter(g => g.s.stays === 1).sort((a, b) => (b.s.lastStay || '').localeCompare(a.s.lastStay || ''))
+  const never = guestsOnly.filter(g => g.s.stays === 0 && !g.is_contractor)
 
   const row = (g: any, i: number) => (
     <Link key={g.id} href={`/keyholder/people/${g.id}`} style={{
@@ -57,7 +72,13 @@ export default async function People({ searchParams }: { searchParams: Promise<{
       <span style={{ display: 'flex', alignItems: 'center', gap: '9px', minWidth: 0 }}>
         <span style={{ fontSize: '14px', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{g.name || '—'}</span>
         {g.id_verified && <span style={{ ...microLabel, color: L.green }}>ID</span>}
-        {g.loyalty?.due && (
+        {g.is_contractor && (
+          <span title={g.trade || 'Contractor'} style={{
+            ...microLabel, color: L.inkBody, border: `1px solid ${L.line}`,
+            borderRadius: '999px', padding: '1px 7px', flexShrink: 0,
+          }}>{g.is_guest ? 'guest + contractor' : 'contractor'}</span>
+        )}
+        {g.loyalty?.due && g.is_guest && (
           <span title={`${g.loyalty.total} stays — ${g.loyalty.due.label}`} style={{
             ...microLabel, color: L.amber, border: `1px solid ${L.amberLine}`,
             background: L.amberWash, borderRadius: '999px', padding: '1px 7px', flexShrink: 0,
@@ -68,7 +89,13 @@ export default async function People({ searchParams }: { searchParams: Promise<{
         {isSyntheticEmail(g.email) ? 'placeholder address' : (g.email || (g.phone ? g.phone : <span style={{ color: L.inkFaint }}>no contact details</span>))}
       </span>
       <span style={{ fontSize: '13px', color: L.inkMuted }}>
-        {g.s.stays === 0 && !g.loyalty?.prior ? 'never stayed'
+        {/*  A contractor who has never stayed has no stay column — ABSENT, not
+             a zero. "0 stays" invites the question of why they have not. */}
+        {g.is_contractor && !g.is_guest
+          ? [g.trade, (g.properties_served || []).length
+              ? `${(g.properties_served || []).length} propert${(g.properties_served || []).length === 1 ? 'y' : 'ies'}`
+              : null].filter(Boolean).join(' · ') || 'contractor'
+        : g.s.stays === 0 && !g.loyalty?.prior ? 'never stayed'
           : `${g.s.stays} stay${g.s.stays === 1 ? '' : 's'}${g.loyalty?.prior ? ` + ${g.loyalty.prior} earlier` : ''}${g.s.platform && g.s.direct ? ' · both' : g.s.platform ? ' · platform' : g.s.stays ? ' · direct' : ''}`}
       </span>
       <span style={{ fontSize: '13px', color: L.inkMuted }}>{g.s.lastStay ? g.s.lastStay.slice(0, 7) : '—'}</span>
@@ -100,7 +127,25 @@ export default async function People({ searchParams }: { searchParams: Promise<{
         </span>
       </div>
 
-      <GuestSearch initial={q} />
+      <div style={{ display: 'flex', gap: '18px', alignItems: 'flex-end', flexWrap: 'wrap' }}>
+        <GuestSearch initial={q} />
+        <div style={{ display: 'flex', gap: '6px', paddingBottom: '2px' }}>
+          {[['everyone', 'Everyone'], ['guests', 'Guests'], ['contractors', 'Contractors']].map(([key, label]) => {
+            const params = new URLSearchParams()
+            if (q) params.set('q', q)
+            if (key !== 'everyone') params.set('type', key)
+            const href = `/keyholder/people${params.toString() ? '?' + params.toString() : ''}`
+            const on = type === key
+            return (
+              <Link key={key} href={href} style={{
+                ...microLabel, padding: '7px 13px', borderRadius: '999px', textDecoration: 'none',
+                border: `1px solid ${on ? L.ink : L.line}`,
+                background: on ? L.ink : L.card, color: on ? L.onInk : L.inkMuted,
+              }}>{label}</Link>
+            )
+          })}
+        </div>
+      </div>
 
       {/*  MILESTONES REACHED AND NOT YET HANDLED.
            A flag, not an action — nothing has been given, and nothing will be
@@ -185,6 +230,7 @@ export default async function People({ searchParams }: { searchParams: Promise<{
         </div>
       )}
 
+      {group('Contractors', 'trade and the properties they cover', contractors)}
       {group('Returning', 'more than one stay, counted across both tables', returning)}
       {group('Stayed once', 'most recent first', once)}
       {group('No stay on record', 'usually a duplicate left behind, or someone who enquired', never)}
