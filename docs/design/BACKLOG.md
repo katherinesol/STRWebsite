@@ -91,6 +91,76 @@ it after step 5**, once the hub covers what the portal does. Not bundled with
 the session work — it is a behaviour change for direct-booking guests and
 deserves its own commit and its own verification.
 
+## NON-ADMIN ENDPOINT SWEEP — 22 September 2026
+
+**Why this sweep exists: the September security audit was scoped to
+`/api/admin/*`.** It checked those routes thoroughly for the
+role-without-permission pattern and found eighteen. It never looked at anything
+else, so `/api/inbound/email` — an unauthenticated POST that writes — was invisible
+to it, and surfaced only by accident while repointing it off the `contacts`
+table.
+
+That is the third time the same shape has bitten: *route called, not capability
+offered*; *per file, not per handler*; and now **the scope decided what could be
+found.** An audit answers the question it was given. The question was "do admin
+routes check permissions", and the answer was complete and true and missed this.
+
+20 routes live outside `/api/admin` and `/api/keyholder`. Classified by what
+actually guards them:
+
+| posture | routes |
+|---|---|
+| signature-verified | `/api/webhooks/seam` (svix) |
+| cron secret | `/api/cron/automations`, `/cron/cistern`, `/cron/send-access-codes` |
+| guest session | the nine `guest-support`, `guest` and `portal` routes |
+| share token | `/api/calendar`, `/api/ical/[propertyId]`, `/api/invoice-ack/[token]` |
+| role/permission | `/api/guest/guide` |
+| **NOTHING** | `/api/hub/lead`, `/api/inbound/email`, `/api/pricing` |
+
+### Ranked by blast radius
+
+**1. `/api/pricing` — a public GET that now exposes Katherine's margins.**
+
+Unauthenticated, no caller anywhere in the app, and it does
+`select('*')` on `property_pricing`. That table gained four columns in the
+pricing write-path migration:
+
+```json
+"target_net_nightly": null, "target_net_cleaning": null,
+"target_net_pet": null, "target_net_extra_guest_rate": null
+```
+
+Those are what Katherine intends to KEEP per night — her margin, not her price.
+They read null today only because she has not set them yet. **The moment she does,
+`/api/pricing?property=nickel-beach` serves them to anyone who asks.**
+
+This is self-inflicted: the migration added columns to a table a public route
+selects `*` from, and neither half knew about the other. It is also the easiest
+fix on the list — the route has NO CALLER, so it can be deleted outright, or
+gated, or narrowed to named columns. Deleting is cleanest.
+
+**2. `/api/inbound/email` — unauthenticated write, no signature.**
+
+Anything that knows the URL can POST and queue a `pending_receipts` row. Worst
+case is junk in a review queue, so the urgency is low, but the fix is known and
+small: **verify the signature the way `/api/webhooks/seam` already does with
+svix.** Resend signs inbound webhooks; the verification simply is not there.
+
+**3. `/api/hub/lead` — unauthenticated write, and deliberately so.**
+
+A public direct-booking capture form; it has to accept strangers. It upserts on
+`(property_id, email)` so resubmitting updates rather than piling up, and it
+validates the address shape. What it has no defence against is volume — no rate
+limit, no honeypot. One lead captured to date. Low priority, but it is the one
+endpoint where "unauthenticated" is the design rather than an omission.
+
+### A blind spot in this sweep itself, recorded
+
+The classifier counted a route's writes from its HTTP method, so **a GET that
+writes reads as read-only**. All three cron routes are GETs that write. They are
+correctly gated behind `CRON_SECRET` — checked by hand, not by the classifier —
+but the next run of this sweep must not trust the method.
+
 ## EMAIL — audited 2026-09-20, clean today, three things owed when the domain lands
 
 **Nothing was lost.** Resend's own record of sends is empty — `data: []`, on a
