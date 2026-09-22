@@ -119,7 +119,8 @@ actually guards them:
 
 ### Ranked by blast radius
 
-**1. `/api/pricing` — a public GET that now exposes Katherine's margins.**
+**1. ~~`/api/pricing`~~ — DELETED 22 Sep. A public GET that would have exposed
+Katherine's margins.**
 
 Unauthenticated, no caller anywhere in the app, and it does
 `select('*')` on `property_pricing`. That table gained four columns in the
@@ -134,10 +135,20 @@ Those are what Katherine intends to KEEP per night — her margin, not her price
 They read null today only because she has not set them yet. **The moment she does,
 `/api/pricing?property=nickel-beach` serves them to anyone who asks.**
 
-This is self-inflicted: the migration added columns to a table a public route
-selects `*` from, and neither half knew about the other. It is also the easiest
-fix on the list — the route has NO CALLER, so it can be deleted outright, or
-gated, or narrowed to named columns. Deleting is cleanest.
+This was self-inflicted: the migration added columns to a table a public route
+selects `*` from, and neither half knew about the other.
+
+**Deleted rather than gated, because nothing called it.** Proven three ways
+before removing it: no reference anywhere in the repo outside this document; no
+built client chunk containing the string; no server-side fetch. The only
+near-miss was `components/admin/PricingManager.tsx`, which calls
+`/api/admin/pricing` — a different route, still live.
+
+**The contrast worth keeping:** the public listing at `/property/[id]` reads
+pricing server-side with `select('base_rate')` — one named column. It was never
+exposed. Only the orphaned API route selected `*`, and `select('*')` is what
+turned a schema migration into a disclosure. A narrow select would have made the
+new columns a non-event.
 
 **2. `/api/inbound/email` — unauthenticated write, no signature.**
 
