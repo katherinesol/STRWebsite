@@ -48,24 +48,39 @@ Production was untouched only by luck of the naming. Symptoms, if it recurs:
 `prj_7OUGI3np6PslxYHw6erRfNmdcxGP` / `team_R13qy3zoRQOAxYe3didWSECW` is the real
 project. Verify before deploying, not after.
 
-## Pre-flight — check held files against `.held/*.sha`, never against a branch
+## Pre-flight — nothing is held today
+
+**There are no held files.** `4f257ff` ("Tax toggle comes off hold") released the
+last four and deleted `.held/` in the same commit, so the check this section used
+to describe has no baseline to compare against and reports every file as changed.
+Run it and all three come back `DIFFERS`, which reads exactly like a breach. It
+cried wolf on 2026-09-23 and cost a deploy the time to disprove it.
+
+So the pre-flight is now just the two things that are always worth checking:
 
 ```sh
-fail=0
-for n in toronto-mat-report BookingEditForm PlatformBookingForm; do
-  case $n in
-    toronto-mat-report) p=app/api/admin/toronto-mat-report/route.ts ;;
-    *) p=components/admin/$n.tsx ;;
-  esac
-  [ "$(shasum -a 256 < "$D/$p" | cut -c1-64)" = "$(cat .held/$n.sha)" ] \
-    || { echo "HELD EDIT IS IN THE TARBALL: $p"; fail=1; }
-done
-test -e "$D/components/admin/TaxToggleField.tsx" && { echo "TaxToggleField PRESENT"; fail=1; }
 cat "$D/.vercel/project.json"      # expect projectName: rental-direct
-[ "$fail" = 0 ] || echo "DO NOT DEPLOY"
+test -e "$D/.env.local" && echo "SECRETS IN THE TARBALL — DO NOT DEPLOY"
 ```
 
-### The trap this replaced, and why the old check could not see it
+`.env.local` is gitignored, so `git archive` cannot include it; the check is
+there because the cost of being wrong about that is unbounded and the check is
+free.
+
+### If something is ever held again
+
+Put the file's hash **without** its held edit in `.held/<name>.sha`, restore the
+comparison below, and list the files under a "Currently held" heading. Delete
+both again when the hold lifts — a stale hold is worse than none, because it
+trains you to ignore the alarm.
+
+```sh
+# only with a real .held/ directory; otherwise this is noise
+[ "$(shasum -a 256 < "$D/$p" | cut -c1-64)" = "$(cat .held/$n.sha)" ] \
+  || echo "HELD EDIT IS IN THE TARBALL: $p"
+```
+
+### Why a recorded hash, and not a diff against the branch (kept — it recurs)
 
 The pre-flight used to diff the tarball against `origin/main`. That verifies the
 tarball is a faithful copy of the branch — which it always is, because
@@ -73,40 +88,25 @@ tarball is a faithful copy of the branch — which it always is, because
 should contain the file.
 
 On 2026-08-23 a wildcard stage (`git add -A … app/api …`) swept
-`app/api/admin/toronto-mat-report/route.ts` into a commit. It carried the held Q2
+`app/api/admin/toronto-mat-report/route.ts` into a commit carrying the held Q2
 `apply_tax` master switch. The pre-flight compared tarball to `origin/main`, both
 now contained the edit, and it reported clean. The switch was live for about four
 minutes. Nothing moved — no Toronto platform booking has `apply_tax` false, so it
 had nothing to act on — but the check was structurally incapable of catching it.
 
-A recorded hash cannot drift. `.held/*.sha` holds the hash of each file WITHOUT
-its held edit, so committing the edit changes the tarball hash, the comparison
-fails, and the deploy stops.
-
-This was the second time in one evening that the held-file boundary was the weak
-point; the first was an earlier commit-sweep that needed the commit split before
-deploying. Both were staging accidents. Two habits follow:
+A recorded hash cannot drift. That was the second time in one evening the
+held-file boundary was the weak point; the first was an earlier commit-sweep that
+needed the commit split before deploying. Both were staging accidents, and the
+two habits they taught outlive the hold itself:
 
 - **Stage held files by name, never by directory.** `git add app/api` is how this
   happened. `git add app/api/admin/haussy/` would not have.
-- **`git status` after committing, before deploying.** All four held files must
-  still be listed as modified or untracked. If one has vanished from that list,
-  it is in the commit.
+- **`git status` after committing, before deploying.** Anything you meant to keep
+  back must still be listed. If it has vanished from that list, it is in the
+  commit.
 
 Then check `vercel ls rental-direct --prod` afterwards: the new deployment
 should be at the top, `Ready`, `Production`.
-
-## Currently held from deploy
-
-Pending the VRBO/Airbnb audit — the tax toggle must not ship before the audit
-settles what each platform actually remits:
-
-- `components/admin/TaxToggleField.tsx` (untracked)
-- `components/admin/BookingEditForm.tsx` (modified)
-- `components/admin/PlatformBookingForm.tsx` (modified)
-- `app/api/admin/toronto-mat-report/route.ts` (modified — the `apply_tax` master switch)
-
-Keep them uncommitted. If a commit sweeps them up, split it before deploying.
 
 ## The repo is not the source of truth for the database
 
