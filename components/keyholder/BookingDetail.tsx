@@ -193,22 +193,41 @@ export default function BookingDetail({ kind, b, locks, guest, conversation, mes
               ) : locks.map(l => {
                 const managed = l.airbnb_managed && source === 'airbnb'
                 const swept = sweep.find((d: any) => d.lock === l.lock_name)
-                const onDevice = swept ? (swept.status === 'set' || swept.scheduled) : null
+                /*  CONFIRMED BY THE DEVICE, OR REPORTED BY THE WORKER — never
+                    the same sentence. When the sweep cannot read a lock it now
+                    falls back to the queue and stamps source:'queue' on the
+                    door. A queue row that says 'programmed' means the worker
+                    believes it wrote the code; the lock has not said so. Folding
+                    that into the green "confirmed on the lock" is the exact lie
+                    the sweep was fixed to stop telling, one layer along. */
+                const viaQueue = swept?.source === 'queue'
+                const onDevice = swept && !viaQueue ? (swept.status === 'set' || swept.scheduled) : null
+                const q = viaQueue ? swept.status : null
+                const tone = managed ? L.inkMuted
+                  : q === 'failed' ? L.red
+                  : q === 'programmed' ? L.amber
+                  : q ? L.inkMuted
+                  : onDevice === false ? L.red
+                  : onDevice ? L.green : L.inkMuted
+                const say = managed ? 'Airbnb manages this lock'
+                  : q === 'programmed' ? 'the worker set it — the lock has not confirmed'
+                  : q === 'queued' ? 'queued — not on the lock yet'
+                  : q === 'in progress' ? 'the worker is setting it now'
+                  : q === 'failed' ? `the worker could not set it${swept?.queue?.last_error ? ` — ${swept.queue.last_error}` : ''}`
+                  : q === 'unknown' ? 'the lock could not be read, and nothing is queued'
+                  : onDevice === false ? 'on the booking, NOT on the lock'
+                  : onDevice ? 'confirmed on the lock'
+                  : code ? 'on the booking, never swept' : 'missing'
                 return (
                   <div key={l.id} style={{
                     ...cardStyle, padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: '7px',
-                    border: `1px solid ${managed ? L.line : onDevice === false || !code ? L.redLine : L.line}`,
+                    border: `1px solid ${managed ? L.line : q === 'failed' || onDevice === false || !code ? L.redLine : L.line}`,
                   }}>
                     <span style={{ fontSize: '14px', fontWeight: 600 }}>{l.lock_name}</span>
                     <span style={{ fontFamily: F.mono, fontSize: '20px', letterSpacing: '0.28em', color: code ? L.ink : L.inkFaint }}>
                       {managed ? '— — — —' : (code || '· · · ·')}
                     </span>
-                    <span style={{ fontSize: '12px', color: managed ? L.inkMuted : onDevice === false ? L.red : onDevice ? L.green : L.inkMuted }}>
-                      {managed ? 'Airbnb manages this lock'
-                        : onDevice === false ? 'on the booking, NOT on the lock'
-                        : onDevice ? 'confirmed on the lock'
-                        : code ? 'on the booking, never swept' : 'missing'}
-                    </span>
+                    <span style={{ fontSize: '12px', color: tone }}>{say}</span>
                   </div>
                 )
               })}
@@ -225,9 +244,13 @@ export default function BookingDetail({ kind, b, locks, guest, conversation, mes
             <span style={{ fontSize: '12px', color: L.inkFaint, lineHeight: 1.5 }}>
               {ls?.checked_at
                 ? <>Last swept {format(new Date(ls.checked_at), 'MMM d, h:mm a')}.{' '}
-                    {ls.needs_attention
-                      ? <span style={{ color: L.red }}>The sweep could not confirm every code on its device.</span>
-                      : 'Every code confirmed on its device.'}</>
+                    {ls.seam_reachable === false
+                      ? <span style={{ color: L.amber }}>
+                          The locks could not be read, so this is the queue&rsquo;s account, not the devices&rsquo;.
+                        </span>
+                      : ls.needs_attention
+                        ? <span style={{ color: L.red }}>The sweep could not confirm every code on its device.</span>
+                        : 'Every code confirmed on its device.'}</>
                 : 'Never swept. This shows what the booking records, not what is on the device.'}
               {' '}There is no per-stay door event log — those events live in Seam.
             </span>

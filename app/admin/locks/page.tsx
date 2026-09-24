@@ -3,14 +3,25 @@ import { useState, useEffect } from 'react'
 
 const PROP: Record<string, string> = { 'royal-york-east': 'Royal York East', 'royal-york-west': 'Royal York West', 'nickel-beach': 'Nickel Beach', 'royal-york-both': 'Royal York' }
 
+/*  A door's chip says WHAT IS KNOWN and HOW. `source: 'queue'` means the lock
+    itself could not be read, so everything shown is the worker's own account of
+    what it did — a weaker claim than the device confirming a code is on it, and
+    it must not wear the same green. `unknown` is its own state: not a fault, an
+    absence of information. Rendering that as "missing" is the bug this page
+    shipped, and it rendered it for every door on every booking. */
 function chip(d: any) {
-  if (d.errored) return { bg: '#3a1f1f', fg: '#e57373', label: 'error' }
+  const viaQueue = d.source === 'queue'
+  if (d.errored || d.status === 'failed') return { bg: '#3a1f1f', fg: '#e57373', label: d.status === 'failed' ? 'worker failed' : 'error' }
+  if (d.status === 'unknown') return { bg: '#2a2a2e', fg: '#9a9aa2', label: 'unknown' }
   if (d.status === 'set') return { bg: '#1f2a1a', fg: '#7bc47b', label: 'active' }
+  if (d.status === 'programmed') return { bg: '#1f2a1a', fg: '#7bc47b', label: 'worker programmed' }
+  if (d.status === 'queued') return { bg: '#22262a', fg: '#8aa0b4', label: 'queued \u00b7 not on lock yet' }
+  if (d.status === 'in progress') return { bg: '#22262a', fg: '#8aa0b4', label: 'worker running\u2026' }
   if (d.status === 'missing') return { bg: '#3a2a1a', fg: '#e6a86a', label: 'missing' }
   if (d.status?.includes('airbnb')) return { bg: '#242422', fg: '#9A9A92', label: 'airbnb' }
-  if (d.scheduled) return { bg: '#1a2a2a', fg: '#7bc4c4', label: 'ready \u00b7 on lock' }
+  if (d.scheduled) return { bg: '#1a2a2a', fg: '#7bc4c4', label: viaQueue ? 'worker says done' : 'ready \u00b7 on lock' }
   if (d.status === 'setting') return { bg: '#3a2a1a', fg: '#e6a86a', label: 'setting\u2026' }
-  return { bg: '#22262a', fg: '#8aa0b4', label: 'queued' }
+  return { bg: '#22262a', fg: '#8aa0b4', label: d.status || 'queued' }
 }
 
 function Row({ b, codeInputs, setCodeInputs, setCode, savingId, msg }: any) {
@@ -68,7 +79,13 @@ export default function LocksPage() {
     const r = await fetch('/api/admin/locks/set-code', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ booking_id: b.id, kind: b.kind, code }) }).then(x => x.json())
     setSavingId('')
     if (r.error) { setMsg(m => ({ ...m, [b.id]: r.error })); return }
-    setMsg(m => ({ ...m, [b.id]: '✓ programming — re-checking…' }))
+    /*  "queued", never "programming". The server records an intent and the local
+        worker puts it on the lock. This line read "✓ programming" while the
+        write path beneath it was failing on every single lock. */
+    setMsg(m => ({ ...m, [b.id]:
+      r.state === 'recorded' ? 'saved — Airbnb programs these doors'
+      : r.partial ? `queued on ${r.locks_queued} door(s) — some failed, see below`
+      : `queued on ${r.locks_queued} door(s) — the worker sets it` }))
     setTimeout(sweep, 1500)
   }
 
@@ -84,7 +101,26 @@ export default function LocksPage() {
         <h1 style={{ fontFamily: 'var(--serif)', fontWeight: 300, fontSize: '30px', color: '#F0EDE6', margin: 0 }}>Locks</h1>
         <button onClick={sweep} disabled={loading} style={{ padding: '7px 16px', background: 'var(--amber)', color: '#242422', border: 'none', fontSize: '12px', fontWeight: 600, cursor: 'pointer', borderRadius: '6px' }}>{loading ? 'Checking…' : 'Re-check now'}</button>
       </div>
-      {data?.checked_at && <p style={{ fontSize: '11px', color: '#8A8A82', marginBottom: '20px' }}>Last checked {new Date(data.checked_at).toLocaleString()}</p>}
+      {data?.checked_at && (
+        <p style={{ fontSize: '11px', color: '#8A8A82', marginBottom: data?.seam_reachable === false ? '10px' : '20px' }}>
+          Last checked {new Date(data.checked_at).toLocaleString()} · reading from {data.reading_from || 'the locks'}
+        </p>
+      )}
+
+      {/*  Said once, loudly, at the top. Six doors reporting "unknown" is one
+           outage, and leaving the operator to infer that from six identical rows
+           is how the previous version's blanket "missing" went unquestioned for
+           as long as it did. */}
+      {data?.seam_reachable === false && (
+        <div style={{ background: '#2a1f0a', border: '0.5px solid #4a3a1f', borderRadius: '6px', padding: '12px 14px', marginBottom: '18px' }}>
+          <div style={{ fontSize: '12px', color: '#e6a86a', fontWeight: 600, marginBottom: '4px' }}>The locks cannot be read right now.</div>
+          <div style={{ fontSize: '11.5px', color: '#c9b79a', lineHeight: 1.6 }}>
+            Everything below comes from the queue — what the worker was asked to do and what it reported back —
+            not from the devices themselves. A door shown as <em>worker programmed</em> has not been confirmed by the lock.
+            {data.seam_error && <> Reason: {data.seam_error}</>}
+          </div>
+        </div>
+      )}
 
       {attention.length > 0 && (
         <div style={{ background: '#242422', border: '0.5px solid #4a3a1f', borderRadius: '6px', marginBottom: '18px', overflow: 'hidden' }}>

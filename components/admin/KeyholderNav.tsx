@@ -26,18 +26,30 @@ export const SECTIONS = [
 // Rebuilt one at a time, and the href moves only when the light version exists.
 // A working dark screen you can reach beats a light one that does not.
 //
-// TWO OF THESE ARE NOT MERELY DARK, THEY ARE BROKEN, and that is why they did
-// not move with the other two on 2026-08-28. Locks and Staff Access read and
-// write through Seam, which is paused: locks/sweep asks Seam which codes are on
-// each device and writes the answer to lock_status, so with the account paused
-// it reports every upcoming stay as missing while the codes are in fact on the
-// locks, put there by pyschlage. Restyling that would have produced a prettier
-// screen telling the same lie. They stay on /admin, dark and equally wrong,
-// until the lock layer reads lock_status instead of Seam.
+// THESE TWO STAY DARK BECAUSE THEY WERE BROKEN, and the worse half is now
+// fixed. The Seam account is paused — /devices/list answers 401 — and both
+// screens were built on it.
+//
+// locks/sweep asked Seam which codes were on each device, caught the failure,
+// and could not tell "no codes" from "could not look": it reported every
+// upcoming stay as missing while the codes were in fact on the locks, put there
+// by pyschlage, and wrote that verdict into lock_status. It now falls back to
+// lock_actions and labels the source, so an unreadable lock reads `unknown`
+// rather than `missing`. locks/set-code was worse than a bad report: it called
+// the dead Seam write path, ignored the result, saved the code onto the booking
+// and returned a green tick. It goes through the queue now.
+//
+// Staff Access was made honest separately — it records the grant and raises an
+// alert to program it by hand, rather than pretending Seam wrote it. It still
+// has no queue of its own.
+//
+// What remains is cosmetic and structural, not a lie: both screens are still in
+// the legacy shell, and /admin/locks is still built around a sweep rather than
+// around the queue that actually drives the doors. That is the rebuild.
 export const ACCESS_ITEMS = [
-  { name: 'Locks', href: '/admin/locks', note: 'Codes and lock status — Seam-blind, see note' },
+  { name: 'Locks', href: '/admin/locks', note: 'Codes and lock status — reads the queue while Seam is paused' },
   { name: 'Door Activity', href: '/keyholder/access/door-activity', note: 'Every entry and check-in' },
-  { name: 'Staff Access', href: '/admin/staff-access', note: 'Cleaner and contractor codes — Seam-blind' },
+  { name: 'Staff Access', href: '/admin/staff-access', note: 'Cleaner and contractor codes — programmed by hand' },
   { name: 'System Activity', href: '/keyholder/access/system-log', note: 'Everything the system did' },
 ]
 
