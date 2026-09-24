@@ -126,7 +126,10 @@ export default async function Stays({ searchParams }: {
     <div style={{ paddingTop: '24px', display: 'flex', flexDirection: 'column', gap: '18px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: '12px' }}>
         <span style={{ fontFamily: F.serif, fontSize: '36px', lineHeight: 1 }}>Stays</span>
-        <Link href="/keyholder/stays/calendar" style={{ fontSize: '14px', fontWeight: 600, color: L.link, textDecoration: 'none' }}>Calendar →</Link>
+        <span style={{ display: 'flex', gap: '16px' }}>
+          <Link href="/keyholder/stays/damage" style={{ fontSize: '14px', fontWeight: 600, color: L.link, textDecoration: 'none' }}>Damage →</Link>
+          <Link href="/keyholder/stays/calendar" style={{ fontSize: '14px', fontWeight: 600, color: L.link, textDecoration: 'none' }}>Calendar →</Link>
+        </span>
       </div>
 
       <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
