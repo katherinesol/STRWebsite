@@ -1,23 +1,16 @@
-import { createAdminClient } from '@/lib/supabase/server'
-import Link from 'next/link'
-import DamageReportForm from '@/components/admin/DamageReportForm'
+import { redirect } from 'next/navigation'
 
-export default async function NewDamageReportPage() {
-  const supabase = createAdminClient()
-  const { data: bookings } = await supabase
-    .from('bookings')
-    .select('id, property_id, check_in, check_out, guests(name)')
-    .in('status', ['active', 'completed'])
-    .order('check_in', { ascending: false })
-    .limit(50)
-
-  return (
-    <div>
-      <div style={{ marginBottom: '24px' }}>
-        <Link href="/admin/damage" style={{ fontSize: '11px', color: '#9A9A92', textDecoration: 'none', letterSpacing: '.06em' }}>← Damage reports</Link>
-        <h1 style={{ fontFamily: 'var(--serif)', fontSize: '28px', fontWeight: 300, color: '#F5F2EC', lineHeight: 1, marginTop: '12px' }}>New report.</h1>
-      </div>
-      <DamageReportForm bookings={bookings || []} />
-    </div>
-  )
+/*  The form that could not save.
+ *
+ *  It posted item, location, photo_urls, amount_claimed and linked_to_deposit
+ *  to a table holding none of those columns, wrapped the fetch in `catch {}`,
+ *  and then routed to the list whatever came back. Every submission 42703'd and
+ *  every one of them looked like a success. damage_reports has zero rows.
+ *
+ *  It is not rebuilt here. Filing belongs on the stay — that page already knows
+ *  which booking this is and already holds the photographs, and asking for the
+ *  booking a second time in a dropdown of all of them was the other half of why
+ *  this surface was worth deleting rather than fixing. */
+export default function RetiredDamageForm() {
+  redirect('/admin/damage')
 }

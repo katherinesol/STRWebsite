@@ -17,6 +17,7 @@ import { WaterUsed, WindDuringStay, HAS_SENSORS } from '@/components/keyholder/S
 import { StayStatus, SecurityDeposit, SupportLink } from '@/components/keyholder/StayLifecycle'
 import GuestLink from '@/components/keyholder/GuestLink'
 import WalkthroughGallery from '@/components/keyholder/WalkthroughGallery'
+import DamagePanel from '@/components/keyholder/DamagePanel'
 
 /** Design-doc 2a, read only.
  *
@@ -47,6 +48,8 @@ type Props = {
   accounts?: any[]
   siteUrl?: string
   canDeleteMedia?: boolean
+  canViewDamage?: boolean
+  canEditDamage?: boolean
   locks: any[]
   guest: any | null
   conversation: any | null
@@ -54,7 +57,7 @@ type Props = {
   hasGift: boolean
 }
 
-export default function BookingDetail({ kind, b, locks, guest, conversation, messages, hasGift, accounts, siteUrl = '', canDeleteMedia = false }: Props) {
+export default function BookingDetail({ kind, b, locks, guest, conversation, messages, hasGift, accounts, siteUrl = '', canDeleteMedia = false, canViewDamage = false, canEditDamage = false }: Props) {
   const isDirect = kind === 'direct'
   const from = isDirect ? b.check_in : b.start_date
   const to = isDirect ? b.check_out : b.end_date
@@ -75,9 +78,15 @@ export default function BookingDetail({ kind, b, locks, guest, conversation, mes
       arrives with a name and no guest record. */
   /*  Condition photos live beside the stay they document, not in the money
       column - it is a record of the property, not of the payment. */
+  /*  Damage sits directly under the photographs because that is the order the
+      work happens in: walk the property, shoot what is wrong, then say what it
+      was. It is also the order the claim is argued in. */
   const walkthrough = stayStartRaw && (
-    <div style={{ marginTop: '12px' }}>
+    <div style={{ marginTop: '12px', display: 'grid', gap: '12px' }}>
       <WalkthroughGallery bookingId={b.id} bookingKind={kind} propertyId={propertyId} canDelete={canDeleteMedia} />
+      {canViewDamage && (
+        <DamagePanel bookingId={b.id} bookingKind={kind} propertyId={propertyId} canEdit={canEditDamage} />
+      )}
     </div>
   )
 

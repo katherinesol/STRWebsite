@@ -71,16 +71,40 @@ create table newsletter_subscribers (
   unsubscribed_at timestamptz
 );
 
+-- CORRECTED against the live table on 2026-09-23. What stood here described a
+-- damage_reports that has never existed in this database: booking_id as uuid
+-- (it is text, paired with booking_kind, like booking_media), a photo_urls
+-- jsonb (photos are booking_media rows), `location` (the column is `room`), and
+-- no item_id, status, logged_by, approved_by or the three timestamps. Code was
+-- written against this file rather than against the database and failed with
+-- 42703 on every insert. See supabase/damage_rebuild.sql.
 create table damage_reports (
   id uuid primary key default gen_random_uuid(),
-  booking_id uuid references bookings(id),
+  item_id uuid references damage_items(id),   -- optional catalogue key; free text carries it today
   property_id text not null,
+  booking_id text,                            -- bookings.id or calendar_blocks.id
+  booking_kind text check (booking_kind is null or booking_kind in ('direct','platform')),
   item text not null,
-  location text,
+  room text,
   description text,
-  photo_urls jsonb default '[]',
-  amount_claimed numeric(10,2),
-  linked_to_deposit boolean default false,
+  amount_claimed numeric(10,2) check (amount_claimed is null or amount_claimed >= 0),
+  linked_to_deposit boolean not null default false,
+  status text not null default 'pending'
+    check (status in ('pending','approved','fixed','dismissed')),
+  logged_by text,
+  approved_by text,
+  logged_at timestamptz default now(),
+  approved_at timestamptz,
+  fixed_at timestamptz,
+  created_at timestamptz default now()
+);
+
+create table damage_items (
+  id uuid primary key default gen_random_uuid(),
+  property_id text not null,
+  name text not null,
+  room text,
+  notes text,
   created_at timestamptz default now()
 );
 
