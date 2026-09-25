@@ -94,6 +94,35 @@ export default function LockHeartbeat() {
         </div>
       </div>
 
+      {/*  The roster. Written by the worker each run from the lock itself, so an
+           age here is also a statement about whether the worker is running. */}
+      {d.batteries?.length > 0 && (
+        <div style={{ ...box, marginTop: '8px', flex: 'unset' }}>
+          <div style={lbl}>Batteries</div>
+          <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+            {d.batteries.map((b: any) => (
+              <span key={b.lock} style={{ fontSize: '12.5px', color: '#AEAEA6' }}>
+                {b.lock}{' '}
+                <span style={{
+                  fontFamily: 'monospace',
+                  color: b.level === null ? '#666660' : b.level <= 25 ? '#e57373' : b.level <= 40 ? '#e6a86a' : '#7bc47b',
+                }}>
+                  {b.level === null ? 'not read yet' : `${b.level}%`}
+                </span>
+                {b.level !== null && b.stale && (
+                  <span style={{ color: '#666660', fontSize: '11px' }}> · {ago(b.checked_at)}</span>
+                )}
+              </span>
+            ))}
+          </div>
+          {d.batteries.every((b: any) => b.level === null) && (
+            <div style={{ fontSize: '11px', color: '#666660', marginTop: '6px' }}>
+              The worker fills these on its next run with --commit.
+            </div>
+          )}
+        </div>
+      )}
+
       {q.pending > 0 && (
         <div style={{ fontSize: '11px', color: '#666660', marginTop: '8px', lineHeight: 1.6 }}>
           The worker writes one code per door per run, so a queue this deep needs several runs — that pacing is deliberate,

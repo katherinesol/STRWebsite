@@ -43,7 +43,7 @@ export async function GET() {
       .eq('event_type', 'lock.auth').order('created_at', { ascending: false }).limit(1),
     supabase.from('system_log').select('created_at')
       .eq('detail->>source', 'worker').order('created_at', { ascending: false }).limit(1),
-    supabase.from('property_locks').select('id, lock_name, property_id, schlage_device_id').eq('active', true),
+    supabase.from('property_locks').select('id, lock_name, property_id, schlage_device_id, battery_level, battery_checked_at').eq('active', true),
   ])
 
   const all = actions || []
@@ -109,8 +109,28 @@ export async function GET() {
   if (drainAge !== null && drainAge > 48 && pending.length) alarms.push(`Nothing has drained in ${Math.floor(drainAge / 24)} days while ${pending.length} intent(s) wait.`)
   if (stranded.length) alarms.push(`${stranded.length} intent(s) stuck in 'claimed' — a run died holding them and nothing reclaims a claimed row.`)
 
+  /*  One entry per PHYSICAL lock, not per row: Royal Side has two property_locks
+      rows and one battery. A reading is shown with its age because a number with
+      no date cannot be told from a stale one — through the fourteen days the
+      worker was dead, every figure here would have looked current. */
+  const seenDevice = new Set<string>()
+  const batteries = (locks || [])
+    .filter(l => l.schlage_device_id && !seenDevice.has(l.schlage_device_id) && seenDevice.add(l.schlage_device_id))
+    .map(l => ({
+      lock: l.lock_name,
+      level: l.battery_level,
+      checked_at: l.battery_checked_at,
+      stale: !l.battery_checked_at || (Date.now() - new Date(l.battery_checked_at).getTime()) > 36 * 3600000,
+    }))
+    .sort((a, b) => (a.level ?? 999) - (b.level ?? 999))
+
+  if (batteries.some(b => b.level !== null && b.level <= 25)) {
+    alarms.push(`${batteries.filter(b => b.level !== null && b.level! <= 25).map(b => `${b.lock} ${b.level}%`).join(', ')} — a flat lock takes no code and opens for nobody.`)
+  }
+
   return NextResponse.json({
     ok: alarms.length === 0,
+    batteries,
     alarms,
     worker: {
       last_sign_in: a0?.created_at || null,
