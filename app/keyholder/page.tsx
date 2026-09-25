@@ -69,9 +69,16 @@ export default async function Today() {
         whole of maintenance belongs on the tasks page. What earns a place here
         is a task that is already late or one a machine raised because something
         is about to stop working — a flat lock takes no code and opens for
-        nobody, and you want to know before the guest is at the door. */
+        nobody, and you want to know before the guest is at the door.
+ 
+        THE COMPLETIONS ARE JOINED, and the first version did not join them.
+        `active` and "has been completed" are separate facts in this model: a
+        quarterly task completed in July kept active true, and the very first
+        query this panel ever ran reported a MAT return as overdue that had been
+        filed two months earlier. Asking only whether the due date has passed
+        reproduces exactly the gap that made the row stale. */
     supabase.from('maintenance_tasks')
-      .select('id, title, property_id, source, subject_ref, due_date, priority')
+      .select('id, title, property_id, source, subject_ref, due_date, priority, task_completions(completed_at)')
       .eq('active', true)
       .or(`source.eq.battery,and(due_date.not.is.null,due_date.lte.${todayStr})`),
   ])
@@ -175,6 +182,18 @@ export default async function Today() {
   const { cistern, airing, tub } = env as any
   const section: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: '12px' }
 
+  /*  A task whose latest completion is on or after its due date has been done
+      for this cycle, whatever `active` still says. Battery tasks have no due
+      date and are always actionable until somebody closes them — a flat lock
+      does not stop being flat because a quarter ended. */
+  const actionable = (tasks || []).filter((t: any) => {
+    if (t.source === 'battery') return true
+    if (!t.due_date) return false
+    const last = (t.task_completions || [])
+      .map((c: any) => String(c.completed_at || '').slice(0, 10)).sort().pop()
+    return !last || last < t.due_date
+  })
+
   return (
     <div style={{ paddingTop: '40px', display: 'flex', flexDirection: 'column', gap: '32px' }}>
 
@@ -187,17 +206,17 @@ export default async function Today() {
 
       {/*  Nothing renders when there is nothing to act on. A warning strip that
            is always present stops being a warning. */}
-      {(tasks || []).length > 0 && (
+      {actionable.length > 0 && (
         <div style={{ ...section, borderColor: L.amberLine, background: L.amberWash }}>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px', marginBottom: '10px' }}>
             <span style={{ fontSize: '15px', fontWeight: 600, color: L.amber }}>Needs doing</span>
-            <span style={{ fontSize: '14px', color: L.inkMuted }}>{(tasks || []).length}</span>
+            <span style={{ fontSize: '14px', color: L.inkMuted }}>{actionable.length}</span>
             <Link href="/admin/tasks" style={{ marginLeft: 'auto', fontSize: '13.5px', fontWeight: 600, color: L.link, textDecoration: 'none' }}>
               All tasks →
             </Link>
           </div>
           <div style={{ display: 'grid', gap: '7px' }}>
-            {(tasks || []).map((t: any) => (
+            {actionable.map((t: any) => (
               <div key={t.id} style={{ display: 'flex', alignItems: 'baseline', gap: '10px', fontSize: '14px' }}>
                 <span style={{ color: L.ink }}>{t.title}</span>
                 {t.source === 'battery' && (
