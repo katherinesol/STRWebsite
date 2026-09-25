@@ -20,7 +20,11 @@ import { L, F, microLabel, cardStyle } from '@/lib/design-tokens'
  *  legacy pages. This is a restyle to the current tokens, not a fork of the
  *  logic - same routes, same fields, nothing recomputed. */
 
-export const HAS_SENSORS = (propertyId: string) => propertyId === 'nickel-beach'
+// Moved to lib/sensors.ts — BookingDetail is a server component and calling a
+// 'use client' export from the server throws. Imported for use below and
+// re-exported so the old path still resolves for client callers.
+import { HAS_SENSORS } from '@/lib/sensors'
+export { HAS_SENSORS }
 
 const Card = ({ label, children }: { label: string; children: any }) => (
   <div style={{ ...cardStyle, padding: '18px 20px' }}>
