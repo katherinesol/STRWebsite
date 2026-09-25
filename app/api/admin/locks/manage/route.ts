@@ -27,6 +27,21 @@ import { pick, rejection } from '@/lib/allowlist'
  *  somebody at a door. DELETE here exists to explain the refusal in words
  *  rather than let a Postgres error reach the screen.
  *
+ *  THE DATABASE GUARD IS PER ROW, AND ROYAL SIDE IS TWO ROWS. East and West
+ *  share that side entrance: one physical lock, one battery, one set of codes,
+ *  two property_locks rows. The constraint counts intents per ROW, so today the
+ *  West row is protected — sixteen recorded actions — while the East row has
+ *  none and is, as far as Postgres can tell, free to delete. Deleting it would
+ *  corrupt no queue. It would simply mean East bookings stop queueing a door
+ *  East guests walk through, and nothing would say so until one of them could
+ *  not get in.
+ *
+ *  THE SHARED-DEVICE WARNING IN THE UI IS THE ONLY GUARD THERE. A database
+ *  cannot see that two rows are one lock — the relationship lives in a
+ *  schlage_device_id they happen to share, which is also exactly why the worker
+ *  serialises on the device rather than the row. Written down here because it
+ *  is the kind of thing that is otherwise found out the hard way.
+ *
  *  DEACTIVATE IS THE REAL ANSWER. active=false drops the lock out of every
  *  future queueForBooking while leaving its history and its pending work
  *  intact, and it is reversible. A lock is taken off a door far more often than

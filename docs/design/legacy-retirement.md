@@ -354,3 +354,41 @@ A future session should not surface these as an anomaly and ask again.
 **The occupancy exclusion holds by a narrow condition, not by design** — see the
 comment at the `offMarket` filter in `app/api/admin/occupancy/route.ts`. Widening
 that predicate would silently start counting their null nights.
+
+## `/admin/locks` retired — 24 September 2026, `0c72e3c`
+
+The largest remaining build, and the last home of `set-code`. Replaced by
+`/keyholder/access/locks`: heartbeat, batteries, arrivals, pending intents and
+the lock roster, with no Seam anywhere in it.
+
+**Seam was dead in both directions.** Its API key answers 401 and its webhook
+stopped delivering on 23 September — 25 door openings after that date were
+recorded by the worker and none by Seam. `locks/status`, `locks/discover`,
+`webhooks/seam` and `lib/seam.ts` are deleted; the sweep and the cron were the
+last callers and both now use the queue. Losing the webhook trades real-time
+push for poll-at-run, taken deliberately.
+
+**Two desync guards, because the queue snapshots a device id.**
+`queue_lock_action` denormalises `schlage_device_id` onto the intent and the
+worker groups on that copy, never re-resolving through `property_locks`.
+
+- `lock_actions.lock_id` is `ON DELETE RESTRICT`. It CASCADED, so deleting a
+  lock silently deleted its pending intents — no failed row, no alert, first
+  symptom somebody at a door.
+- `schlage_device_id`, `seam_device_id` and `property_id` are frozen while that
+  lock has work queued.
+
+### KNOWN GAP — Royal Side is two rows and the guard is per row
+
+East and West share the side entrance: one physical lock, two `property_locks`
+rows. The constraint counts intents **per row**, so the West row is protected
+(16 recorded actions) while the East row has none and is FK-safe to delete.
+
+Deleting it corrupts no queue. It stops East bookings queueing a door East
+guests walk through, and nothing surfaces that until someone cannot get in.
+
+**The UI's shared-device warning is the only guard there.** A database cannot
+see that two rows are one lock — the relationship is a `schlage_device_id` they
+happen to share, which is also why the worker serialises on the device rather
+than the row. Not closable in Postgres without modelling the physical lock as
+its own table, which is a bigger change than the risk warrants today.
