@@ -111,8 +111,13 @@ def sb(path, method="GET", body=None, prefer="return=representation"):
         raise RuntimeError(f"{ex.code} {ex.read().decode()[:300]}") from None
 
 
-def log_system(event_type, summary, detail=None, property_id=None):
-    if not COMMIT:
+def log_system(event_type, summary, detail=None, property_id=None, force=False):
+    #  force=True writes even on a dry run. Only the auth record uses it: the
+    #  whole reason it exists is that a credential failure was invisible for two
+    #  weeks, and a failure that only gets recorded when you happen to pass
+    #  --commit is still invisible. A dry run changes no lock and no booking;
+    #  noting that it could not log in changes neither.
+    if not COMMIT and not force:
         return
     try:
         sb("system_log", "POST", {
@@ -1376,14 +1381,49 @@ def check_version():
 
 def main():
     check_version()
-    print("THE WORKER — " + ("COMMITTING" if COMMIT else "DRY RUN, nothing will change"))
+    print("THE WORKER — " + ("COMMITTING" if COMMIT else
+          "DRY RUN — no lock and no booking is touched (the sign-in attempt is still recorded)"))
     st = State()
     print(f"  {len(st.locks)} active lock row(s), {len(st.plat)} platform + {len(st.direct)} direct booking(s) in scope")
 
     user, pw = get_credentials()
     from pyschlage import Auth, Schlage
-    schlage = Schlage(Auth(user, pw))
-    devices = {l.device_id: l for l in schlage.locks()}
+
+    #  EVERY PHASE RUNS AFTER THIS LOGIN, so a bad credential is not a degraded
+    #  run — it is no run at all. That is how the queue stalled from 10 to 24
+    #  September without a soul noticing: the password stored in the Keychain on
+    #  28 August stopped working, the worker died here, and the only trace was a
+    #  traceback in a terminal nobody was watching. Twelve intents piled up and
+    #  one guest's code was never programmed.
+    #
+    #  It could not be inferred from anywhere else either. door.entry looked
+    #  like a heartbeat and is not: the Seam webhook writes those too, so events
+    #  kept arriving daily while the worker had been dead a fortnight. The
+    #  worker's own rows carry detail.source = 'worker'; nothing else does.
+    #
+    #  So the attempt is written down, success or failure, and the locks page
+    #  reads it. A dead credential is now a fact in the database rather than
+    #  something you find out from a guest at a door.
+    try:
+        schlage = Schlage(Auth(user, pw))
+        devices = {l.device_id: l for l in schlage.locks()}
+    except Exception as ex:
+        log_system("lock.auth",
+                   f"Could not sign in to Schlage as {user} — the worker did no work",
+                   {"ok": False, "error": f"{type(ex).__name__}: {ex}"[:400],
+                    "account": user, "source": "worker"}, force=True)
+        print(f"\n  !! SCHLAGE SIGN-IN FAILED — {type(ex).__name__}: {ex}")
+        print( "     No phase has run. The queue is untouched and nothing was programmed.")
+        print( "     The password is in the macOS Keychain, service 'schlage-rental-direct'.")
+        print( "     Replace it (it prompts, so it stays out of your shell history):")
+        print(f"       security add-generic-password -U -s schlage-rental-direct -a {user} -w")
+        print( "     If the password is definitely right, sign in once in the Schlage app")
+        print( "     to clear a pending challenge, then try again.\n")
+        raise SystemExit(1)
+
+    log_system("lock.auth", f"Signed in to Schlage · {len(devices)} lock(s) on the account",
+               {"ok": True, "account": user, "devices": len(devices),
+                "committing": COMMIT, "source": "worker"}, force=True)
     print(f"  {len(devices)} lock(s) on the Schlage account")
 
     missing = [l["lock_name"] for l in st.locks if l["schlage_device_id"] not in devices]

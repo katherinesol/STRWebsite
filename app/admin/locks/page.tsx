@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
+import LockHeartbeat from '@/components/admin/LockHeartbeat'
 
 const PROP: Record<string, string> = { 'royal-york-east': 'Royal York East', 'royal-york-west': 'Royal York West', 'nickel-beach': 'Nickel Beach', 'royal-york-both': 'Royal York' }
 
@@ -101,6 +102,9 @@ export default function LocksPage() {
         <h1 style={{ fontFamily: 'var(--serif)', fontWeight: 300, fontSize: '30px', color: '#F0EDE6', margin: 0 }}>Locks</h1>
         <button onClick={sweep} disabled={loading} style={{ padding: '7px 16px', background: 'var(--amber)', color: '#242422', border: 'none', fontSize: '12px', fontWeight: 600, cursor: 'pointer', borderRadius: '6px' }}>{loading ? 'Checking…' : 'Re-check now'}</button>
       </div>
+      {/*  Above the doors, because the doors looked fine throughout the stall. */}
+      <LockHeartbeat />
+
       {data?.checked_at && (
         <p style={{ fontSize: '11px', color: '#8A8A82', marginBottom: data?.seam_reachable === false ? '10px' : '20px' }}>
           Last checked {new Date(data.checked_at).toLocaleString()} · reading from {data.reading_from || 'the locks'}
