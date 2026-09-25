@@ -957,3 +957,34 @@ maintenance cost and a confusing story for the guest.
 4. **Payment reconciliation** — the biggest recurring time cost.
 5. **Jan–May backfill** — blocks trustworthy 2026 numbers.
 6. Features: multi-guest step 3, parking, P&L, portal/hub convergence.
+
+## MAT filings: connect the record to the warning — scoped 25 Sep 2026, unbuilt
+
+`mat_filings` is becoming a real record — Katherine's Port Colborne filings are
+being entered alongside the one Toronto row that has sat there since August, and
+`jurisdiction` is now constrained to the two municipalities so a typo cannot
+create a third one the queries never find.
+
+**Nothing reads it yet.** The overdue warning on Today fires off
+`maintenance_tasks`, and the two tables are unconnected — which is why a MAT
+return filed on 24 July showed as overdue for two months. Closing the task fixed
+that instance; it did not make the warning able to tell a filed quarter from an
+unfiled one.
+
+**The build:** a check that raises a `maintenance_task` when a closed quarter has
+no `mat_filings` row for a property that owes one. `source` would be `'mat'`,
+`subject_ref` the `property_id + year + quarter`, so the existing partial unique
+index gives the one-open-task-per-quarter rule for free.
+
+**Two things it has to get right.**
+
+*A quarter is not due when it closes.* Q3 2026 ends 30 September and is not late
+until 15 October. Firing on quarter-end would raise a warning a fortnight before
+anything is owed, every quarter, which is how a warning stops being read.
+
+*A nil quarter still needs filing.* Port Colborne requires a quarterly report
+even at zero, so "no bookings" is not "no filing" — the check keys on the
+property owing a return, not on there being revenue.
+
+**Build it only after the rows exist**, or it fires on every historical quarter
+at once and the first thing it does is cry wolf about filings that were made.
