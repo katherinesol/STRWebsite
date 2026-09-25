@@ -392,3 +392,54 @@ see that two rows are one lock — the relationship is a `schlage_device_id` the
 happen to share, which is also why the worker serialises on the device rather
 than the row. Not closable in Postgres without modelling the physical lock as
 its own table, which is a bigger change than the risk warrants today.
+
+### The lock system is complete on the new shell — 24 September 2026
+
+Everything that operates a door now lives in `/keyholder/access/locks` and runs
+without Seam.
+
+| | |
+|---|---|
+| Worker | auto-running under launchd, hourly, `RunAtLoad`. Self-draining — a backlog clears over successive runs instead of manual repeats |
+| Credentials | macOS Keychain, `schlage-rental-direct`. Every sign-in recorded as `lock.auth`, success or failure, even on a dry run |
+| Panels | heartbeat (last successful drain, worker state, queue depth per device, oldest pending with its stay date) and the battery roster |
+| Surface | `/keyholder/access/locks` — arrivals needing codes, pending intents, the lock roster. Set **enqueues**; nothing on the page writes to a lock |
+| Guards | `ON DELETE RESTRICT` plus a route that refuses in words; device and property frozen while a lock has queued work |
+| Codes | `standing_codes` for the owner's master, `staff_access` for grants, `match_code()` consults both on the full string and the last four |
+| Retired | `/admin/locks` redirects. `locks/status`, `locks/discover`, `webhooks/seam`, `lib/seam.ts` and `PropertySettingsForm.tsx` deleted; `property_settings.schlage_devices` dropped |
+
+**What made the fortnight-long stall invisible, and what now catches it.** The
+credential died on 10 September and every phase of the worker runs after that
+login, so it was not a degraded run but no run at all. `door.entry` looked like
+a heartbeat and was not — the Seam webhook wrote 278 of those rows and the
+worker only 60, so events kept arriving daily while the worker had been dead a
+fortnight. Anything describing the worker's health filters
+`detail->>'source' = 'worker'`, and the panel leads with `max(done_at)` rather
+than any measure of the worker having started: those two figures were fourteen
+days apart and the gap was the whole bug.
+
+#### WATCH — 3373 / Royal Side, `attempts` 2 of 5
+
+The 13 October stay. Royal Side timed out twice; `finish()` returns a timeout to
+`pending` with backoff rather than failing it, so it auto-retries. At
+`MAX_ATTEMPTS` it becomes `failed` and needs re-queuing by hand. The heartbeat
+panel shows the flip. Nineteen days of runway as of 24 September.
+
+#### SMELL, not urgent — the backoff never bites
+
+`finish()` backs off `min(60 * 2**attempts, 6h)`, and `MAX_ATTEMPTS` is 5:
+
+    attempt 1 -> 2 min      attempt 3 ->  8 min
+    attempt 2 -> 4 min      attempt 4 -> 16 min      attempt 5 -> failed
+
+Every one of those is shorter than the hourly schedule, so **the cadence sets
+the pace and the backoff is decorative**. A flaky lock burns all five attempts
+in roughly five hours of identical hourly hammering — which is the opposite of
+what the backoff was written for, and Royal Side is precisely the lock that
+rewards patience. The fix is to let the delay scale past the run interval so a
+slow lock gets genuine spacing. Left alone for now: nothing is lost when it
+trips, because a failed intent is loud and re-queuable.
+
+#### KNOWN GAP — carried forward
+
+The Royal Side per-row delete hole, above. The UI warns; the database cannot.
