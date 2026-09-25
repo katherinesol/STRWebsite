@@ -35,7 +35,7 @@ stay is in progress. Pulling a working code out from under someone at the door
 is worse than a wrong window.
 """
 
-import json, os, re, ssl, sys, time, urllib.request, urllib.error
+import json, os, re, ssl, sys, time, urllib.parse, urllib.request, urllib.error
 from collections import defaultdict
 from datetime import datetime, timezone, timedelta
 from zoneinfo import ZoneInfo
@@ -904,6 +904,48 @@ def phase_battery(st, devices):
                        f"CHANGE THE BATTERIES: {lk_row['lock_name']} is at {level}% — a flat lock takes no code and opens for nobody",
                        {"lock": lk_row["lock_name"], "battery_level": level,
                         "previous": was, "source": "worker"}, lk_row["property_id"])
+            raise_battery_task(lk_row, level)
+
+
+def raise_battery_task(lk_row, level):
+    """A task, not just a log line, because a log line is read once.
+
+    KEYED ON THE DEVICE, NOT THE LOCK ROW. Royal Side has a row under
+    royal-york-east and another under royal-york-west and one battery between
+    them; keying on the row id would open two tasks for one pair of batteries.
+    subject_ref carries schlage_device_id for the same reason the drain groups
+    by it.
+
+    IT ASKS BEFORE IT WRITES even though a partial unique index already forbids
+    a second open task per device. The index is the thing that makes the rule
+    true; this check is what keeps a duplicate from arriving as a 409 the
+    scheduled worker would surface as a crash.
+
+    A COMPLETED TASK CAN BE RAISED AGAIN. Batteries are replaced and then run
+    down again — the index only constrains ACTIVE rows, so the history stays and
+    the next crossing opens a fresh one.
+    """
+    devid = lk_row["schlage_device_id"]
+    open_already = sb(f"maintenance_tasks?select=id&source=eq.battery"
+                      f"&subject_ref=eq.{urllib.parse.quote(str(devid))}&active=is.true")
+    if open_already:
+        print(f"      (a battery task is already open for {lk_row['lock_name']})")
+        return
+    if not COMMIT:
+        print(f"      would raise a task: Replace battery on {lk_row['lock_name']}")
+        return
+    sb("maintenance_tasks", "POST", {
+        "title": f"Replace battery on {lk_row['lock_name']}",
+        "description": f"Read at {level}% by the worker. A flat lock takes no code and opens for nobody.",
+        "property_id": lk_row["property_id"],
+        "type": "maintenance",          # not a new kind of task — it is maintenance
+        "cadence": "as-needed",
+        "priority": "high",
+        "active": True,
+        "source": "battery",
+        "subject_ref": devid,
+    }, prefer="return=minimal")
+    print(f"      raised a task: Replace battery on {lk_row['lock_name']}")
 
 
 def phase_names(st, devices):

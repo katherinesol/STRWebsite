@@ -45,7 +45,7 @@ export default async function Today() {
      in JavaScript afterwards — the legacy page pulls every block with select('*')
      and throws most of them away on the client side. */
   const [
-    { data: direct }, { data: platform }, { data: etransfers }, env,
+    { data: direct }, { data: platform }, { data: etransfers }, env, { data: tasks },
   ] = await Promise.all([
     supabase.from('bookings')
       .select(`id, property_id, check_in, check_out, nights, status, payment_method, trip_purpose, trip_purpose_note,
@@ -65,6 +65,15 @@ export default async function Today() {
       .select('id, property_id, check_in, deposit_amount, guest_info:guests(name)')
       .eq('status', 'pending_payment').eq('payment_method', 'etransfer'),
     readEnvironment(),
+    /*  WARNINGS ONLY, NOT THE TASK LIST. Today is a screen you glance at; the
+        whole of maintenance belongs on the tasks page. What earns a place here
+        is a task that is already late or one a machine raised because something
+        is about to stop working — a flat lock takes no code and opens for
+        nobody, and you want to know before the guest is at the door. */
+    supabase.from('maintenance_tasks')
+      .select('id, title, property_id, source, subject_ref, due_date, priority')
+      .eq('active', true)
+      .or(`source.eq.battery,and(due_date.not.is.null,due_date.lte.${todayStr})`),
   ])
 
   const D = direct || [], P = platform || [], E = etransfers || []
@@ -175,6 +184,40 @@ export default async function Today() {
           Good {greeting}{first ? `, ${first}` : ''}.
         </span>
       </div>
+
+      {/*  Nothing renders when there is nothing to act on. A warning strip that
+           is always present stops being a warning. */}
+      {(tasks || []).length > 0 && (
+        <div style={{ ...section, borderColor: L.amberLine, background: L.amberWash }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px', marginBottom: '10px' }}>
+            <span style={{ fontSize: '15px', fontWeight: 600, color: L.amber }}>Needs doing</span>
+            <span style={{ fontSize: '14px', color: L.inkMuted }}>{(tasks || []).length}</span>
+            <Link href="/admin/tasks" style={{ marginLeft: 'auto', fontSize: '13.5px', fontWeight: 600, color: L.link, textDecoration: 'none' }}>
+              All tasks →
+            </Link>
+          </div>
+          <div style={{ display: 'grid', gap: '7px' }}>
+            {(tasks || []).map((t: any) => (
+              <div key={t.id} style={{ display: 'flex', alignItems: 'baseline', gap: '10px', fontSize: '14px' }}>
+                <span style={{ color: L.ink }}>{t.title}</span>
+                {t.source === 'battery' && (
+                  <span style={{ fontSize: '11.5px', padding: '1px 7px', borderRadius: '6px', background: L.card, color: L.amber }}>
+                    battery
+                  </span>
+                )}
+                {t.due_date && t.due_date <= todayStr && (
+                  <span style={{ fontSize: '11.5px', color: L.red }}>
+                    due {t.due_date === todayStr ? 'today' : t.due_date}
+                  </span>
+                )}
+                <span style={{ marginLeft: 'auto', fontSize: '12.5px', color: L.inkFaint }}>
+                  {PROPERTY_NAMES[t.property_id] || t.property_id || ''}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* ───────── today ───────── */}
       <div style={section}>
