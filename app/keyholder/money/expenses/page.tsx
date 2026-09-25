@@ -44,6 +44,42 @@ export default function ExpensesPage() {
   const [category, setCategory] = useState('')
   const [panel, setPanel] = useState<'' | 'new' | 'receipts'>('')
   const [form, setForm] = useState<any>(null)     // null = closed; {id} = editing
+
+  /*  WHICH ACCOUNT PAID. The column did not exist until 2026-09-25, so every
+      expense before then says what was bought and nothing about where the money
+      left from — reconciling a card statement meant matching on amount and date
+      and hoping. Loaded rather than hardcoded, and a new account can be named
+      here, because otherwise a new card means the expense gets filed with no
+      account at all and the gap widens quietly. */
+  const [accounts, setAccounts] = useState<any[]>([])
+  const [newAccount, setNewAccount] = useState<{ name: string; last4: string } | null>(null)
+  const [accountErr, setAccountErr] = useState('')
+
+  /*  NO TAX IS A STATE, NOT A TYPED ZERO. hst_paid is nullable, so blank has
+      always meant "not entered yet" and 0 "there was none" — the form simply had
+      no way to say the second. */
+  const [noTax, setNoTax] = useState(false)
+
+  useEffect(() => {
+    fetch('/api/admin/accounts').then(r => r.json())
+      .then(j => setAccounts(j.accounts || [])).catch(() => {})
+  }, [])
+
+  /*  A duplicate name comes back as the existing row rather than a second one —
+      two "BMO Business" accounts would split a reconciliation in half and
+      neither side would look wrong. */
+  async function saveAccount() {
+    const name = (newAccount?.name || '').trim()
+    if (!name) { setAccountErr('Give the account a name.'); return }
+    const r = await fetch('/api/admin/accounts', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, last4: newAccount?.last4 || null }),
+    }).then(x => x.json()).catch(() => ({ error: 'Could not save the account' }))
+    if (r.error) { setAccountErr(r.error); return }
+    setAccounts((a: any[]) => a.some(x => x.id === r.account.id) ? a : [...a, r.account])
+    setForm((f: any) => ({ ...f, account_id: r.account.id }))
+    setNewAccount(null); setAccountErr('')
+  }
   const [busy, setBusy] = useState(false)
   const [note, setNote] = useState('')
   const [hstTouched, setHstTouched] = useState(false)
@@ -66,7 +102,8 @@ export default function ExpensesPage() {
   const reload = () => fetch('/api/admin/expenses').then(r => r.json()).then(setD).catch(() => {})
 
   const blank = () => ({ id: null, date: new Date().toISOString().slice(0, 10), vendor: '', description: '',
-    amount: '', hst_paid: '', category: EXPENSE_CATEGORIES[0], property_id: '', notes: '', reference: '' })
+    amount: '', hst_paid: '', category: EXPENSE_CATEGORIES[0], property_id: '', notes: '', reference: '',
+    account_id: '' })
 
   /* HST follows the amount until it is typed over — the same rule the legacy
      screen used, kept because 13/113 of a receipt total is right often enough
@@ -74,6 +111,7 @@ export default function ExpensesPage() {
   function setField(k: string, v: any) {
     setForm((f: any) => {
       if (k === 'hst_paid') { setHstTouched(true); return { ...f, hst_paid: v } }
+      if (k === 'amount' && noTax) return { ...f, amount: v }   // tax-free: never re-fill
       if (k === 'amount' && !hstTouched) {
         const a = parseFloat(String(v))
         return { ...f, amount: v, hst_paid: a ? (a * 13 / 113).toFixed(2) : '' }
@@ -88,14 +126,15 @@ export default function ExpensesPage() {
     const body = { date: form.date, vendor: form.vendor || null, description: form.description,
       amount: Number(form.amount), hst_paid: Number(form.hst_paid) || 0, category: form.category,
       property_id: form.property_id || null, notes: form.notes || null,
-      reference: form.reference?.trim() || null }
+      reference: form.reference?.trim() || null,
+      account_id: form.account_id || null }
     const r = form.id
       ? await fetch(`/api/admin/expenses/${form.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
       : await fetch('/api/admin/expenses', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...body, force: true }) })
     const j = await r.json().catch(() => ({}))
     setBusy(false)
     if (!r.ok) { setNote(j.error || `Could not save (${r.status})`); return }
-    setForm(null); setPanel(''); setHstTouched(false); reload()
+    setForm(null); setPanel(''); setHstTouched(false); setNoTax(false); setNewAccount(null); reload()
   }
 
   async function remove(e: any) {
@@ -308,8 +347,48 @@ export default function ExpensesPage() {
                   <input value={form.description || ''} onChange={e => setField('description', e.target.value)} style={field} placeholder="Replacement kettle" /></label>
                 <label style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}><span style={microLabel}>Amount</span>
                   <input value={form.amount || ''} onChange={e => setField('amount', e.target.value)} style={field} placeholder="0.00" inputMode="decimal" /></label>
-                <label style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}><span style={microLabel}>HST paid</span>
-                  <input value={form.hst_paid || ''} onChange={e => setField('hst_paid', e.target.value)} style={field} placeholder="auto — amount × 13/113" inputMode="decimal" /></label>
+                <label style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                  <span style={{ ...microLabel, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    HST paid
+                    <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', color: noTax ? L.amber : L.inkFaint, textTransform: 'none', letterSpacing: 0 }}
+                      onClick={() => {
+                        const on = !noTax
+                        setNoTax(on)
+                        setHstTouched(true)                       // never auto-fill again this entry
+                        setForm((f: any) => ({ ...f, hst_paid: on ? '0' : '' }))
+                      }}>
+                      <input type="checkbox" checked={noTax} readOnly style={{ pointerEvents: 'none' }} />
+                      no tax
+                    </span>
+                  </span>
+                  <input value={form.hst_paid || ''} disabled={noTax}
+                    onChange={e => setField('hst_paid', e.target.value)}
+                    style={{ ...field, opacity: noTax ? 0.55 : 1 }}
+                    placeholder="auto — amount × 13/113" inputMode="decimal" /></label>
+                <label style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}><span style={microLabel}>Paid from</span>
+                  {newAccount ? (
+                    <span style={{ display: 'flex', gap: '5px' }}>
+                      <input autoFocus placeholder="Account name" value={newAccount.name}
+                        onChange={e => setNewAccount(a => ({ ...a!, name: e.target.value }))}
+                        onKeyDown={e => { if (e.key === 'Enter') saveAccount() }}
+                        style={{ ...field, flex: 1 }} />
+                      <input placeholder="1234" maxLength={4} value={newAccount.last4}
+                        onChange={e => setNewAccount(a => ({ ...a!, last4: e.target.value.replace(/\D/g, '').slice(0, 4) }))}
+                        style={{ ...field, width: '58px' }} />
+                      <button onClick={saveAccount} style={{ padding: '0 11px', borderRadius: '8px', border: 'none', background: L.ink, color: '#fff', fontSize: '13px', cursor: 'pointer' }}>Save</button>
+                      <button onClick={() => { setNewAccount(null); setAccountErr('') }} style={{ padding: '0 9px', borderRadius: '8px', border: `1px solid ${L.line}`, background: 'transparent', color: L.inkFaint, fontSize: '13px', cursor: 'pointer' }}>×</button>
+                    </span>
+                  ) : (
+                    <select value={form.account_id || ''} style={field}
+                      onChange={e => e.target.value === '__new'
+                        ? setNewAccount({ name: '', last4: '' })
+                        : setField('account_id', e.target.value)}>
+                      <option value="">Not recorded</option>
+                      {accounts.map((a: any) => <option key={a.id} value={a.id}>{a.name}{a.last4 ? ` ····${a.last4}` : ''}</option>)}
+                      <option value="__new">+ New account…</option>
+                    </select>
+                  )}
+                  {accountErr && <span style={{ fontSize: '12px', color: L.red }}>{accountErr}</span>}</label>
                 <label style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}><span style={microLabel}>Category</span>
                   <select value={form.category} onChange={e => setField('category', e.target.value)} style={field}>
                     {EXPENSE_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}</select></label>
