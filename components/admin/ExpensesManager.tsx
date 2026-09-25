@@ -1,5 +1,5 @@
 'use client'
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { format, startOfMonth, endOfMonth, startOfYear } from 'date-fns'
 import { EXPENSE_CATEGORIES } from '@/lib/expense-categories'
@@ -60,12 +60,45 @@ export default function ExpensesManager({ expenses, vendors }: { expenses: Expen
     receipt_path: null as string | null,
     ai_extracted: false,
     confirmed: false,
+    account_id: '',
   })
 
+  /*  Accounts are loaded, not hardcoded, and a new one can be named here. The
+      column did not exist until now, so every expense before today says nothing
+      about where the money left from. */
+  const [accounts, setAccounts] = useState<{ id: string; name: string; last4: string | null }[]>([])
+  const [newAccount, setNewAccount] = useState<{ name: string; last4: string } | null>(null)
+  const [accountErr, setAccountErr] = useState('')
+
+  useEffect(() => {
+    fetch('/api/admin/accounts').then(r => r.json())
+      .then(j => setAccounts(j.accounts || []))
+      .catch(() => {})
+  }, [])
+
+  async function saveAccount() {
+    const name = (newAccount?.name || '').trim()
+    if (!name) { setAccountErr('Give the account a name.'); return }
+    const r = await fetch('/api/admin/accounts', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, last4: newAccount?.last4 || null }),
+    }).then(x => x.json()).catch(() => ({ error: 'Could not save the account' }))
+    if (r.error) { setAccountErr(r.error); return }
+    setAccounts(a => a.some(x => x.id === r.account.id) ? a : [...a, r.account])
+    setForm(f => ({ ...f, account_id: r.account.id }))
+    setNewAccount(null); setAccountErr('')
+  }
+
   const [hstManual, setHstManual] = useState(false)
+  /*  NO TAX IS A STATE, NOT A TYPED ZERO. hst_paid is nullable, so blank means
+      "not entered yet" and 0 means "there was none" — a real difference when
+      reconciling. The toggle also has to stop the auto-calculation below, or a
+      later amount change would quietly re-fill the HST on an expense already
+      marked tax-free. */
+  const [noTax, setNoTax] = useState(false)
   function set(key: string, value: unknown) {
     if (key === 'hst_paid') setHstManual(true)
-    if (key === 'amount' && !hstManual) {
+    if (key === 'amount' && !hstManual && !noTax) {
       const amt = parseFloat(String(value))
       setForm(f => ({ ...f, amount: String(value), hst_paid: amt ? (amt * 13 / 113).toFixed(2) : '' }))
       return
@@ -137,6 +170,7 @@ export default function ExpensesManager({ expenses, vendors }: { expenses: Expen
           amount: parseFloat(form.amount) || 0,
           hst_paid: form.hst_paid ? parseFloat(form.hst_paid) : null,
           property_id: form.property_id || null,
+          account_id: form.account_id || null,
           confirmed: true,
           force,
         }),
@@ -150,7 +184,8 @@ export default function ExpensesManager({ expenses, vendors }: { expenses: Expen
         setSaving(false)
         return
       }
-      setForm({ date: today, vendor: '', description: '', line_items: [], amount: '', hst_paid: '', category: EXPENSE_CATEGORIES[0], property_id: '', notes: '', receipt_url: '', receipt_path: null, ai_extracted: false, confirmed: false })
+      setForm({ date: today, vendor: '', description: '', line_items: [], amount: '', hst_paid: '', category: EXPENSE_CATEGORIES[0], property_id: '', notes: '', receipt_url: '', receipt_path: null, ai_extracted: false, confirmed: false, account_id: '' })
+      setNoTax(false); setHstManual(false)
       setShowForm(false)
       router.refresh()
     } catch {}
@@ -296,8 +331,48 @@ export default function ExpensesManager({ expenses, vendors }: { expenses: Expen
                 <input type="number" value={form.amount} onChange={e => set('amount', e.target.value)} placeholder="0.00" step="0.01" style={inputStyle} />
               </div>
               <div>
-                <div style={{ fontSize: '10px', letterSpacing: '.1em', textTransform: 'uppercase', color: '#9A9A92', marginBottom: '5px' }}>HST paid ($)</div>
-                <input type="number" value={form.hst_paid} onChange={e => set('hst_paid', e.target.value)} placeholder="0.00" step="0.01" style={inputStyle} />
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px', marginBottom: '5px' }}>
+                  <span style={{ fontSize: '10px', letterSpacing: '.1em', textTransform: 'uppercase', color: '#9A9A92' }}>HST paid ($)</span>
+                  <label style={{ marginLeft: 'auto', fontSize: '10px', color: noTax ? 'var(--amber)' : '#9A9A92', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                    <input type="checkbox" checked={noTax} onChange={e => {
+                      const on = e.target.checked
+                      setNoTax(on)
+                      setHstManual(true)                    // never re-fill from the amount again
+                      setForm(f => ({ ...f, hst_paid: on ? '0' : '' }))
+                    }} />
+                    No tax
+                  </label>
+                </div>
+                <input type="number" value={form.hst_paid} disabled={noTax}
+                  onChange={e => set('hst_paid', e.target.value)} placeholder="0.00" step="0.01"
+                  style={{ ...inputStyle, opacity: noTax ? 0.5 : 1, cursor: noTax ? 'not-allowed' : 'text' }} />
+              </div>
+              <div>
+                <div style={{ fontSize: '10px', letterSpacing: '.1em', textTransform: 'uppercase', color: '#9A9A92', marginBottom: '5px' }}>Paid from</div>
+                {newAccount ? (
+                  <div style={{ display: 'flex', gap: '6px' }}>
+                    <input autoFocus type="text" placeholder="Account name" value={newAccount.name}
+                      onChange={e => setNewAccount(a => ({ ...a!, name: e.target.value }))}
+                      onKeyDown={e => { if (e.key === 'Enter') saveAccount() }}
+                      style={{ ...inputStyle, flex: 1 }} />
+                    <input type="text" placeholder="1234" maxLength={4} value={newAccount.last4}
+                      onChange={e => setNewAccount(a => ({ ...a!, last4: e.target.value.replace(/\D/g, '').slice(0, 4) }))}
+                      style={{ ...inputStyle, width: '62px' }} />
+                    <button onClick={saveAccount} style={{ padding: '0 12px', background: 'var(--amber)', color: '#1A1A18', border: 'none', fontSize: '11px', cursor: 'pointer' }}>Save</button>
+                    <button onClick={() => { setNewAccount(null); setAccountErr('') }} style={{ padding: '0 10px', background: '#363634', color: '#9A9A92', border: 'none', fontSize: '11px', cursor: 'pointer' }}>×</button>
+                  </div>
+                ) : (
+                  <select value={form.account_id}
+                    onChange={e => e.target.value === '__new'
+                      ? setNewAccount({ name: '', last4: '' })
+                      : set('account_id', e.target.value)}
+                    style={{ ...inputStyle, background: '#363634' }}>
+                    <option value="">Not recorded</option>
+                    {accounts.map(a => <option key={a.id} value={a.id}>{a.name}{a.last4 ? ` ····${a.last4}` : ''}</option>)}
+                    <option value="__new">+ New account…</option>
+                  </select>
+                )}
+                {accountErr && <div style={{ fontSize: '10px', color: '#e57373', marginTop: '4px' }}>{accountErr}</div>}
               </div>
               <div>
                 <div style={{ fontSize: '10px', letterSpacing: '.1em', textTransform: 'uppercase', color: '#9A9A92', marginBottom: '5px' }}>Category</div>

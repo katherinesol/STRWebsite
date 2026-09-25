@@ -132,6 +132,11 @@ export async function POST(request: NextRequest) {
     amount: n(body.amount), hst_paid: n(body.hst_paid),
     category: cat.category,
     property_id: body.property_id || null, notes: body.notes || null,
+    /*  Which account the money left from. Named here because the insert is a
+        strict allowlist — insert(body) was removed deliberately, so a field that
+        is not listed is silently dropped rather than rejected, and the form
+        would look like it saved. */
+    account_id: body.account_id || null,
     // an e-transfer confirmation or cheque number, for matching a statement later
     reference: body.reference || null,
     receipt_url: body.receipt_url || null, receipt_path: body.receipt_path || null,

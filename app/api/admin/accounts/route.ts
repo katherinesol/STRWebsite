@@ -1,8 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { hasRole } from '@/lib/auth'
+import { requireArea } from '@/lib/require-area'
 import { createAdminClient } from '@/lib/supabase/server'
 
-/*  The Accounts surface — READ ONLY, and deliberately so.
+/*  The Accounts surface — the GET reads and writes nothing, and that is still
+ *  deliberate. A POST was added below on 2026-09-25 so a new account can be
+ *  named from the expense form; it creates a bank_accounts row and touches no
+ *  payment, no invoice and no expense. The paragraph below is about the READ,
+ *  which is unchanged.
+ *
+ *  The Accounts READ — READ ONLY, and deliberately so.
  *
  *  It reads `payments` and `bank_accounts` and writes nothing at all. That is
  *  the whole reason it could be built first: invoice_payments remains the live
@@ -106,3 +113,44 @@ export async function GET(request: NextRequest) {
 }
 
 const r2 = (v: number) => Math.round((v + Number.EPSILON) * 100) / 100
+
+/*  Create an account from wherever one is needed — today the expense form.
+ *
+ *  THE ROUTE WAS READ-ONLY, so "which account paid this?" could only ever be
+ *  answered with one of the three that already existed. A new card meant a
+ *  database trip, which in practice means the expense gets filed with no
+ *  account at all and the reconciliation gap widens quietly.
+ *
+ *  NAME ONLY, PLUS AN OPTIONAL LAST FOUR. No balances, no institution, nothing
+ *  that would have to be kept accurate — this exists so an expense can point at
+ *  something, and anything more would be a second source of truth for figures
+ *  the statement already holds.
+ *
+ *  A DUPLICATE NAME RETURNS THE EXISTING ROW rather than creating a second one.
+ *  Two "BMO Business" accounts would split a reconciliation in half and neither
+ *  side would look wrong. */
+export async function POST(request: NextRequest) {
+  const no = await requireArea('money', 'edit')
+  if (no) return no
+
+  const { name, last4 } = await request.json().catch(() => ({} as any))
+  const clean = String(name || '').trim()
+  if (!clean) return NextResponse.json({ error: 'An account needs a name.' }, { status: 400 })
+  if (clean.length > 60) return NextResponse.json({ error: 'That name is too long.' }, { status: 400 })
+
+  const digits = String(last4 || '').replace(/\D/g, '').slice(-4) || null
+  const supabase = createAdminClient()
+
+  const { data: existing } = await supabase.from('bank_accounts')
+    .select('id, name, last4').ilike('name', clean).maybeSingle()
+  if (existing) return NextResponse.json({ ok: true, account: existing, existed: true })
+
+  const { data: last } = await supabase.from('bank_accounts')
+    .select('sort_order').order('sort_order', { ascending: false }).limit(1).maybeSingle()
+
+  const { data, error } = await supabase.from('bank_accounts')
+    .insert({ name: clean, last4: digits, active: true, sort_order: ((last?.sort_order ?? 0) + 1) })
+    .select('id, name, last4').single()
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json({ ok: true, account: data, existed: false })
+}
