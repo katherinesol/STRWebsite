@@ -11,6 +11,7 @@ const ICON: Record<string, string> = {
   'booking.checked_in': '✓', 'booking.cancelled': '✕', 'booking.removed': '🗑',
   'cron.ran': '◷', 'code.failed': '⚠', 'water.delivered': '💧',
   'lock.revoke_failed': '⚠', 'lock.reprogram_failed': '⚠', [LOCK_ACTION_NEEDED]: '⚠',
+  'lock.battery_low': '🔋', 'lock.auth': '⚿',
 }
 
 // A failure should not read like a sync. The legacy screen rendered every icon
@@ -22,6 +23,9 @@ function colourFor(type: string) {
   // stale silently — a new failure type would render grey and read as routine,
   // which is the exact bug this was written to fix.
   if (type.endsWith('_failed') || type.endsWith('.failed') || type === LOCK_ACTION_NEEDED) return L.red
+  // a flat lock takes no code and opens for nobody — amber, not red: it is a
+  // deadline, not a failure, and it fires once as the level crosses
+  if (type === 'lock.battery_low') return L.amber
   if (type.endsWith('.cancelled') || type.endsWith('.removed')) return L.red
   if (type === 'booking.checked_in' || type === 'lock.programmed' || type === 'lock.reprogrammed') return L.green
   return L.inkFaint

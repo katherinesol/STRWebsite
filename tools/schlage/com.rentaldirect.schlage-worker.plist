@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  The worker, hourly, on Katherine's Mac.
+
+  A LaunchAGENT, not a LaunchDaemon, and that is load-bearing rather than a
+  preference. get_credentials() shells out to `security find-generic-password`,
+  which only answers inside a logged-in user session with the keychain
+  unlocked. A daemon runs outside one and would fail every hour forever.
+
+  INSTALL (it does not install itself):
+      cp tools/schlage/com.rentaldirect.schlage-worker.plist \
+         ~/Library/LaunchAgents/
+      launchctl load ~/Library/LaunchAgents/com.rentaldirect.schlage-worker.plist
+  STOP:
+      launchctl unload ~/Library/LaunchAgents/com.rentaldirect.schlage-worker.plist
+
+  THE VENV PATH IS EXPLICIT. Plain python3 has no pyschlage, and a scheduled job
+  has no shell profile, no PATH you have tuned, and no activated environment.
+
+  IT ONLY RUNS WHILE THE MAC IS AWAKE, which is accepted: a code has to be on a
+  door by 4pm check-in, so hours of slack are fine. A missed interval fires once
+  on wake. What is NOT accepted is nobody noticing a long silence, and that is
+  the heartbeat panel's job — last-drain age climbs whether the cause is a dead
+  credential, a stale copy, or a lid that stayed shut.
+
+  NO SECRETS HERE. The Schlage password is in the login keychain and the
+  Supabase key is read from .env.local by the worker itself. Nothing in this
+  file is sensitive, which is why it can live in the repo.
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.rentaldirect.schlage-worker</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/katherine/Desktop/schlage-venv/bin/python</string>
+        <string>/Users/katherine/Desktop/schlage-worker.py</string>
+        <string>--commit</string>
+    </array>
+
+    <!-- schlage_creds.py sits beside the worker and is imported by name -->
+    <key>WorkingDirectory</key>
+    <string>/Users/katherine/Desktop</string>
+
+    <!-- hourly. The backlog drains one code per door per run, so a deep queue
+         clears over successive runs instead of manual repeats. -->
+    <key>StartInterval</key>
+    <integer>3600</integer>
+
+    <!-- catch up as soon as the Mac is back, rather than waiting out the hour -->
+    <key>RunAtLoad</key>
+    <true/>
+
+    <!-- the traceback lands in a file instead of a terminal nobody has open -->
+    <key>StandardOutPath</key>
+    <string>/Users/katherine/Library/Logs/schlage-worker.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/katherine/Library/Logs/schlage-worker.log</string>
+
+    <key>ProcessType</key>
+    <string>Background</string>
+</dict>
+</plist>

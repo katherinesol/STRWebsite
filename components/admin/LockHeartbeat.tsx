@@ -62,9 +62,14 @@ export default function LockHeartbeat() {
           <div style={{ fontSize: '15px', color: drainTone }}>{ago(q.last_successful_drain)}</div>
         </div>
         <div style={box}>
-          <div style={lbl}>Schlage sign-in</div>
+          {/*  Not "sign-in": the same lock.auth record now also carries a
+               refusal to run at all, when this Mac's copy has drifted from the
+               repo. Both are "the worker did no work", which is what matters. */}
+          <div style={lbl}>Worker</div>
           <div style={{ fontSize: '15px', color: signInTone }}>
-            {w.sign_in_ok === false ? 'failing' : w.sign_in_ok ? 'ok' : 'never recorded'}
+            {w.sign_in_ok === false
+              ? (w.stage === 'version' ? 'out of date' : 'cannot sign in')
+              : w.sign_in_ok ? 'ok' : 'never recorded'}
           </div>
           <div style={{ fontSize: '10.5px', color: '#666660', marginTop: '3px' }}>{ago(w.last_sign_in)}</div>
         </div>

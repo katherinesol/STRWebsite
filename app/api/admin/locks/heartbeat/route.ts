@@ -100,7 +100,10 @@ export async function GET() {
   const stranded = claimed.filter(a => (hoursSince(a.claimed_at) || 0) > 2)
 
   const alarms: string[] = []
-  if (authOk === false) alarms.push(`The worker cannot sign in to Schlage — ${a0?.detail?.error || 'no reason recorded'}. No phase runs, so nothing is being programmed.`)
+  if (authOk === false) alarms.push(
+    a0?.detail?.stage === 'version'
+      ? `${a0.summary}. Nothing is being programmed until it is copied over.`
+      : `The worker cannot sign in to Schlage — ${a0?.detail?.error || 'no reason recorded'}. No phase runs, so nothing is being programmed.`)
   if (authOk === null) alarms.push('No sign-in has ever been recorded. Update the worker on this machine so it starts writing one.')
   if (waiting.some(w => w.stay_started)) alarms.push(`${waiting.filter(w => w.stay_started).length} intent(s) are waiting for a stay that has already started — someone may be at a door their code was never put on.`)
   if (drainAge !== null && drainAge > 48 && pending.length) alarms.push(`Nothing has drained in ${Math.floor(drainAge / 24)} days while ${pending.length} intent(s) wait.`)
@@ -112,6 +115,8 @@ export async function GET() {
     worker: {
       last_sign_in: a0?.created_at || null,
       sign_in_ok: authOk,
+      // 'signin' or 'version' — a drifted copy refuses before it ever logs in
+      stage: a0?.detail?.stage || null,
       sign_in_detail: a0?.summary || null,
       // NOT a heartbeat on its own — see the note above. Reported for context only.
       last_worker_event: lastWorker,

@@ -47,6 +47,8 @@ COMMIT       = "--commit" in sys.argv
 BATCH        = 25          # rows claimed per run
 MAX_ATTEMPTS = 5           # then it stays failed and loud
 PACE_SECONDS = 20          # gap between writes to the SAME device
+STALE_CLAIM_HOURS = 2      # a claim older than this was left by a dead run
+BATTERY_LOW  = 25          # percent, below which the worker asks for batteries
 SETTLE_TRIES = 6           # after a write that did not return
 SETTLE_GAP   = 20          # ~2 minutes of grace, matching schlage-bulk.py
 #  ONE WRITE PER DEVICE PER RUN.
@@ -266,7 +268,11 @@ def same_window(ac, starts, ends, tol=90, ends_only=False):
 class State:
     def __init__(self):
         self.today = now_utc().date().isoformat()
-        self.locks = sb("property_locks?select=id,property_id,lock_name,airbnb_managed,schlage_device_id&active=eq.true")
+        #  battery_level is selected because phase_battery compares the reading it
+        #  just took against the one already stored, to alert on the CROSSING
+        #  rather than every run. Drop it from this select and the low-battery
+        #  warning silently becomes hourly nagging.
+        self.locks = sb("property_locks?select=id,property_id,lock_name,airbnb_managed,schlage_device_id,battery_level&active=eq.true")
         self.by_id = {l["id"]: l for l in self.locks}
         #  ONE PHYSICAL DEVICE CAN SERVE SEVERAL PROPERTIES. Royal Side is
         #  registered against both royal-york-east and royal-york-west because
@@ -643,6 +649,30 @@ def do_reschedule(st, lk, row, lock_row):
 
 def phase_drain(st, devices):
     print("\n── 2. DRAIN — execute the queue ──")
+
+    #  RECLAIM WHAT A DEAD RUN LEFT BEHIND, BEFORE READING THE QUEUE.
+    #
+    #  claim() flips a row pending -> claimed and finish() moves it on, but the
+    #  query below asks for status=pending only, so a run that dies between the
+    #  two strands its row permanently: nothing anywhere ever looks at a claimed
+    #  row again. One sat in that state during the 24 September catch-up — it
+    #  was the worker mid-write on Royal Side and cleared a minute later, which
+    #  is exactly why the threshold is hours rather than minutes.
+    #
+    #  It matters more now the worker runs on a schedule. A manual run is
+    #  watched; an hourly one dies unattended, and every death that happens to
+    #  land between claim and finish costs a door its code until someone reads
+    #  the queue by hand.
+    cutoff = iso(now_utc() - timedelta(hours=STALE_CLAIM_HOURS))
+    stranded = sb(f"lock_actions?status=eq.claimed&claimed_at=lt.{cutoff}&select=id,code,claimed_at")
+    if stranded:
+        print(f"   reclaiming {len(stranded)} row(s) left claimed by a run that did not finish")
+        for r in stranded:
+            print(f"      · {r.get('code')} — claimed {tor_short(r['claimed_at'])}, back to pending")
+            if COMMIT:
+                sb(f"lock_actions?id=eq.{r['id']}&status=eq.claimed", "PATCH",
+                   {"status": "pending", "claimed_at": None}, prefer="return=minimal")
+
     rows = sb(f"lock_actions?status=eq.pending&not_before=lte.{iso(now_utc())}"
               f"&order=created_at&limit={BATCH}")
     if not rows:
@@ -812,6 +842,55 @@ def describe(st, r):
 
 
 # ─────────────────────── phase 3: sweep + lock_status ────────────────────────
+def phase_battery(st, devices):
+    """What is left in each lock, read off the hardware.
+
+    NOT FROM SEAM — that account is dead in both directions. pyschlage carries
+    battery_level on the lock object we are already holding, so this costs an
+    attribute read and no extra call.
+
+    THE TIMESTAMP IS HALF THE READING. A battery figure with no date cannot be
+    told from a stale one, and during the fourteen days the worker was dead
+    every number in this database stayed exactly where it was, looking current.
+    battery_checked_at is what lets the page say "80%, a fortnight ago".
+
+    ONE ROW PER DEVICE, NOT PER LOCK ROW. Royal Side is one physical lock with
+    two property_locks rows; both get the same reading, because they are the
+    same battery.
+    """
+    print("\n── 1b. BATTERY ──")
+    for devid, lk_row in st.row_for_device.items():
+        lk = devices.get(devid)
+        level = getattr(lk, "battery_level", None) if lk is not None else None
+        if level is None:
+            print(f"   {lk_row['lock_name']:<26} no reading")
+            continue
+
+        #  READ THE OLD VALUE BEFORE WRITING THE NEW ONE. The alert fires as the
+        #  level CROSSES the threshold, not while it sits below it — on an
+        #  hourly schedule the second reading would otherwise nag every hour
+        #  until the batteries were changed, and an alert that repeats forever
+        #  is one that gets filtered. Asking afterwards would compare the new
+        #  value with itself and never fire at all.
+        was = lk_row.get("battery_level")
+        crossed = level <= BATTERY_LOW and not (isinstance(was, int) and was <= BATTERY_LOW)
+
+        print(f"   {lk_row['lock_name']:<26} {level}%"
+              + ("   LOW" if level <= BATTERY_LOW else "")
+              + ("   (newly)" if crossed else ""))
+
+        if COMMIT:
+            # every row sharing this device — same lock, same battery, same number
+            sb(f"property_locks?schlage_device_id=eq.{devid}", "PATCH",
+               {"battery_level": int(level), "battery_checked_at": iso(now_utc())},
+               prefer="return=minimal")
+        if crossed:
+            log_system("lock.battery_low",
+                       f"CHANGE THE BATTERIES: {lk_row['lock_name']} is at {level}% — a flat lock takes no code and opens for nobody",
+                       {"lock": lk_row["lock_name"], "battery_level": level,
+                        "previous": was, "source": "worker"}, lk_row["property_id"])
+
+
 def phase_names(st, devices):
     """Fill a missing guest_name from Airbnb's own code label, before anything
     is named after it.
@@ -1369,6 +1448,17 @@ def check_version():
         return
     h = lambda f: hashlib.sha256(open(f, "rb").read()).hexdigest()
     if h(here) != h(repo):
+        #  LOG BEFORE EXITING. This check runs before anything else, so a
+        #  drifted copy used to die having written nothing at all — and once the
+        #  worker is on a schedule that is the fourteen-day stall reproduced
+        #  hourly, in silence. It is recorded as lock.auth so the heartbeat
+        #  panel's existing query finds it without knowing this failure exists;
+        #  `stage` says which step refused.
+        log_system("lock.auth",
+                   "The worker on this Mac is out of date and refused to run — copy the repo version over",
+                   {"ok": False, "stage": "version", "source": "worker",
+                    "error": "Desktop copy differs from the repo copy",
+                    "running": here, "repo": repo}, force=True)
         print("\n  !! THIS COPY IS OUT OF DATE")
         print(f"     running : {here}")
         print(f"     repo    : {repo}")
@@ -1410,7 +1500,7 @@ def main():
     except Exception as ex:
         log_system("lock.auth",
                    f"Could not sign in to Schlage as {user} — the worker did no work",
-                   {"ok": False, "error": f"{type(ex).__name__}: {ex}"[:400],
+                   {"ok": False, "stage": "signin", "error": f"{type(ex).__name__}: {ex}"[:400],
                     "account": user, "source": "worker"}, force=True)
         print(f"\n  !! SCHLAGE SIGN-IN FAILED — {type(ex).__name__}: {ex}")
         print( "     No phase has run. The queue is untouched and nothing was programmed.")
@@ -1422,7 +1512,7 @@ def main():
         raise SystemExit(1)
 
     log_system("lock.auth", f"Signed in to Schlage · {len(devices)} lock(s) on the account",
-               {"ok": True, "account": user, "devices": len(devices),
+               {"ok": True, "stage": "signin", "account": user, "devices": len(devices),
                 "committing": COMMIT, "source": "worker"}, force=True)
     print(f"  {len(devices)} lock(s) on the Schlage account")
 
@@ -1430,6 +1520,7 @@ def main():
     if missing:
         print(f"  !! not found on the account: {', '.join(sorted(set(missing)))}")
 
+    phase_battery(st, devices)
     phase_names(st, devices)
     phase_relabel(st, devices)
     phase_mirror(st, devices)
