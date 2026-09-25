@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server'
 import { hasRole, hasPermission } from '@/lib/auth'
-import { Seam } from 'seam'
 import { createAdminClient } from '@/lib/supabase/server'
 
 /*  The morning check: is every upcoming stay's code where it should be.
@@ -17,19 +16,19 @@ import { createAdminClient } from '@/lib/supabase/server'
  *  working account produced the same false `missing` for that door, and always
  *  had.
  *
- *  TWO CHANGES. codesOn returns NULL when it could not read, never []. And a
- *  door whose codes could not be read is never described from Seam — its state
- *  comes from lock_actions instead, which is the queue the worker actually
- *  drains and the only thing that still knows anything. The stored snapshot
- *  records which source it came from, so a later reader cannot mistake a
- *  queue-derived status for a device-confirmed one.
+ *  SEAM IS GONE FROM HERE ENTIRELY. The first fix made this fall back to the
+ *  queue when Seam could not be read; it never could, so the fallback was the
+ *  only path that ever ran. Keeping the call meant a dead vendor decided how
+ *  long this endpoint took and what it reported, for a result it could not
+ *  supply. State now comes from lock_actions, and from the lock_status the
+ *  worker writes off the hardware — one hop through a process that can actually
+ *  see a lock, rather than none through one that cannot.
  *
- *  `unknown` IS A REAL ANSWER and it is allowed to persist. What may not
- *  persist is a confident wrong one. */
+ *  `unknown` IS A REAL ANSWER. Nothing here persists at all now — see the note
+ *  at the former write — so what this returns is a view, and the stored
+ *  lock_status stays whatever the worker last read off the hardware. */
 
 export const dynamic = 'force-dynamic'
-
-type Codes = any[] | null
 
 export async function GET() {
   if (!await hasRole('owner', 'co-owner')) return NextResponse.json({ error: 'Not allowed' }, { status: 403 })
@@ -37,41 +36,15 @@ export async function GET() {
       derived snapshot. The programming lives in /api/cron/automations. */
   if (!await hasPermission('locks', 'view')) return NextResponse.json({ error: 'Not allowed to view lock status' }, { status: 403 })
 
-  const apiKey = process.env.SEAM_API_KEY
-  const seam = apiKey ? new Seam({ apiKey }) : null
   const supabase = createAdminClient()
   const today = new Date().toISOString().split('T')[0]
   const checkedAt = new Date().toISOString()
 
-  /*  Whether Seam answered at all this run, as opposed to per-device. One 401
-      condemns the whole account, and reporting it once is honest where
-      reporting it per door looks like six separate lock faults. */
-  let seamReachable: boolean | null = apiKey ? null : false
-  let seamError: string | null = apiKey ? null : 'SEAM_API_KEY is not set'
-
   const { data: allLocks } = await supabase.from('property_locks').select('*').eq('active', true)
   const locksFor = (pid: string) => (allLocks || []).filter((l: any) => l.property_id === pid)
 
-  const deviceCache: Record<string, Codes> = {}
-  async function codesOn(deviceId: string): Promise<Codes> {
-    if (deviceId in deviceCache) return deviceCache[deviceId]
-    if (!seam || seamReachable === false) { deviceCache[deviceId] = null; return null }
-    try {
-      const codes = await seam.accessCodes.list({ device_id: deviceId })
-      seamReachable = true
-      deviceCache[deviceId] = codes
-      return codes
-    } catch (e: any) {
-      // NULL, not []. The difference between "no codes" and "could not look".
-      seamReachable = false
-      seamError = seamError || e?.message || 'Seam did not answer'
-      deviceCache[deviceId] = null
-      return null
-    }
-  }
-
-  /*  What the queue knows about this booking and this lock. The worker's own
-      record, and the only source of truth left when the device cannot be read. */
+  /*  What the queue knows about this booking and this lock — the worker's own
+      record of what it was asked to do and what it reported back. */
   const bookingIds: string[] = []
   const { data: platRaw } = await supabase.from('calendar_blocks')
     .select('id, property_id, platform, start_date, end_date, door_code, guest_name, checked_in_at')
@@ -104,9 +77,9 @@ export async function GET() {
     failed:  { status: 'failed',      errored: true,  scheduled: false },
   }
 
-  function doorFor(bookingId: string, lock: any, expectedCode: string, codes: Codes) {
+  function doorFor(bookingId: string, lock: any, expectedCode: string) {
     const q = latest[`${bookingId}|${lock.id}`]
-    if (codes === null) {
+    {
       /*  DEVICE UNREADABLE. Everything below comes from the queue and is
           labelled so, because "the worker says it programmed this" is a weaker
           claim than "the lock says the code is on it" and must not be filed as
@@ -121,12 +94,6 @@ export async function GET() {
         note: q ? undefined : 'no intent recorded for this door, and the lock could not be read',
       }
     }
-    const match = expectedCode ? codes.find((c: any) => c.code === expectedCode) : null
-    if (!match) return { lock: lock.lock_name, code: expectedCode || null, source: 'seam' as const, status: 'missing', errored: false, scheduled: false }
-    return {
-      lock: lock.lock_name, code: expectedCode || null, source: 'seam' as const,
-      status: match.status, errored: (match.errors || []).length > 0, scheduled: !!match.is_scheduled_on_device,
-    }
   }
 
   /*  A door is a problem when it is KNOWN to be wrong. `unknown` is not a
@@ -137,8 +104,7 @@ export async function GET() {
     d.errored
     || d.status === 'missing'
     || d.status === 'failed'
-    || (within72 && d.source === 'queue' && (d.status === 'queued' || d.status === 'unknown'))
-    || (within72 && d.source === 'seam' && d.status !== 'set' && !d.scheduled)
+    || (within72 && (d.status === 'queued' || d.status === 'unknown'))
 
   const rows: any[] = []
 
@@ -153,7 +119,7 @@ export async function GET() {
     const doors: any[] = []
     for (const lock of locksFor(opts.propertyId)) {
       if (isAirbnb && lock.airbnb_managed) continue   // Airbnb codes its own unit door
-      doors.push(doorFor(opts.id, lock, code, await codesOn(lock.seam_device_id)))
+      doors.push(doorFor(opts.id, lock, code))
     }
     const hrsUntil = (new Date(opts.start + 'T16:00:00').getTime() - Date.now()) / 3600000
     const within72 = hrsUntil < 72
@@ -165,13 +131,17 @@ export async function GET() {
       within72,
       /*  Provenance travels with the snapshot. A reader months from now must be
           able to tell a device-confirmed record from a worker-reported one. */
-      source: seamReachable ? 'seam' : 'queue',
-      seam_reachable: seamReachable !== false,
-      seam_error: seamReachable === false ? seamError : null,
+      source: 'queue',
       unknown_doors: unknowns,
       checked_at: checkedAt,
     }
-    await supabase.from(opts.table).update({ lock_status: status }).eq('id', opts.id)
+    /*  IT NO LONGER WRITES. The worker reads every lock with pyschlage and
+        PATCHes lock_status itself, in this same shape — two writers, one
+        column, last one wins and nothing recorded which. When this ran it
+        replaced a DEVICE reading with a QUEUE inference: weaker, and indistinguishable
+        afterwards. The worker's copy is the one taken off the hardware, so the
+        worker keeps the column and this endpoint answers the request and
+        persists nothing. */
     rows.push({ id: opts.id, kind: opts.kind, guest: opts.guest, property: opts.propertyId, platform: opts.platform, start: opts.start, end: opts.end, code: code || null, checked_in_at: opts.checkedInAt, ...status })
   }
 
@@ -187,9 +157,7 @@ export async function GET() {
     checked_at: checkedAt,
     /*  Said once, at the top, so the page can lead with it rather than letting
         the operator infer an outage from six identical door faults. */
-    seam_reachable: seamReachable !== false,
-    seam_error: seamReachable === false ? seamError : null,
-    reading_from: seamReachable ? 'the locks' : 'the queue — the locks could not be read',
+    reading_from: 'the queue and what the worker last read off the locks',
     count: rows.length,
     needs_attention: rows.filter(r => r.needs_attention).length,
     unknown_doors: rows.reduce((n, r) => n + (r.unknown_doors || 0), 0),

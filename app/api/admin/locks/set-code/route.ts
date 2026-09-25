@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireArea } from '@/lib/require-area'
 import { queueForBooking } from '@/lib/lock-queue'
-import { windowFromBooking } from '@/lib/seam'
+import { windowFromBooking } from '@/lib/lock-window'
 import { createAdminClient } from '@/lib/supabase/server'
 
 /*  Set a door code for a stay.

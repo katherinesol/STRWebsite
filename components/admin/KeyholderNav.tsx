@@ -47,7 +47,7 @@ export const SECTIONS = [
 // the legacy shell, and /admin/locks is still built around a sweep rather than
 // around the queue that actually drives the doors. That is the rebuild.
 export const ACCESS_ITEMS = [
-  { name: 'Locks', href: '/admin/locks', note: 'Codes and lock status — reads the queue while Seam is paused' },
+  { name: 'Locks', href: '/keyholder/access/locks', note: 'Door codes, the queue, and the worker\u2019s health' },
   { name: 'Door Activity', href: '/keyholder/access/door-activity', note: 'Every entry and check-in' },
   { name: 'Staff Access', href: '/admin/staff-access', note: 'Cleaner and contractor codes — programmed by hand' },
   { name: 'System Activity', href: '/keyholder/access/system-log', note: 'Everything the system did' },

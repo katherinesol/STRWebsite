@@ -29,7 +29,11 @@ export async function PATCH(
     'late_checkout_fee_per_hour', 'parking_spots', 'bag_drop_available',
     'instacart_available', 'security_deposit_amount',
     'referral_reward_referrer', 'referral_reward_referred',
-    'schlage_devices', 'cleaning_duration_mins',
+    // 'schlage_devices' is gone — the column was dropped in locks_stage3.sql.
+    // It held six entries whose device_id was the empty string, naming locks this
+    // account does not have, and nothing operational ever read it. Locks are
+    // property_locks; they are edited on /keyholder/access/locks.
+    'cleaning_duration_mins',
   ] as const
   const p = pick(await request.json(), ALLOWED)
   if (!p.ok) return NextResponse.json(rejection(p.rejected, ALLOWED), { status: 400 })
