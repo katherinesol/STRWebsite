@@ -273,6 +273,21 @@ class State:
         #  rather than every run. Drop it from this select and the low-battery
         #  warning silently becomes hourly nagging.
         self.locks = sb("property_locks?select=id,property_id,lock_name,airbnb_managed,schlage_device_id,battery_level&active=eq.true")
+
+        #  CODES THAT BELONG TO A PERSON, NOT A STAY. Without these, match_code
+        #  compares an entry only against bookings, so every time Katherine or
+        #  Ana opened a door it was logged "opened with an unrecognised code" —
+        #  112 times since July for Katherine's master alone — and Curtis's
+        #  electrician code has sat in staff_access since 29 July never once
+        #  being recognised. An alert that fires on known-good activity is one
+        #  people learn to scroll past, which costs the real ones their meaning.
+        self.standing = {}
+        for r in sb("standing_codes?select=code,label&active=eq.true") or []:
+            self.standing[str(r["code"])] = r["label"]
+        for r in sb("staff_access?select=code,person_name,role&active=eq.true") or []:
+            if r.get("code"):
+                self.standing.setdefault(str(r["code"]),
+                    f'{r["person_name"]}' + (f' ({r["role"]})' if r.get("role") else ''))
         self.by_id = {l["id"]: l for l in self.locks}
         #  ONE PHYSICAL DEVICE CAN SERVE SEVERAL PROPERTIES. Royal Side is
         #  registered against both royal-york-east and royal-york-west because
@@ -1411,6 +1426,24 @@ def match_code_any(st, devid, code):
         who, bid, kind = match_code(st, pid, code)
         if who:
             return who, bid, kind
+
+    #  A STAY FIRST, THEN A PERSON. Bookings are checked above because a guest
+    #  code is the one that should stamp a check-in; a standing code must never
+    #  do that, so these return no booking id and the caller's check-in logic
+    #  cannot fire on them.
+    #
+    #  BOTH FORMS COMPARED, because the two writers disagree. The Seam webhook
+    #  stored slice(-4) and the worker stores codes whole, so the owner's
+    #  8-digit master is "25213109" in one row and "3109" in a hundred others.
+    #  Matching only one form would leave half the log unrecognised and look
+    #  like the fix had not worked.
+    label = st.standing.get(str(code)) if code else None
+    if not label and code:
+        tail = digits4(code)
+        label = next((v for k, v in st.standing.items() if digits4(k) == tail and tail), None)
+    if label:
+        return label, None, None
+
     return None, None, None
 
 
