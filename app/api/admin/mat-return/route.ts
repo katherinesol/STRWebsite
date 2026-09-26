@@ -27,6 +27,18 @@ export async function GET(request: NextRequest) {
   const to = new Date(Date.UTC(year, qEnd + 1, 0)).toISOString().split('T')[0]
 
   const supabase = createAdminClient()
+
+  /*  BOTH TABLES. This read calendar_blocks only, so every direct booking was
+      invisible to the return — not excluded by a rule, simply never looked at.
+      Nickel Beach has four of them, two inside Q3 2026, and a direct stay owes
+      MAT exactly as a platform one does: the provider remits it rather than a
+      platform, which is more reason to count it, not less.
+ 
+      They are mapped into the same shape and run through the same loop below,
+      so there is one MAT rule rather than two that can drift. What differs is
+      only what the row is called: direct bookings have no discount column and
+      no platform, and resolveApplyTax is asked about 'direct' rather than a
+      platform name. */
   const { data: blocks } = await supabase
     .from('calendar_blocks')
     .select('id, guest_name, platform, start_date, end_date, accommodation, discount, mat, taxes_collected, apply_tax, confirmation_code')
@@ -38,10 +50,45 @@ export async function GET(request: NextRequest) {
     .gte('end_date', from)
     .order('start_date')
 
+  const { data: directs } = await supabase
+    .from('bookings')
+    .select('id, check_in, check_out, accommodation, cleaning_fee, mat, apply_tax, confirmation_code, guests:guest_id(name)')
+    .neq('status', 'cancelled')
+    .eq('property_id', property)
+    .lte('check_in', to)
+    .gte('check_out', from)
+    .order('check_in')
+
+  /*  One list, one rule. `source` is carried so apply_tax resolves against the
+      right default — a direct booking defaults to NOT taxable, a platform one
+      to taxable-if-the-platform-charges — and so the response can say which a
+      row came from. */
+  type Row = {
+    id: string; guest_name: string | null; platform: string | null; source: 'platform' | 'direct'
+    start_date: string; end_date: string
+    accommodation: number | null; discount: number | null; mat: number | null
+    apply_tax: boolean | null; confirmation_code: string | null
+  }
+  const all: Row[] = [
+    ...(blocks || []).map((b: any) => ({
+      id: b.id, guest_name: b.guest_name, platform: b.platform, source: 'platform' as const,
+      start_date: b.start_date, end_date: b.end_date,
+      accommodation: b.accommodation, discount: b.discount, mat: b.mat,
+      apply_tax: b.apply_tax, confirmation_code: b.confirmation_code,
+    })),
+    ...(directs || []).map((b: any) => ({
+      id: b.id, guest_name: b.guests?.name || null, platform: 'direct', source: 'direct' as const,
+      start_date: b.check_in, end_date: b.check_out,
+      // no discount column on bookings — a direct discount is taken off the rate itself
+      accommodation: b.accommodation, discount: 0, mat: b.mat,
+      apply_tax: b.apply_tax, confirmation_code: b.confirmation_code,
+    })),
+  ].sort((x, y) => x.start_date.localeCompare(y.start_date))
+
   /*  Refunds come off the room BEFORE it is apportioned, so a refund lands in
       the months the nights were in rather than the month the money went back.
       Airbnb's share of a MAT reversal is not netted here - see lib/mat-refunds. */
-  const net = await loadRefundNetting(supabase, (blocks || []).map(b => b.id))
+  const net = await loadRefundNetting(supabase, all.map(b => b.id))
 
   const n = (v: unknown) => (v == null ? 0 : Number(v) || 0)
   const nights = (a: string, b: string) => Math.max(0, Math.round((Date.parse(b) - Date.parse(a)) / DAY))
@@ -51,9 +98,9 @@ export async function GET(request: NextRequest) {
     monthIndex: m, nights: 0, roomRevenue: 0, exemptRevenue: 0, matOwed: 0,
   }))
 
-  const rows = (blocks || []).map(b => {
+  const rows = all.map(b => {
     const total = nights(b.start_date, b.end_date)
-    const taxable = resolveApplyTax(b.apply_tax, 'platform', b.platform)
+    const taxable = resolveApplyTax(b.apply_tax, b.source, b.platform)
     const tooLong = matExempt(property, total)
     const exempt = !taxable || tooLong
     const roomBilled = r2(n(b.accommodation) - n(b.discount))
@@ -80,7 +127,7 @@ export async function GET(request: NextRequest) {
     const matOwed = exempt ? 0 : r2(qRoom * rate)
     const matStored = b.mat == null ? null : n(b.mat)
     return {
-      id: b.id, guest: b.guest_name, platform: b.platform,
+      id: b.id, guest: b.guest_name, platform: b.platform, source: b.source,
       start: b.start_date, end: b.end_date, nights: qNights,
       room: r2(qRoom), rate, exempt,
       roomBilled, roomRefunded,
@@ -122,6 +169,8 @@ export async function GET(request: NextRequest) {
       collected: totalCollected, gap: r2(totalOwed - totalCollected),
       shortCount: short.length, missingCount: missing.length,
       bookingCount: rows.length,
+      directCount: rows.filter(r => r.source === 'direct').length,
+      directExcluded: rows.filter(r => r.source === 'direct' && r.exempt).length,
     },
   })
 }
